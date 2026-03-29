@@ -4154,6 +4154,8 @@ let _liveDate = new Date().toISOString().slice(0, 10);
 
 async function initLive() {
   renderLiveDatePicker();
+  // Vänta en tick så DOM hinner uppdateras innan vi hämtar data
+  await new Promise(r => setTimeout(r, 0));
   await loadLiveByDate(_liveDate, _liveFilter);
 }
 
