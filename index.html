@@ -2856,10 +2856,25 @@ function renderLeaguesByCountry(leagues, region) {
     return a.localeCompare(b);
   });
 
-  // Liganamn som tyder på damfotboll
-  const womenKeywords = ['women','woman','female','ladies','damen','feminin','femenin','dam','naisten','kvinner','kvinde'];
-  function isWomen(name) {
-    return womenKeywords.some(k => name.toLowerCase().includes(k));
+  // Komplett dam-liga ID-lista — genererad från API-Footballs fullständiga ligalista
+  const WOMEN_LEAGUE_IDS = new Set([
+    8,44,64,74,82,91,139,142,146,190,254,484,524,525,
+    549,638,649,660,666,669,670,671,673,697,698,699,
+    712,725,733,736,737,739,743,854,880,897,912,915,
+    918,922,926,947,948,949,950,1001,1013,1033,1034,
+    1040,1057,1058,1070,1081,1083,1085,1101,1102,1103,
+    1137,1140,1164,1171,1175,1188,1189,1190,1191,1198,1206
+  ]);
+
+  const womenKeywords = ['women','woman','female','ladies','damen','feminin','femenin','naisten','kvinner','kvinde','femenino','feminino','mulheres','mujer','feminil','feminino'];
+  
+  function isWomen(name, leagueId) {
+    if (!name) return false;
+    // Kolla ID först — 100% säkert
+    if (leagueId && WOMEN_LEAGUE_IDS.has(leagueId)) return true;
+    // Kolla nyckelord i namnet
+    const n = name.toLowerCase();
+    return womenKeywords.some(k => n.includes(k));
   }
 
   // Hierarkisk rangordning av ligor per land
@@ -2943,9 +2958,9 @@ function renderLeaguesByCountry(leagues, region) {
 
   // Sortera ligor: herr först (rangordnat), dam sist
   function sortLeagues(ls) {
-    const men   = ls.filter(l => !isWomen(l.league.name))
+    const men   = ls.filter(l => !isWomen(l.league.name, l.league.id))
                     .sort((a,b) => leagueRank(a.league.name) - leagueRank(b.league.name));
-    const women = ls.filter(l =>  isWomen(l.league.name))
+    const women = ls.filter(l =>  isWomen(l.league.name, l.league.id))
                     .sort((a,b) => leagueRank(a.league.name) - leagueRank(b.league.name));
     return { men, women };
   }
