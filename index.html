@@ -4792,7 +4792,13 @@ async function fastFootballSearch(query) {
     return null;
   }
 
-  const season = new Date().getFullYear() - 1;
+  const currentYear = new Date().getFullYear();
+
+  // Detektera om frågan nämner ett specifikt år
+  const yearMatch = q.match(/20(1[5-9]|2[0-9])/);
+  const askedYear = yearMatch ? parseInt(yearMatch[0]) : null;
+  const lastYear = q.includes('last year') || q.includes('last season') || q.includes('last season') || q.includes('forrige') || q.includes('forra') || q.includes('fjoråret');
+  const season = askedYear ?? (lastYear ? currentYear - 1 : currentYear - 1);
 
   // Pattern: topscorers in league
   const scorerMatch = q.match(/(?:top scorer|most goals|flest|scored most|topscorer).*?(?:in|i|for)\s+(.+?)(?:\s+this|\s+last|\s+season|$)/);
@@ -4820,9 +4826,27 @@ async function fastFootballSearch(query) {
     const team = await findTeamId(teamName);
     if (team) {
       let players = [];
-      for (const yr of [season, season-1]) {
-        const d = await apiFetch('players', { team: team.id, season: yr, page: 1 });
-        if (d.response?.length) { players = d.response; break; }
+      const yearsToTry = askedYear
+        ? [askedYear, askedYear - 1]
+        : [currentYear - 1, currentYear - 2, currentYear - 3];
+
+      for (const yr of yearsToTry) {
+        const first = await apiFetch('players', { team: team.id, season: yr, page: 1 });
+        if (!first.response?.length) continue;
+
+        const totalPages = first.paging?.total || 1;
+        players = [...first.response];
+
+        // Hämta alla återstående sidor parallellt
+        if (totalPages > 1) {
+          const rest = await Promise.all(
+            Array.from({length: totalPages - 1}, (_, i) =>
+              apiFetch('players', { team: team.id, season: yr, page: i + 2 }).catch(() => ({ response: [] }))
+            )
+          );
+          rest.forEach(p => players.push(...(p.response || [])));
+        }
+        break;
       }
       if (players.length) {
         const isAssists = q.includes('assist');
