@@ -1,33 +1,17 @@
 export const config = { runtime: 'edge' };
 
-// Lag från många olika ligor och länder för global täckning
-const GLOBAL_TEAMS = [
+// Top 5 ligor — 5 lag per liga = 25 anrop totalt, snabbt
+const TOP5_TEAMS = [
   // Premier League
-  33, 40, 42, 47, 50, 49, 51, 34, 48, 55,
+  33, 40, 42, 47, 50,
   // La Liga
-  529, 530, 532, 541, 543, 546, 548,
+  529, 530, 532, 541, 548,
   // Bundesliga
-  157, 165, 173, 168, 161, 162,
+  157, 165, 168, 173, 161,
   // Serie A
-  489, 492, 496, 488, 487, 502,
+  489, 492, 496, 488, 487,
   // Ligue 1
   85, 81, 80, 84, 91,
-  // Eredivisie
-  194, 197, 210,
-  // Primeira Liga
-  212, 228, 211,
-  // Süper Lig
-  611, 614, 612,
-  // Saudi Pro League
-  2932, 2931, 7007,
-  // MLS
-  1615, 1603, 1599,
-  // Brasileirão
-  119, 118, 121,
-  // Allsvenskan
-  371, 372,
-  // Champions League deltagare utanför top 5
-  559, 631, 487, 569, // Benfica, PSV, Napoli, Rangers
 ];
 
 export default async function handler(req) {
@@ -43,29 +27,17 @@ export default async function handler(req) {
 
   if (endpoint === 'transfers/global') {
     try {
-      // Hämta i batchar om 10 lag åt gången för att inte överbelasta
-      const batchSize = 10;
-      const batches = [];
-      for (let i = 0; i < GLOBAL_TEAMS.length; i += batchSize) {
-        batches.push(GLOBAL_TEAMS.slice(i, i + batchSize));
-      }
+      const cutoff = new Date('2024-06-01');
 
-      const allResponses = await Promise.all(
-        batches.map(batch =>
-          Promise.all(
-            batch.map(id =>
-              fetch(`https://v3.football.api-sports.io/transfers?team=${id}`, {
-                headers: { 'x-apisports-key': process.env.APISPORTS_KEY }
-              }).then(r => r.json()).catch(() => ({ response: [] }))
-            )
-          )
+      const responses = await Promise.all(
+        TOP5_TEAMS.map(id =>
+          fetch(`https://v3.football.api-sports.io/transfers?team=${id}`, {
+            headers: { 'x-apisports-key': process.env.APISPORTS_KEY }
+          }).then(r => r.json()).catch(() => ({ response: [] }))
         )
       );
 
-      const cutoff = new Date('2024-06-01'); // Bara transfers från säsongen 2024/25
-
-      const all = allResponses
-        .flat()
+      const all = responses
         .flatMap(r => r.response || [])
         .flatMap(entry =>
           (entry.transfers || []).map(tr => ({
@@ -83,7 +55,7 @@ export default async function handler(req) {
       // Ta bort dubletter
       const seen = new Set();
       const unique = all.filter(t => {
-        const key = `${t.playerId}-${t.date}-${t.to}`;
+        const key = `${t.playerId}-${t.from}-${t.to}`;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
