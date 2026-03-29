@@ -4771,6 +4771,128 @@ if (isIOS && !isStandalone) {
 
 initHome();
 
+// ── Snabb mönsterigenkänning för vanliga fotbollsfrågor ──
+async function fastFootballSearch(query) {
+  const q = query.toLowerCase();
+
+  // Hjälpfunktion: hitta lag-ID från namn
+  async function findTeamId(name) {
+    const data = await apiFetch('teams', { search: name });
+    return data.response?.[0]?.team;
+  }
+
+  // Hjälpfunktion: hitta liga-ID
+  function findLeagueId(name) {
+    const n = name.toLowerCase();
+    const map = {
+      'premier league': 39, 'pl': 39,
+      'la liga': 140, 'bundesliga': 78,
+      'serie a': 135, 'ligue 1': 61,
+      'champions league': 2, 'ucl': 2,
+      'allsvenskan': 113, 'eliteserien': 103,
+    };
+    for (const [k,v] of Object.entries(map)) {
+      if (n.includes(k)) return v;
+    }
+    return null;
+  }
+
+  const thisYear = new Date().getFullYear();
+  const season = thisYear - 1; // senaste kompletta
+
+  // ── Mönster: "topscorers/flest mål i [liga]" ──
+  const scorerMatch = q.match(/(?:top scorer|most goals|flest mål|göra mål|scored most|topscorer).*?(?:in|i|för)\s+(.+?)(?:\s+this|\s+förra|\s+last|\s+season|\s+säsong|$)/);
+  if (scorerMatch) {
+    const leagueId = findLeagueId(scorerMatch[1]);
+    if (leagueId) {
+      const data = await apiFetch('players/topscorers', { league: leagueId, season });
+      const players = data.response?.slice(0, 5) || [];
+      if (players.length) {
+        return `⚽ **Top Scorers:**
+` + players.map((p,i) =>
+          `${i+1}. ${fixEncoding(p.player.name)} (${fixName(p.statistics[0]?.team?.name||'')}) — ${p.statistics[0]?.goals?.total||0} goals`
+        ).join('
+');
+      }
+    }
+  }
+
+  // ── Mönster: "flest mål/assists/mål i [lag]" ──
+  const teamStatMatch = q.match(/(?:flest|most|top|best|vem|who)\s+(?:mål|goals|assists|passningar|passes|kort|cards|tacklingar|tackles).*?(?:i|in|for|för)\s+(.{3,25})(?:\s|$)/);
+  if (teamStatMatch) {
+    const teamName = teamStatMatch[1].trim();
+    const team = await findTeamId(teamName);
+    if (team) {
+      // Hitta säsong med data
+      let players = [];
+      for (const yr of [season, season-1]) {
+        const d = await apiFetch('players', { team: team.id, season: yr, page: 1 });
+        if (d.response?.length) { players = d.response; break; }
+      }
+      if (players.length) {
+        const isAssists  = q.includes('assist') || q.includes('passning');
+        const isTackles  = q.includes('tackling') || q.includes('tackle');
+        const isPasses   = q.includes('pass');
+        const isCards    = q.includes('kort') || q.includes('card');
+
+        const sumStat = (p, fn) => (p.statistics||[]).reduce((a,s) => a+(fn(s)||0), 0);
+        let sorted, label, valFn;
+
+        if (isAssists)      { valFn = s=>s.goals?.assists;    label = 'assists'; }
+        else if (isTackles) { valFn = s=>s.tackles?.total;    label = 'tackles'; }
+        else if (isPasses)  { valFn = s=>s.passes?.total;     label = 'passes'; }
+        else if (isCards)   { valFn = s=>s.cards?.yellow;     label = 'yellow cards'; }
+        else                { valFn = s=>s.goals?.total;      label = 'goals'; }
+
+        sorted = players
+          .map(p => ({ p, val: sumStat(p, valFn) }))
+          .filter(x => x.val > 0)
+          .sort((a,b) => b.val - a.val)
+          .slice(0, 5);
+
+        if (sorted.length) {
+          return `📊 **Most ${label} in ${fixName(team.name)}:**
+` +
+            sorted.map((x,i) => `${i+1}. ${fixEncoding(x.p.player.name)} — ${x.val}`).join('
+');
+        }
+      }
+    }
+  }
+
+  // ── Mönster: "tabell [liga]" ──
+  const tableMatch = q.match(/(?:table|tabell|standings|tabellen).*?(?:i|in|for|för)?\s*(premier league|la liga|bundesliga|serie a|ligue 1|allsvenskan|eliteserien|champions league)/);
+  if (tableMatch) {
+    const leagueId = findLeagueId(tableMatch[1]);
+    if (leagueId) {
+      const data = await apiFetch('standings', { league: leagueId, season });
+      const table = data.response?.[0]?.league?.standings?.[0]?.slice(0,5) || [];
+      if (table.length) {
+        return `📊 **Standings (Top 5):**
+` +
+          table.map(r => `${r.rank}. ${fixName(r.team.name)} — ${r.points} pts (${r.all.win}W ${r.all.draw}D ${r.all.lose}L)`).join('
+');
+      }
+    }
+  }
+
+  // ── Mönster: "[spelare] stats/statistik" ──
+  const playerMatch = q.match(/(?:stats|statistik|goals|mål|assists).*?(?:for|för|of|av)?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
+  if (playerMatch) {
+    const name = playerMatch[1];
+    const data = await apiFetch('players', { search: name, season });
+    const p = data.response?.[0];
+    if (p) {
+      const s = p.statistics?.[0];
+      return `👤 **${fixEncoding(p.player.name)}** (${fixName(s?.team?.name||'')})
+` +
+        `⚽ Goals: ${s?.goals?.total||0} | 🅰️ Assists: ${s?.goals?.assists||0} | 📋 Apps: ${s?.games?.appearences||0}`;
+    }
+  }
+
+  return null; // Ingen snabb match — falla tillbaka på Claude
+}
+
 async function sendAIQuery() {
   const input = document.getElementById('aiSearchInput');
   const query = input.value.trim();
@@ -4780,9 +4902,22 @@ async function sendAIQuery() {
   resp.style.display = 'block';
   resp.innerHTML = `<div class="ai-thinking">
     <div class="ai-thinking-dots"><span></span><span></span><span></span></div>
-    Analysing your query…
+    Searching…
   </div>`;
 
+  // Prova snabb lokal sökning först
+  try {
+    const fast = await fastFootballSearch(query);
+    if (fast) {
+      resp.innerHTML = `<div style="white-space:pre-line;line-height:1.8;font-size:14px">${fast}</div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text3)">⚡ Data from API-Football</div>`;
+      return;
+    }
+  } catch(e) {
+    // Snabb sökning misslyckades — fortsätt till Claude
+  }
+
+  // Falla tillbaka på Claude för komplexa frågor
   try {
     const res = await fetch('/api/ai', {
       method: 'POST',
@@ -4793,7 +4928,7 @@ async function sendAIQuery() {
     if (data.error) throw new Error(data.error);
     resp.innerHTML = `<div style="white-space:pre-line;line-height:1.7">${data.answer}</div>`;
   } catch(err) {
-    resp.innerHTML = `<div style="color:var(--text2)">⚠️ AI tillfälligt otillgänglig. Försök igen om en stund.</div>`;
+    resp.innerHTML = `<div style="color:var(--text2)">⚠️ Kunde inte hitta svar. Försök igen.</div>`;
   }
 }
 
