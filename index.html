@@ -3692,8 +3692,9 @@ async function showMatchTab(tab, btn, fixtureId) {
       }
 
       const renderTeam = (team) => {
-        const starters = team.startXI || [];
-        const subs = team.substitutes || [];
+        // API: startXI = [{player:{id,name,number,pos,grid}}]
+        const starters = (team.startXI || []).map(p => p.player);
+        const subs = (team.substitutes || []).map(p => p.player);
         return `
           <div>
             <div class="lineup-team-title">
@@ -3702,18 +3703,18 @@ async function showMatchTab(tab, btn, fixtureId) {
               <span style="color:var(--text3);font-size:13px;font-weight:400">${team.formation || ''}</span>
             </div>
             ${starters.map(p => `
-              <div class="lineup-player" onclick="showPlayer(${p.player?.id})">
-                <div class="lineup-number">${p.player?.number || '—'}</div>
-                <div class="lineup-name">${fixEncoding(p.player?.name || '')}</div>
-                <div class="lineup-pos">${p.player?.pos || ''}</div>
+              <div class="lineup-player" onclick="showPlayer(${p.id})">
+                <div class="lineup-number">${p.number || '—'}</div>
+                <div class="lineup-name">${fixEncoding(p.name || '')}</div>
+                <div class="lineup-pos">${p.pos || ''}</div>
               </div>`).join('')}
             ${subs.length ? `
               <div style="margin-top:10px;font-size:11px;color:var(--text3);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:1px;padding:6px 0">Substitutes</div>
               ${subs.map(p => `
-                <div class="lineup-player" onclick="showPlayer(${p.player?.id})" style="opacity:0.7">
-                  <div class="lineup-number">${p.player?.number || '—'}</div>
-                  <div class="lineup-name">${fixEncoding(p.player?.name || '')}</div>
-                  <div class="lineup-pos">${p.player?.pos || ''}</div>
+                <div class="lineup-player" onclick="showPlayer(${p.id})" style="opacity:0.7">
+                  <div class="lineup-number">${p.number || '—'}</div>
+                  <div class="lineup-name">${fixEncoding(p.name || '')}</div>
+                  <div class="lineup-pos">${p.pos || ''}</div>
                 </div>`).join('')}` : ''}
           </div>`;
       };
