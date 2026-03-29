@@ -2626,33 +2626,41 @@ async function showTeamTab(tab, btn) {
 
       if (!leagueId) throw new Error('no league');
 
-      // Hitta senaste säsong med faktisk data (prova bakåt från aktuell)
+      // Hitta senaste säsong med faktisk data (prova 3 år bakåt)
+      const thisYear = new Date().getFullYear();
       let activeSeason = season;
       let allPlayers = [];
-      for (const yr of [season, season-1, season-2]) {
-        const test = await apiFetch('players', { team: teamId, season: yr, page: 1 });
-        if ((test.response||[]).length > 0) {
-          activeSeason = yr;
-          allPlayers = test.response;
-          break;
-        }
+      const yearsToTry = [season, season-1, season-2, thisYear-1, thisYear-2].filter((v,i,a)=>a.indexOf(v)===i);
+      for (const yr of yearsToTry) {
+        try {
+          const test = await apiFetch('players', { team: teamId, season: yr, page: 1 });
+          if ((test.response||[]).length > 0) {
+            activeSeason = yr;
+            allPlayers = test.response;
+            // Hämta fler sidor
+            const totalPages = Math.min(test.paging?.total||1, 3);
+            if (totalPages > 1) {
+              const extra = await Promise.all(
+                Array.from({length: totalPages-1}, (_,i) =>
+                  apiFetch('players', { team: teamId, season: yr, page: i+2 }).catch(()=>({response:[]}))
+                )
+              );
+              extra.forEach(p => allPlayers.push(...(p.response||[])));
+            }
+            break;
+          }
+        } catch(_) { continue; }
       }
 
       if (!allPlayers.length) {
-        c.innerHTML = `<div style="padding:20px;color:var(--text3)">Ingen spelarstatistik tillgänglig ännu för denna säsong.</div>`;
+        c.innerHTML = `<div style="padding:32px 20px;color:var(--text3);text-align:center">
+          <div style="font-size:32px;margin-bottom:8px">📊</div>
+          <div>No player statistics available yet for this season.</div>
+        </div>`;
         return;
       }
 
-      // Hämta fler sidor om nödvändigt (API ger 20 per sida)
-      const pagesNeeded = Math.min(Math.ceil((playerStatsData?.paging?.total||1)), 3);
-      if (pagesNeeded > 1) {
-        const extraPages = await Promise.all(
-          Array.from({length: pagesNeeded-1}, (_,i) =>
-            apiFetch('players', { team: teamId, season: activeSeason, page: i+2 })
-          )
-        );
-        extraPages.forEach(p => allPlayers.push(...(p.response||[])));
-      }
+      // Pagination hanteras nu i fallback-loopen ovan
 
       // Summera statistik per spelare över alla ligor/cuper den säsongen
       const sumStat = (p, fn) => (p.statistics||[]).reduce((acc,s) => acc + (fn(s)||0), 0);
