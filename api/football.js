@@ -80,11 +80,12 @@ export default async function handler(req) {
     const response = await fetch(url, {
       headers: { 'x-apisports-key': process.env.APISPORTS_KEY }
     });
-    const data = await response.json();
-    return new Response(JSON.stringify(data), {
+    // Skicka råtext direkt — bevarar UTF-8 specialtecken (ć, ä, š etc)
+    const text = await response.text();
+    return new Response(text, {
       status: 200,
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
         'Access-Control-Allow-Origin': '*',
         'Cache-Control': 'public, s-maxage=60',
       }
