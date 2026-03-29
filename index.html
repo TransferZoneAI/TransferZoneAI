@@ -4062,62 +4062,6 @@ document.getElementById('globalSearch').addEventListener('keydown', e => {
 });
 
 // ═══════════════════════════════════════════
-// NAVIGATION HISTORY
-// ═══════════════════════════════════════════
-
-const _navHistory = [];
-
-function showPage(id) {
-  // Push current page to history before navigating
-  const current = document.querySelector('.page.active')?.id?.replace('page-','');
-  if (current && current !== id) {
-    _navHistory.push(current);
-    // Max 20 steps
-    if (_navHistory.length > 20) _navHistory.shift();
-  }
-
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.bottom-nav a').forEach(a => a.classList.remove('active'));
-  document.getElementById('page-'+id)?.classList.add('active');
-  document.getElementById('bnav-'+id)?.classList.add('active');
-  window.scrollTo(0,0);
-
-  updateBackButton(id);
-
-  if (id === 'leagues' && !window._leaguesInited) { initLeagues('all'); window._leaguesInited = true; }
-  if (id === 'transfers' && !window._transfersInited) { initTransfers(); window._transfersInited = true; }
-  if (id === 'toplist' && !window._toplistInited) { showTopList('scorers', document.querySelector('#page-toplist .filter-btn')); window._toplistInited = true; }
-  if (id === 'live' && !window._liveInited) { initLive(); window._liveInited = true; }
-}
-
-function goBack() {
-  if (_navHistory.length === 0) {
-    showPage('home');
-    return;
-  }
-  const prev = _navHistory.pop();
-  // Navigate without pushing to history
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.bottom-nav a').forEach(a => a.classList.remove('active'));
-  document.getElementById('page-'+prev)?.classList.add('active');
-  document.getElementById('bnav-'+prev)?.classList.add('active');
-  window.scrollTo(0,0);
-  updateBackButton(prev);
-}
-
-function updateBackButton(pageId) {
-  // Pages that always hide back button (main nav pages)
-  const mainPages = ['home','leagues','transfers','toplist','live','myclubs'];
-  const bar = document.getElementById('globalBackBar');
-  if (!bar) return;
-  if (mainPages.includes(pageId) && _navHistory.length === 0) {
-    bar.style.display = 'none';
-  } else {
-    bar.style.display = 'flex';
-  }
-}
-
-// ═══════════════════════════════════════════
 // BOOT
 // ═══════════════════════════════════════════
 
