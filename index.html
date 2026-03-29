@@ -2483,64 +2483,83 @@ async function renderLeaguePage(id, name, flag) {
   const c = document.getElementById('allLeaguesContent');
   c.innerHTML = `
     <div style="margin-bottom:20px">
-      <div class="section-title">${flag} <span>${name}</span></div>
+      <div class="section-title"><span>${name}</span></div>
     </div>
     <div class="skeleton" style="height:300px;border-radius:10px"></div>`;
 
   try {
+    // Hämta aktuell säsong för just denna liga
+    const leagueInfo = await apiFetch('leagues', { id });
+    const seasons = leagueInfo.response?.[0]?.seasons || [];
+    const currentSeason = seasons.filter(s => s.current).pop()
+      || seasons[seasons.length - 1];
+    const season = currentSeason?.year ?? new Date().getFullYear();
+
     const [table, scorers] = await Promise.all([
-      fetchStandings(id),
-      fetchTopScorers(id),
+      apiFetch('standings', { league: id, season }),
+      apiFetch('players/topscorers', { league: id, season }),
     ]);
 
-    c.innerHTML = `
-      <div style="margin-bottom:20px">
-        <div class="section-title">${flag} <span>${name}</span></div>
-      </div>
-      <div class="main-grid">
-        <div>
-          <div class="section-title" style="margin-bottom:12px">Standings</div>
-          <div class="table-wrap">
-            <table class="standings-table">
-              <thead><tr><th>#</th><th>Club</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th><th>Form</th></tr></thead>
-              <tbody>${table.map(r => {
-                const cl = r.description?.toLowerCase().includes('champions');
-                const el = r.description?.toLowerCase().includes('europa');
-                const rel = r.description?.toLowerCase().includes('relegat');
-                return `<tr onclick="showTeam(${r.team.id})">
-                  <td><span class="st-pos ${cl?'st-cl':el?'st-el':rel?'st-rel':''}">${r.rank}</span></td>
-                  <td>
-                    <div style="display:flex;align-items:center;gap:6px">
-                      ${r.team.logo ? `<img src="${r.team.logo}" style="width:18px;height:18px;object-fit:contain">` : ''}
-                      <span class="st-team-name">${r.team.name}</span>
-                    </div>
-                  </td>
-                  <td>${r.all.win}</td><td>${r.all.draw}</td><td>${r.all.lose}</td>
-                  <td>${r.goalsDiff >= 0 ? '+' : ''}${r.goalsDiff}</td>
-                  <td><span class="st-pts">${r.points}</span></td>
-                  <td><div class="st-form">${formDots(r.form)}</div></td>
-                </tr>`;
-              }).join('')}
-              </tbody>
-            </table>
-          </div>
+    const standings = table.response?.[0]?.league?.standings?.[0] ?? [];
+    const topscorers = scorers.response ?? [];
+
+    // Backknapp + rubrik
+    const backBtn = `<div style="margin-bottom:20px;display:flex;align-items:center;gap:12px">
+      <button onclick="initLeagues('all')" style="background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:6px 12px;color:var(--text2);font-size:13px;cursor:pointer">← Back</button>
+      <div class="section-title"><span>${name}</span> <span style="color:var(--text3);font-size:14px;font-weight:400">${season}/${String(season+1).slice(2)}</span></div>
+    </div>`;
+
+    if (!standings.length && !topscorers.length) {
+      c.innerHTML = backBtn + `<div style="padding:20px;color:var(--text3)">Ingen data tillgänglig för denna liga just nu.</div>`;
+      return;
+    }
+
+    const standingsHTML = standings.length ? `
+      <div style="margin-bottom:28px">
+        <div class="section-title" style="margin-bottom:12px">Standings</div>
+        <div class="table-wrap">
+          <table class="standings-table">
+            <thead><tr><th>#</th><th>Club</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th><th>Form</th></tr></thead>
+            <tbody>${standings.map(r => {
+              const desc = (r.description||'').toLowerCase();
+              const cl  = desc.includes('champions');
+              const el  = desc.includes('europa') || desc.includes('conference');
+              const rel = desc.includes('relegat');
+              return `<tr onclick="showTeam(${r.team.id})" style="cursor:pointer">
+                <td><span class="st-pos ${cl?'st-cl':el?'st-el':rel?'st-rel':''}">${r.rank}</span></td>
+                <td><div style="display:flex;align-items:center;gap:6px">
+                  ${r.team.logo ? `<img src="${r.team.logo}" style="width:18px;height:18px;object-fit:contain">` : ''}
+                  <span class="st-team-name">${r.team.name}</span>
+                </div></td>
+                <td>${r.all?.win??0}</td><td>${r.all?.draw??0}</td><td>${r.all?.lose??0}</td>
+                <td>${(r.goalsDiff??0) >= 0 ? '+' : ''}${r.goalsDiff??0}</td>
+                <td><span class="st-pts">${r.points}</span></td>
+                <td><div class="st-form">${formDots(r.form)}</div></td>
+              </tr>`;
+            }).join('')}
+            </tbody>
+          </table>
         </div>
-        <div class="sidebar-card">
-          <div class="sidebar-title">⚽ Top Scorers</div>
-          ${scorers.slice(0,8).map((s,i) => `
-            <div class="scorer-row" onclick="showPlayer(${s.player.id})">
-              <div class="scorer-rank ${i<3?'top':''}">${i+1}</div>
-              <div class="scorer-img">
-                ${s.player.photo ? `<img src="${s.player.photo}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">` : '⚽'}
-              </div>
-              <div class="scorer-info">
-                <div class="scorer-name">${s.player.name}</div>
-                <div class="scorer-club">${s.statistics[0]?.team?.name||''}</div>
-              </div>
-              <div class="scorer-goals">${s.statistics[0]?.goals?.total||0}</div>
-            </div>`).join('')}
-        </div>
-      </div>`;
+      </div>` : '';
+
+    const scorersHTML = topscorers.length ? `
+      <div>
+        <div class="section-title" style="margin-bottom:12px">⚽ Top Scorers</div>
+        ${topscorers.slice(0,10).map((s,i) => `
+          <div class="scorer-row" onclick="showPlayer(${s.player.id})">
+            <div class="scorer-rank ${i<3?'top':''}">${i+1}</div>
+            <div class="scorer-img">
+              ${s.player.photo ? `<img src="${s.player.photo}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">` : '⚽'}
+            </div>
+            <div class="scorer-info">
+              <div class="scorer-name">${s.player.name}</div>
+              <div class="scorer-club">${s.statistics[0]?.team?.name||''}</div>
+            </div>
+            <div class="scorer-goals">${s.statistics[0]?.goals?.total||0}</div>
+          </div>`).join('')}
+      </div>` : '';
+
+    c.innerHTML = backBtn + standingsHTML + scorersHTML;
   } catch(e) {
     c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda ligadata.</div>`;
   }
