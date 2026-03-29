@@ -947,7 +947,6 @@ header {
   font-family: 'Barlow Condensed', sans-serif;
   font-size: clamp(24px, 5vw, 40px);
   font-weight: 900;
-  text-transform: uppercase;
   letter-spacing: -0.5px;
   line-height: 1;
 }
@@ -1108,7 +1107,6 @@ header {
   font-family: 'Barlow Condensed', sans-serif;
   font-size: clamp(28px, 5vw, 48px);
   font-weight: 900;
-  text-transform: uppercase;
   letter-spacing: -0.5px;
   line-height: 1;
 }
@@ -2115,7 +2113,8 @@ async function showPlayer(id) {
 
   document.getElementById('playerTabs').innerHTML = `
     <button class="tab-btn active" onclick="showPlayerTab('overview',this)">Overview</button>
-    <button class="tab-btn" onclick="showPlayerTab('career',this)">Career</button>`;
+    <button class="tab-btn" onclick="showPlayerTab('career',this)">Career</button>
+    <button class="tab-btn" onclick="showPlayerTab('transfers',this)">Transfers</button>`;
 
   document.getElementById('playerContent').innerHTML =
     `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
@@ -2127,6 +2126,16 @@ async function showPlayer(id) {
     const s = data.statistics?.[0];
     window._currentPlayerData = data;
 
+    // Hämta transfers för att visa aktuell klubb
+    const transferData = await apiFetch('transfers', { player: id });
+    const allTransfers = transferData.response?.[0]?.transfers || [];
+    const latestTransfer = allTransfers
+      .filter(t => t.date)
+      .sort((a,b) => new Date(b.date) - new Date(a.date))[0];
+    const currentTeam = latestTransfer?.teams?.in?.name || s?.team?.name || '';
+    const currentTeamId = latestTransfer?.teams?.in?.id || s?.team?.id || 0;
+    window._currentPlayerTransfers = allTransfers;
+
     document.getElementById('playerHero').innerHTML = `
       <div class="player-hero-inner">
         <div class="player-avatar-large">
@@ -2134,7 +2143,7 @@ async function showPlayer(id) {
         </div>
         <div class="player-meta">
           <div style="font-size:12px;color:var(--text3);margin-bottom:4px">
-            <a href="#" onclick="showTeam(${s?.team?.id||0})" style="color:var(--gold);text-decoration:none">${s?.team?.name||''}</a>
+            <a href="#" onclick="showTeam(${currentTeamId})" style="color:var(--gold);text-decoration:none">${currentTeam}</a>
             · ${p.nationality||''}
           </div>
           <h1>${p.name}</h1>
@@ -2155,6 +2164,7 @@ async function showPlayer(id) {
 }
 
 async function showPlayerTab(tab, btn, playerData) {
+  const currentYear = new Date().getFullYear();
   playerData = playerData || window._currentPlayerData;
   document.querySelectorAll('#playerTabs .tab-btn').forEach(b => b.classList.remove('active'));
   btn?.classList.add('active');
@@ -2166,7 +2176,7 @@ async function showPlayerTab(tab, btn, playerData) {
   if (tab === 'overview') {
     c.innerHTML = `
       <div style="margin-top:20px">
-        <div class="section-title" style="margin-bottom:12px">Season <span>${SEASON}/${String(SEASON+1).slice(2)}</span></div>
+        <div class="section-title" style="margin-bottom:12px">Season <span>${currentYear}/${String(currentYear+1).slice(2)}</span></div>
         <div class="stats-grid">
           <div class="stat-box"><div class="stat-box-val">${s?.games?.appearences||0}</div><div class="stat-box-lbl">Appearances</div></div>
           <div class="stat-box"><div class="stat-box-val">${s?.goals?.total||0}</div><div class="stat-box-lbl">Goals</div></div>
@@ -2178,11 +2188,47 @@ async function showPlayerTab(tab, btn, playerData) {
       </div>`;
   }
 
+  if (tab === 'transfers') {
+    const transfers = window._currentPlayerTransfers || [];
+    if (!transfers.length) {
+      c.innerHTML = `<div style="padding:20px;color:var(--text3)">Inga transfers hittades.</div>`;
+      return;
+    }
+    const sorted = [...transfers]
+      .filter(t => t.date)
+      .sort((a,b) => new Date(b.date) - new Date(a.date));
+    c.innerHTML = `
+      <div style="margin-top:20px" class="table-wrap">
+        <table class="career-table">
+          <thead><tr><th>Date</th><th>From</th><th>To</th><th>Fee</th></tr></thead>
+          <tbody>${sorted.map(t => `
+            <tr>
+              <td style="color:var(--text3);font-size:12px">${t.date?.slice(0,7)||'—'}</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:6px">
+                  ${t.teams?.out?.logo ? `<img src="${t.teams.out.logo}" style="width:18px;height:18px;object-fit:contain">` : ''}
+                  ${t.teams?.out?.name||'—'}
+                </div>
+              </td>
+              <td>
+                <div style="display:flex;align-items:center;gap:6px">
+                  ${t.teams?.in?.logo ? `<img src="${t.teams.in.logo}" style="width:18px;height:18px;object-fit:contain">` : ''}
+                  <b>${t.teams?.in?.name||'—'}</b>
+                </div>
+              </td>
+              <td><span class="t-fee ${(t.type||'').toLowerCase().includes('loan')?'loan-fee':(t.type||'').toLowerCase()==='free'?'free-fee':''}">${formatFee(t.type)}</span></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
   if (tab === 'career') {
     c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
     try {
       // Hämta alla säsonger
-      const seasons = [2024, 2023, 2022, 2021, 2020];
+      const currentYear = new Date().getFullYear();
+  const seasons = [currentYear, currentYear-1, currentYear-2, currentYear-3, currentYear-4];
       const results = await Promise.all(
         seasons.map(y => apiFetch('players', { id: _currentPlayerId, season: y }).catch(() => null))
       );
