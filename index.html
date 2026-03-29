@@ -1983,6 +1983,154 @@ header {
 
 .btn-primary:hover { opacity: 0.85; }
 
+
+/* ════════════════════════════════════════
+   MOBILE OPTIMIZATIONS
+   ════════════════════════════════════════ */
+
+/* ── Generellt ── */
+@media (max-width: 768px) {
+
+  /* Header */
+  .header-inner { padding: 0 12px; gap: 10px; }
+  .logo-text { font-size: 16px; }
+  .header-search { max-width: none; flex: 1; }
+  .header-search input { font-size: 13px; padding: 7px 36px 7px 32px; }
+
+  /* Hero */
+  .hero { padding: 20px 12px 16px; }
+  .hero h1 { font-size: 28px; }
+  .hero-sub { font-size: 12px; }
+  .hero-stats { gap: 16px; }
+  .hero-stat .val { font-size: 20px; }
+
+  /* AI search */
+  .ai-search-wrap { padding: 0 12px; }
+  .ai-search-box { padding: 12px; }
+  .ai-input-row input { font-size: 14px; padding: 9px 12px; }
+  .ai-send-btn { padding: 9px 14px; font-size: 13px; }
+  .ai-chip { font-size: 11px; padding: 3px 10px; }
+
+  /* Sections */
+  .main-grid { padding: 16px 12px; }
+
+  /* Leagues grid — 2 columns on mobile */
+  .leagues-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .league-name { font-size: 13px; }
+  .league-card { padding: 10px; gap: 8px; }
+  .league-flag { width: 28px; height: 28px; }
+  .league-flag img { width: 20px; }
+
+  /* Match cards */
+  .match-card { padding: 10px 12px; }
+  .team-name-m { font-size: 13px; }
+  .match-score-display { font-size: 18px; min-width: 50px; }
+  .team-logo { width: 22px; height: 22px; }
+
+  /* Transfer cards */
+  .transfer-card { padding: 10px 12px; gap: 8px; }
+  .transfer-player-img { width: 36px; height: 36px; }
+  .transfer-player-name { font-size: 14px; }
+  .transfer-fee { font-size: 13px; }
+
+  /* Team page */
+  .team-hero-inner { gap: 12px; padding: 0; flex-wrap: wrap; }
+  .team-badge-large { width: 60px; height: 60px; font-size: 28px; }
+  .team-meta-large h1 { font-size: 22px; }
+  .player-tags { gap: 4px; }
+  .player-tag { font-size: 11px; padding: 2px 8px; }
+
+  /* Player page */
+  .player-hero-inner { gap: 12px; }
+  .player-avatar-large { width: 72px; height: 72px; font-size: 36px; }
+  .player-meta h1 { font-size: 24px; }
+
+  /* Squad grid — 2 columns */
+  .squad-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .player-card { padding: 10px 8px; }
+  .player-card-img { width: 40px; height: 40px; }
+  .player-number { font-size: 18px; }
+  .player-card-name { font-size: 12px; }
+
+  /* Stats grid — 2 columns */
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .stat-box { padding: 12px 8px; }
+  .stat-box-val { font-size: 26px; }
+  .stat-box-lbl { font-size: 10px; }
+
+  /* Tabs — scrollable */
+  .team-tabs { padding: 0 12px; }
+  .tab-btn { padding: 10px 12px; font-size: 13px; }
+
+  /* Standings table — hide less important cols */
+  .standings-table th:nth-child(3),
+  .standings-table td:nth-child(3),
+  .standings-table th:nth-child(4),
+  .standings-table td:nth-child(4),
+  .standings-table th:nth-child(5),
+  .standings-table td:nth-child(5),
+  .standings-table th:nth-child(6),
+  .standings-table td:nth-child(6) { display: none; }
+
+  /* Career table — hide league col */
+  .career-table th:nth-child(3),
+  .career-table td:nth-child(3) { display: none; }
+
+  /* Transfers table */
+  .transfers-table th:nth-child(4),
+  .transfers-table td:nth-child(4),
+  .transfers-table th:nth-child(5),
+  .transfers-table td:nth-child(5) { display: none; }
+
+  /* Match scoreboard */
+  .match-scoreboard { gap: 8px; }
+  .match-team-logo-hero { width: 52px; height: 52px; }
+  .match-team-logo-hero img { width: 38px; height: 38px; }
+  .match-score-big { font-size: 48px; }
+  .match-team-name-hero { font-size: 14px; }
+  .match-meta-row { gap: 10px; font-size: 11px; flex-wrap: wrap; justify-content: center; }
+
+  /* Lineup grid — single column */
+  .lineup-grid { grid-template-columns: 1fr; }
+
+  /* Top lists grid */
+  .my-clubs-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* Country accordion */
+  .country-accordion-name { font-size: 13px; }
+  .leagues-two-col { grid-template-columns: 1fr; gap: 8px; }
+
+  /* Live date picker */
+  #liveDatePicker { gap: 4px; }
+  #liveDatePicker .filter-btn { padding: 5px 10px; font-size: 12px; }
+
+  /* Section headers */
+  .section-title { font-size: 16px; }
+  .section-header { margin-bottom: 10px; }
+
+  /* Pagination */
+  .page-btn { width: 32px; height: 32px; font-size: 12px; }
+
+  /* Back button bar */
+  .page-header-bar { padding: 10px 12px; }
+  .back-btn { font-size: 12px; padding: 5px 12px; }
+
+  /* Filter buttons */
+  .toplist-filters { gap: 4px; }
+  .filter-btn { font-size: 12px; padding: 5px 12px; }
+}
+
+/* ── Extra small phones ── */
+@media (max-width: 390px) {
+  .hero h1 { font-size: 24px; }
+  .leagues-grid { grid-template-columns: repeat(2, 1fr); }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .squad-grid { grid-template-columns: repeat(2, 1fr); }
+  .match-score-big { font-size: 40px; }
+  .ai-send-btn { display: none; }
+  .ai-input-row input { border-radius: 8px; }
+}
+
 </style>
 </head>
 <body>
