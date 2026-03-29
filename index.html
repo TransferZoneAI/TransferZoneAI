@@ -2319,25 +2319,36 @@ async function initHome() {
   // ── 4. Hämta allt parallellt — ett enda Promise.allSettled ──
   const today = new Date().toISOString().slice(0, 10);
 
-  const [liveRes, todayRes, scorersRes, tableRes, transfersRes] = await Promise.allSettled([
-    apiFetch('fixtures', { live: 'all' }),
-    apiFetch('fixtures', { date: today, league: '39-140-78-135-61-2', season: SEASON }),
+  const [liveRes, recentRes, nextRes, scorersRes, tableRes, transfersRes] = await Promise.allSettled([
+    apiFetch('fixtures', { live: 'all' }),                                   // Alla live-matcher i världen
+    apiFetch('fixtures', { date: today }),                                   // Alla matcher idag (alla ligor)
+    apiFetch('fixtures', { league: '39-140-78-135-61', season: SEASON, next: 10 }), // Kommande top 5
     apiFetch('players/topscorers', { league: 39, season: SEASON }),
     apiFetch('standings', { league: 39, season: SEASON }),
-    apiFetch('transfers', { team: 50 }), // Man City som senaste transfers
+    apiFetch('transfers', { team: 50 }),
   ]);
 
   // ── 5. MATCHER — live + dagens matcher ──
-  const liveFixtures  = liveRes.status  === 'fulfilled' ? (liveRes.value.response  || []) : [];
-  const todayFixtures = todayRes.status === 'fulfilled' ? (todayRes.value.response || []) : [];
+  const liveFixtures  = liveRes.status   === 'fulfilled' ? (liveRes.value.response  || []) : [];
+  const todayFixtures = recentRes.status === 'fulfilled' ? (recentRes.value.response || []) : [];
+  const nextFixtures  = nextRes.status   === 'fulfilled' ? (nextRes.value.response   || []) : [];
 
-  // Slå ihop: live-matcher först, sedan dagens övriga, ta bort dubletter
+  // Slå ihop: live → idag → kommande, ta bort dubletter
+  // Sortera: live först, sedan efter klockslag
   const seenIds = new Set();
-  const allFixtures = [...liveFixtures, ...todayFixtures].filter(f => {
-    if (seenIds.has(f.fixture.id)) return false;
-    seenIds.add(f.fixture.id);
-    return true;
-  });
+  const allFixtures = [...liveFixtures, ...todayFixtures, ...nextFixtures]
+    .filter(f => {
+      if (seenIds.has(f.fixture.id)) return false;
+      seenIds.add(f.fixture.id);
+      return true;
+    })
+    .sort((a, b) => {
+      const aLive = ['1H','HT','2H','ET','P'].includes(a.fixture.status.short);
+      const bLive = ['1H','HT','2H','ET','P'].includes(b.fixture.status.short);
+      if (aLive && !bLive) return -1;
+      if (!aLive && bLive) return 1;
+      return new Date(a.fixture.date) - new Date(b.fixture.date);
+    });
 
   if (allFixtures.length) {
     document.getElementById('homeMatches').innerHTML =
@@ -2367,7 +2378,7 @@ async function initHome() {
   } else {
     // Ingen match idag — visa senaste resultaten istället
     try {
-      const recentData = await apiFetch('fixtures', { league: 39, season: SEASON, last: 6 });
+      const recentData = await apiFetch('fixtures', { date: today });
       const recent = recentData.response || [];
       if (recent.length) {
         document.getElementById('homeMatches').innerHTML =
