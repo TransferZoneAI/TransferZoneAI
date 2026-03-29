@@ -4185,9 +4185,11 @@ let _liveFilter = 'all';
 let _liveDate = new Date().toISOString().slice(0, 10);
 
 async function initLive() {
+  // Återställ datum till idag varje gång
+  _liveDate = new Date().toISOString().slice(0, 10);
   renderLiveDatePicker();
-  // Vänta en tick så DOM hinner uppdateras innan vi hämtar data
-  await new Promise(r => setTimeout(r, 0));
+  // Vänta så DOM hinner uppdateras
+  await new Promise(r => setTimeout(r, 50));
   await loadLiveByDate(_liveDate, _liveFilter);
 }
 
@@ -4264,6 +4266,7 @@ async function loadLiveByDate(date, type) {
     } else {
       const data = await apiFetch('fixtures', { date });
       fixtures = data.response || [];
+      _liveData = fixtures;
     }
 
     renderLiveMatches(fixtures, type);
