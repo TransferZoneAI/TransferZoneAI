@@ -3581,8 +3581,8 @@ function renderLiveMatches(fixtures, type) {
   mc.innerHTML = sortedCountries.map(([country, leagues], ci) => {
     const leagueList = Object.values(leagues);
     const accId = `live_acc_${ci}`;
-    // Auto-öppna topp-5 länder
-    const isOpen = ci < 5;
+    // Alla stängda från start
+    const isOpen = false;
     return `
       <div class="country-accordion" style="margin-bottom:6px">
         <div class="country-accordion-header ${isOpen?'open':''}" onclick="toggleAccordion('${accId}', this)">
@@ -3698,13 +3698,23 @@ async function showMatch(fixtureId) {
       </div>`;
 
     document.getElementById('matchTabs').innerHTML = `
-      <button class="tab-btn active" onclick="showMatchTab('events',this,${fixtureId})">Events</button>
+      <button class="tab-btn" onclick="showMatchTab('events',this,${fixtureId})">Events</button>
       <button class="tab-btn" onclick="showMatchTab('lineups',this,${fixtureId})">Lineups</button>
       <button class="tab-btn" onclick="showMatchTab('stats',this,${fixtureId})">Statistics</button>`;
 
     // Store fixture for tab use
     window._currentFixture = f;
-    showMatchTab('events', null, fixtureId);
+
+    // Visa events som default bara om matchen är live eller avslutad
+    // Annars visa lineups
+    if (isNS) {
+      // Kommande match — visa lineups direkt
+      document.querySelectorAll('#matchTabs .tab-btn')[1]?.classList.add('active');
+      document.querySelectorAll('#matchTabs .tab-btn')[0]?.classList.remove('active');
+      showMatchTab('lineups', document.querySelectorAll('#matchTabs .tab-btn')[1], fixtureId);
+    } else {
+      showMatchTab('events', document.querySelectorAll('#matchTabs .tab-btn')[0], fixtureId);
+    }
 
   } catch(e) {
     document.getElementById('matchHero').innerHTML =
@@ -3715,7 +3725,13 @@ async function showMatch(fixtureId) {
 
 async function showMatchTab(tab, btn, fixtureId) {
   document.querySelectorAll('#matchTabs .tab-btn').forEach(b => b.classList.remove('active'));
-  btn?.classList.add('active');
+  if (btn) {
+    btn.classList.add('active');
+  } else {
+    // Hitta rätt knapp baserat på tab-namn
+    const tabIndex = ['events','lineups','stats'].indexOf(tab);
+    document.querySelectorAll('#matchTabs .tab-btn')[tabIndex]?.classList.add('active');
+  }
   const c = document.getElementById('matchContent');
   c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
 
@@ -3725,7 +3741,12 @@ async function showMatchTab(tab, btn, fixtureId) {
       const events = data.response || [];
 
       if (!events.length) {
-        c.innerHTML = `<div style="padding:20px;color:var(--text3);text-align:center;margin-top:20px">No events yet.</div>`;
+        const f = window._currentFixture;
+        const isFT = ['FT','AET','PEN'].includes(f?.fixture?.status?.short);
+        c.innerHTML = `<div style="padding:32px 20px;color:var(--text3);text-align:center;margin-top:20px">
+          <div style="font-size:32px;margin-bottom:8px">${isFT ? '📊' : '⏳'}</div>
+          <div>${isFT ? 'No detailed events available for this match.' : 'Match has not started yet.'}</div>
+        </div>`;
         return;
       }
 
