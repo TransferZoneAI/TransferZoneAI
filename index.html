@@ -2643,22 +2643,28 @@ async function showTeamTab(tab, btn) {
         return;
       }
 
-      // Hämta topplistor för aktiv säsong
-      const [scorers, assistsD, yellowD, redD] = await Promise.all([
-        apiFetch('players/topscorers',     { league: leagueId, season: activeSeason }),
-        apiFetch('players/topassists',     { league: leagueId, season: activeSeason }),
-        apiFetch('players/topyellowcards', { league: leagueId, season: activeSeason }),
-        apiFetch('players/topredcards',    { league: leagueId, season: activeSeason }),
-      ]);
+      // Hämta fler sidor om nödvändigt (API ger 20 per sida)
+      const pagesNeeded = Math.min(Math.ceil((playerStatsData?.paging?.total||1)), 3);
+      if (pagesNeeded > 1) {
+        const extraPages = await Promise.all(
+          Array.from({length: pagesNeeded-1}, (_,i) =>
+            apiFetch('players', { team: teamId, season: activeSeason, page: i+2 })
+          )
+        );
+        extraPages.forEach(p => allPlayers.push(...(p.response||[])));
+      }
 
-      // Sortera på olika kategorier
-      const byGoals    = [...allPlayers].sort((a,b) => (b.statistics[0]?.goals?.total||0) - (a.statistics[0]?.goals?.total||0)).filter(p => (p.statistics[0]?.goals?.total||0) > 0);
-      const byAssists  = [...allPlayers].sort((a,b) => (b.statistics[0]?.goals?.assists||0) - (a.statistics[0]?.goals?.assists||0)).filter(p => (p.statistics[0]?.goals?.assists||0) > 0);
-      const byApps     = [...allPlayers].sort((a,b) => (b.statistics[0]?.games?.appearences||0) - (a.statistics[0]?.games?.appearences||0));
-      const byYellow   = [...allPlayers].sort((a,b) => (b.statistics[0]?.cards?.yellow||0) - (a.statistics[0]?.cards?.yellow||0)).filter(p => (p.statistics[0]?.cards?.yellow||0) > 0);
-      const byRed      = [...allPlayers].sort((a,b) => (b.statistics[0]?.cards?.red||0) - (a.statistics[0]?.cards?.red||0)).filter(p => (p.statistics[0]?.cards?.red||0) > 0);
-      const byPasses   = [...allPlayers].sort((a,b) => (b.statistics[0]?.passes?.total||0) - (a.statistics[0]?.passes?.total||0)).filter(p => (p.statistics[0]?.passes?.total||0) > 0);
-      const byTackles  = [...allPlayers].sort((a,b) => (b.statistics[0]?.tackles?.total||0) - (a.statistics[0]?.tackles?.total||0)).filter(p => (p.statistics[0]?.tackles?.total||0) > 0);
+      // Summera statistik per spelare över alla ligor/cuper den säsongen
+      const sumStat = (p, fn) => (p.statistics||[]).reduce((acc,s) => acc + (fn(s)||0), 0);
+
+      // Sortera på summa för alla tävlingar
+      const byGoals   = [...allPlayers].sort((a,b) => sumStat(b,s=>s.goals?.total)   - sumStat(a,s=>s.goals?.total)).filter(p => sumStat(p,s=>s.goals?.total) > 0);
+      const byAssists = [...allPlayers].sort((a,b) => sumStat(b,s=>s.goals?.assists) - sumStat(a,s=>s.goals?.assists)).filter(p => sumStat(p,s=>s.goals?.assists) > 0);
+      const byApps    = [...allPlayers].sort((a,b) => sumStat(b,s=>s.games?.appearences) - sumStat(a,s=>s.games?.appearences)).filter(p => sumStat(p,s=>s.games?.appearences) > 0);
+      const byPasses  = [...allPlayers].sort((a,b) => sumStat(b,s=>s.passes?.total)  - sumStat(a,s=>s.passes?.total)).filter(p => sumStat(p,s=>s.passes?.total) > 0);
+      const byTackles = [...allPlayers].sort((a,b) => sumStat(b,s=>s.tackles?.total) - sumStat(a,s=>s.tackles?.total)).filter(p => sumStat(p,s=>s.tackles?.total) > 0);
+      const byYellow  = [...allPlayers].sort((a,b) => sumStat(b,s=>s.cards?.yellow)  - sumStat(a,s=>s.cards?.yellow)).filter(p => sumStat(p,s=>s.cards?.yellow) > 0);
+      const byRed     = [...allPlayers].sort((a,b) => sumStat(b,s=>s.cards?.red)     - sumStat(a,s=>s.cards?.red)).filter(p => sumStat(p,s=>s.cards?.red) > 0);
 
       const pRow = (p, i, val) => `
         <div class="scorer-row" onclick="showPlayer(${p.player.id})" style="cursor:pointer">
@@ -2680,14 +2686,17 @@ async function showTeamTab(tab, btn) {
         </div>`;
 
       c.innerHTML = `
-        <div style="margin-top:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
-          ${card('Goals',        '⚽', byGoals,   p => p.statistics[0]?.goals?.total||0)}
-          ${card('Assists',      '🅰️', byAssists, p => p.statistics[0]?.goals?.assists||0)}
-          ${card('Appearances',  '📋', byApps,    p => p.statistics[0]?.games?.appearences||0)}
-          ${card('Passes',       '🎯', byPasses,  p => p.statistics[0]?.passes?.total||0)}
-          ${card('Tackles',      '🛡️', byTackles, p => p.statistics[0]?.tackles?.total||0)}
-          ${card('Yellow Cards', '🟡', byYellow,  p => p.statistics[0]?.cards?.yellow||0)}
-          ${card('Red Cards',    '🔴', byRed,     p => p.statistics[0]?.cards?.red||0)}
+        <div style="margin-top:20px">
+          <div style="color:var(--text3);font-size:12px;margin-bottom:16px">Season ${activeSeason}/${String(activeSeason+1).slice(2)}</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+            ${card('Goals',        '⚽', byGoals,   p => sumStat(p,s=>s.goals?.total))}
+            ${card('Assists',      '🅰️', byAssists, p => sumStat(p,s=>s.goals?.assists))}
+            ${card('Appearances',  '📋', byApps,    p => sumStat(p,s=>s.games?.appearences))}
+            ${card('Passes',       '🎯', byPasses,  p => sumStat(p,s=>s.passes?.total))}
+            ${card('Tackles',      '🛡️', byTackles, p => sumStat(p,s=>s.tackles?.total))}
+            ${card('Yellow Cards', '🟡', byYellow,  p => sumStat(p,s=>s.cards?.yellow))}
+            ${card('Red Cards',    '🔴', byRed,     p => sumStat(p,s=>s.cards?.red))}
+          </div>
         </div>`;
     } catch(e) {
       c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda spelarstatistik.</div>`;
