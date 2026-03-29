@@ -2482,8 +2482,7 @@ async function showTeamTab(tab, btn) {
           </div>
         </div>` : '';
 
-      // Detaljerad statistik från API
-      const s0 = statsResults[0]?.response;
+      // Detaljerad statistik från API (s0 redan definierad ovan)
       const statVal = (v) => v != null ? v : '—';
       const avg = (v, games) => (v && games) ? (v/games).toFixed(1) : '—';
 
