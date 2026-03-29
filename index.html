@@ -1793,7 +1793,7 @@ const LEAGUES = [
   { id:88,  name:"Eredivisie",        country:"Netherlands",  code:"nl",     badge:"",      region:"europe" },
   { id:144, name:"Pro League",        country:"Belgium",      code:"be",     badge:"",      region:"europe" },
   { id:203, name:"Süper Lig",         country:"Turkey",       code:"tr",     badge:"",      region:"europe" },
-  { id:169, name:"Allsvenskan",       country:"Sweden",       code:"se",     badge:"",      region:"europe" },
+  { id:113, name:"Allsvenskan",       country:"Sweden",       code:"se",     badge:"",      region:"europe" },
   { id:307, name:"Saudi Pro League",  country:"Saudi Arabia", code:"sa",     badge:"",      region:"asia" },
   { id:332, name:"J1 League",         country:"Japan",        code:"jp",     badge:"",      region:"asia" },
   { id:253, name:"MLS",               country:"USA",          code:"us",     badge:"",      region:"north-america" },
@@ -2149,7 +2149,7 @@ async function showPlayer(id) {
         </div>
         <div class="player-meta">
           <div style="font-size:12px;color:var(--text3);margin-bottom:4px">
-            <a href="#" onclick="showTeam(${currentTeamId})" style="color:var(--gold);text-decoration:none">${currentTeam}</a>
+            <a href="#" onclick="showTeam(${currentTeamId})" style="color:var(--gold);text-decoration:none">${fixName(currentTeam)}</a>
             · ${p.nationality||''}
           </div>
           <h1>${p.name}</h1>
@@ -2259,7 +2259,7 @@ async function showPlayerTab(tab, btn, playerData) {
             <tbody>${rows.map((r,i) => `
               <tr>
                 <td><span class="career-season">${r.season}</span></td>
-                <td><div class="career-club">${r.club}</div></td>
+                <td><div class="career-club">${fixName(r.club)}</div></td>
                 <td style="color:var(--text3);font-size:12px">${r.league}</td>
                 <td>${r.apps}</td>
                 <td class="${i===0?'career-highlight':''}">${r.goals}</td>
@@ -2310,6 +2310,49 @@ function skeletonRows(n, cols) {
       `<td><div class="skeleton" style="height:14px;width:80%;border-radius:4px"></div></td>`
     ).join('')}</tr>`
   ).join('');
+}
+
+// Korrigerar kända stavfel i API-Football för nordiska tecken
+const NAME_FIXES = {
+  'Mjallby AIF': 'Mjällby AIF',
+  'Orgryte IS': 'Örgryte IS',
+  'Vasteras SK FK': 'Västerås SK FK',
+  'Orebro SK': 'Örebro SK',
+  'Ostersunds FK': 'Östersunds FK',
+  'Jonkopings Sodra': 'Jönköpings Södra',
+  'Halmstads BK': 'Halmstads BK',
+  'Gefle IF': 'Gefle IF',
+  'Degerfors IF': 'Degerfors IF',
+  'AFC Eskilstuna': 'AFC Eskilstuna',
+  'IFK Goteborg': 'IFK Göteborg',
+  'Gothenburg': 'Göteborg',
+  'Norrkoping': 'Norrköping',
+  'IFK Norrkoping': 'IFK Norrköping',
+  'Malmo FF': 'Malmö FF',
+  'Brommapojkarna': 'IF Brommapojkarna',
+  'IF Brommapojk...': 'IF Brommapojkarna',
+  'Djurgardens IF': 'Djurgårdens IF',
+  'Djurgarden': 'Djurgårdens IF',
+  'Hammarby TFF': 'Hammarby TFF',
+  'AIK Stockholm': 'AIK',
+  'Tromso IL': 'Tromsø IL',
+  'Bodo/Glimt': 'Bodø/Glimt',
+  'Rosenborg BK': 'Rosenborg BK',
+  'Valerenga': 'Vålerenga',
+  'Brann': 'SK Brann',
+  'Kobenhavn': 'FC København',
+  'Kobenhavn FC': 'FC København',
+  'Odense BK': 'Odense BK',
+  'AGF Aarhus': 'AGF Aarhus',
+  'Aalborg BK': 'AaB',
+  'Brondby IF': 'Brøndby IF',
+  'Silkeborg IF': 'Silkeborg IF',
+  'FC Midtjylland': 'FC Midtjylland',
+  'HJK Helsinki': 'HJK Helsinki',
+};
+
+function fixName(name) {
+  return NAME_FIXES[name] || name;
 }
 
 function formatFee(raw) {
@@ -2490,7 +2533,7 @@ async function initHome() {
           <div class="transfer-info">
             <div class="transfer-player-name">${t.player}</div>
             <div class="transfer-clubs">
-              <span>${t.from}</span><span class="transfer-arrow">→</span><span>${t.to}</span>
+              <span>${fixName(t.from)}</span><span class="transfer-arrow">→</span><span>${fixName(t.to)}</span>
             </div>
           </div>
           <div class="transfer-fee ${t.type==='loan'?'loan':t.type==='free'?'free':''}">${t.fee}</div>
@@ -2517,7 +2560,7 @@ function renderTransfersFallback() {
       <div class="transfer-info">
         <div class="transfer-player-name">${t.player}</div>
         <div class="transfer-clubs">
-          <span>${t.from}</span><span class="transfer-arrow">→</span><span>${t.to}</span>
+          <span>${fixName(t.from)}</span><span class="transfer-arrow">→</span><span>${fixName(t.to)}</span>
         </div>
       </div>
       <div class="transfer-fee ${t.type==='loan'?'loan':t.type==='free'?'free':''}">${t.fee}</div>
@@ -2584,7 +2627,7 @@ async function renderLeaguePage(id, name, flag) {
                 <td><span class="st-pos ${cl?'st-cl':el?'st-el':rel?'st-rel':''}">${r.rank}</span></td>
                 <td><div style="display:flex;align-items:center;gap:6px">
                   ${r.team.logo ? `<img src="${r.team.logo}" style="width:18px;height:18px;object-fit:contain">` : ''}
-                  <span class="st-team-name">${r.team.name}</span>
+                  <span class="st-team-name">${fixName(r.team.name)}</span>
                 </div></td>
                 <td>${r.all?.win??0}</td><td>${r.all?.draw??0}</td><td>${r.all?.lose??0}</td>
                 <td>${(r.goalsDiff??0) >= 0 ? '+' : ''}${r.goalsDiff??0}</td>
@@ -2608,7 +2651,7 @@ async function renderLeaguePage(id, name, flag) {
             </div>
             <div class="scorer-info">
               <div class="scorer-name">${s.player.name}</div>
-              <div class="scorer-club">${s.statistics[0]?.team?.name||''}</div>
+              <div class="scorer-club">${fixName(s.statistics[0]?.team?.name||'')}</div>
             </div>
             <div class="scorer-goals">${s.statistics[0]?.goals?.total||0}</div>
           </div>`).join('')}
@@ -2794,7 +2837,7 @@ async function showTopList(type, btn) {
                 ${s.player.photo ? `<img src="${s.player.photo}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">` : ''}
                 ${s.player.name}
               </div></td>
-              <td style="color:var(--text3)">${s.statistics[0]?.team?.name||''}</td>
+              <td style="color:var(--text3)">${fixName(s.statistics[0]?.team?.name||'')}</td>
               <td class="${i===0?'career-highlight':''}"><b>${s.statistics[0]?.goals?.[field]||0}</b></td>
               <td>${s.statistics[0]?.games?.appearences||0}</td>
             </tr>`).join('')}
