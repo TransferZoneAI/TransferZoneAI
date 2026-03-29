@@ -1,22 +1,25 @@
 export const config = { runtime: 'edge' };
 
-// Top 5 ligor — 5 lag per liga = 25 anrop totalt, snabbt
 const TOP5_TEAMS = [
-  // Premier League
-  33, 40, 42, 47, 50,
-  // La Liga
-  529, 530, 532, 541, 548,
-  // Bundesliga
-  157, 165, 168, 173, 161,
-  // Serie A
-  489, 492, 496, 488, 487,
-  // Ligue 1
-  85, 81, 80, 84, 91,
+  33, 40, 42, 47, 50,       // Premier League
+  529, 530, 532, 541, 548,  // La Liga
+  157, 165, 168, 173, 161,  // Bundesliga
+  489, 492, 496, 488, 487,  // Serie A
+  85, 81, 80, 84, 91,       // Ligue 1
 ];
+
+// Hämta och dekoda UTF-8 korrekt
+async function fetchJSON(url, key) {
+  const res = await fetch(url, { headers: { 'x-apisports-key': key } });
+  const buf = await res.arrayBuffer();
+  const text = new TextDecoder('utf-8').decode(buf);
+  return JSON.parse(text);
+}
 
 export default async function handler(req) {
   const { searchParams } = new URL(req.url);
   const endpoint = searchParams.get('endpoint');
+  const key = process.env.APISPORTS_KEY;
 
   if (!endpoint) {
     return new Response(JSON.stringify({ error: 'Missing endpoint' }), { status: 400 });
@@ -31,9 +34,8 @@ export default async function handler(req) {
 
       const responses = await Promise.all(
         TOP5_TEAMS.map(id =>
-          fetch(`https://v3.football.api-sports.io/transfers?team=${id}`, {
-            headers: { 'x-apisports-key': process.env.APISPORTS_KEY }
-          }).then(r => r.json()).catch(() => ({ response: [] }))
+          fetchJSON(`https://v3.football.api-sports.io/transfers?team=${id}`, key)
+            .catch(() => ({ response: [] }))
         )
       );
 
@@ -52,19 +54,20 @@ export default async function handler(req) {
         .filter(t => t.date !== '—' && new Date(t.date) >= cutoff)
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-      // Ta bort dubletter
       const seen = new Set();
       const unique = all.filter(t => {
-        const key = `${t.playerId}-${t.from}-${t.to}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
+        const k = `${t.playerId}-${t.from}-${t.to}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
         return true;
       });
 
-      return new Response(JSON.stringify({ response: unique, results: unique.length }), {
+      // Serialisera med korrekt UTF-8
+      const body = JSON.stringify({ response: unique, results: unique.length });
+      return new Response(body, {
         status: 200,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
           'Access-Control-Allow-Origin': '*',
           'Cache-Control': 'public, s-maxage=3600',
         }
@@ -74,14 +77,12 @@ export default async function handler(req) {
     }
   }
 
-  // Standard endpoint
+  // Standard endpoint — dekoda via ArrayBuffer för korrekt UTF-8
   const url = `https://v3.football.api-sports.io/${endpoint}?${params.toString()}`;
   try {
-    const response = await fetch(url, {
-      headers: { 'x-apisports-key': process.env.APISPORTS_KEY }
-    });
-    // Skicka råtext direkt — bevarar UTF-8 specialtecken (ć, ä, š etc)
-    const text = await response.text();
+    const res = await fetch(url, { headers: { 'x-apisports-key': key } });
+    const buf = await res.arrayBuffer();
+    const text = new TextDecoder('utf-8').decode(buf);
     return new Response(text, {
       status: 200,
       headers: {
