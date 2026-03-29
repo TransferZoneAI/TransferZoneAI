@@ -2619,13 +2619,87 @@ async function showTeamTab(tab, btn) {
   }
 
   if (tab === 'fixtures') {
-    c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
+    c.innerHTML = `<div class="skeleton" style="height:300px;border-radius:10px;margin-top:20px"></div>`;
     try {
-      const data = await apiFetch('fixtures', { team: teamId, season: SEASON, last: 5 });
-      const matches = (data.response||[]).map(normalizeMatch);
-      c.innerHTML = `<div class="matches-list" style="margin-top:20px">${matches.map(m => matchCard(m)).join('')}</div>`;
+      // Hämta aktuell säsong för laget
+      const leagueData = await apiFetch('leagues', { team: teamId, current: 'true' });
+      const currentLeagues = leagueData.response || [];
+      const season = currentLeagues[0]?.seasons?.find(s => s.current)?.year
+                  ?? new Date().getFullYear() - 1;
+
+      // Hämta senaste 10 + kommande 10
+      const [lastData, nextData] = await Promise.all([
+        apiFetch('fixtures', { team: teamId, season, last: 10 }),
+        apiFetch('fixtures', { team: teamId, season, next: 10 }),
+      ]);
+
+      const lastF = (lastData.response || []).reverse(); // senaste sist → kronologisk
+      const nextF = nextData.response || [];
+      const allF  = [...lastF, ...nextF];
+
+      if (!allF.length) {
+        c.innerHTML = `<div style="padding:20px;color:var(--text3)">Inga matcher hittades.</div>`;
+        return;
+      }
+
+      // Groupa per tävling
+      const byLeague = {};
+      allF.forEach(f => {
+        const key = f.league.id;
+        if (!byLeague[key]) byLeague[key] = { name: f.league.name, logo: f.league.logo, fixtures: [] };
+        byLeague[key].fixtures.push(f);
+      });
+
+      const dateLabel = (dateStr) => {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
+      };
+
+      c.innerHTML = `<div style="margin-top:20px">
+        ${Object.values(byLeague).map(league => `
+          <div style="margin-bottom:24px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border2)">
+              ${league.logo ? `<img src="${league.logo}" style="width:20px;height:20px;object-fit:contain">` : ''}
+              <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.5px">${league.name}</span>
+            </div>
+            <div class="matches-list">
+              ${league.fixtures.map(f => {
+                const m = normalizeMatch(f);
+                const statusShort = f.fixture.status.short;
+                const isLive = ['1H','HT','2H','ET','P'].includes(statusShort);
+                const isFT   = ['FT','AET','PEN'].includes(statusShort);
+                const isNS   = statusShort === 'NS';
+                const statusClass = isLive ? 'live' : isFT ? 'finished' : 'upcoming';
+                const statusText  = isLive ? m.min : isFT ? 'FT' : m.time;
+                const dateText = dateLabel(f.fixture.date);
+                const score = (isLive || isFT)
+                  ? `<div class="match-score-display">${m.scoreH} – ${m.scoreA}</div>`
+                  : `<div class="match-score-display upcoming" style="font-size:14px">${m.time}</div>`;
+
+                return `<div class="match-card" onclick="showMatch(${f.fixture.id})" style="cursor:pointer">
+                  <div class="match-meta">
+                    <span style="font-size:11px;color:var(--text3)">${dateText}</span>
+                    <span class="match-status ${statusClass}" style="margin-left:auto">${isLive?'● ':''} ${statusText}</span>
+                  </div>
+                  <div class="match-teams">
+                    <div class="match-team">
+                      <div class="team-logo">${f.teams.home.logo?`<img src="${f.teams.home.logo}" style="width:22px;height:22px;object-fit:contain">`:'⚽'}</div>
+                      <span class="team-name-m">${f.teams.home.name}</span>
+                    </div>
+                    ${score}
+                    <div class="match-team away">
+                      <div class="team-logo">${f.teams.away.logo?`<img src="${f.teams.away.logo}" style="width:22px;height:22px;object-fit:contain">`:'⚽'}</div>
+                      <span class="team-name-m">${f.teams.away.name}</span>
+                    </div>
+                  </div>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>`).join('')}
+      </div>`;
     } catch(e) {
       c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda matcher.</div>`;
+      console.error(e);
     }
   }
 }
