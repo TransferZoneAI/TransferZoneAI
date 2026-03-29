@@ -2498,30 +2498,23 @@ async function initHome() {
 
   // ── 8. SENASTE TRANSFERS ──
   if (transfersRes.status === 'fulfilled') {
-    // API-Football: transfers by league — response = [{player:{id,name}, transfers:[{date,type,teams:{in,out}}]}]
+    // Global transfers — redan plattad och sorterad från football.js
     const raw = transfersRes.value.response || [];
     const rows = raw
-      .flatMap(entry =>
-        (entry.transfers || []).map(tr => ({
-          player  : entry.player?.name ?? '—',
-          playerId: entry.player?.id   ?? 0,
-          from    : tr.teams?.out?.name ?? '—',
-          to      : tr.teams?.in?.name  ?? '—',
-          rawType : (tr.type || '').toLowerCase(),
-          date    : tr.date ?? '—',
-        }))
-      )
-      .map(r => ({
-        ...r,
-        type: r.rawType.includes('loan') ? 'loan'
-            : r.rawType === 'free'        ? 'free'
+      .map(t => ({
+        player  : t.player,
+        playerId: t.playerId,
+        from    : t.from,
+        to      : t.to,
+        rawType : (t.type || '').toLowerCase(),
+        date    : t.date,
+        type: (t.type||'').toLowerCase().includes('loan') ? 'loan'
+            : (t.type||'').toLowerCase() === 'free'       ? 'free'
             : 'paid',
-        fee : r.rawType
-               ? r.rawType.charAt(0).toUpperCase() + r.rawType.slice(1)
+        fee : t.type
+               ? t.type.charAt(0).toUpperCase() + t.type.slice(1)
                : '—',
       }))
-      .filter(r => r.date !== '—')
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
       .slice(0, 6);
 
     if (rows.length) {
