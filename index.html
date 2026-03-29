@@ -1867,8 +1867,14 @@ async function fetchTeam(teamId) {
 // ── Hämta spelarinfo ──
 async function fetchPlayer(playerId) {
   return cached(`player_${playerId}`, async () => {
-    const data = await apiFetch('players', { id: playerId, season: SEASON });
-    return data.response?.[0] || null;
+    // Prova senaste säsongerna tills vi hittar data
+    const thisYear = new Date().getFullYear();
+    for (const yr of [thisYear - 1, thisYear - 2, thisYear]) {
+      const data = await apiFetch('players', { id: playerId, season: yr });
+      const player = data.response?.[0];
+      if (player?.statistics?.length) return player;
+    }
+    return null;
   });
 }
 
@@ -2174,9 +2180,12 @@ async function showPlayerTab(tab, btn, playerData) {
   const s = playerData.statistics?.[0];
 
   if (tab === 'overview') {
+    // Visa senaste säsongen med faktisk data
+    const seasonYear = s?.league?.season ?? playerData.statistics?.[0]?.league?.season ?? currentYear - 1;
+    const seasonLabel = `${seasonYear}/${String(seasonYear+1).slice(2)}`;
     c.innerHTML = `
       <div style="margin-top:20px">
-        <div class="section-title" style="margin-bottom:12px">Season <span>${currentYear}/${String(currentYear+1).slice(2)}</span></div>
+        <div class="section-title" style="margin-bottom:12px">Season <span>${seasonLabel}</span></div>
         <div class="stats-grid">
           <div class="stat-box"><div class="stat-box-val">${s?.games?.appearences||0}</div><div class="stat-box-lbl">Appearances</div></div>
           <div class="stat-box"><div class="stat-box-val">${s?.goals?.total||0}</div><div class="stat-box-lbl">Goals</div></div>
