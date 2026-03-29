@@ -1940,7 +1940,7 @@ function showPage(id) {
   window.scrollTo(0,0);
 
   // Init pages on first show
-  if (id === 'leagues' && !window._leaguesInited) { initLeagues(); window._leaguesInited = true; }
+  if (id === 'leagues' && !window._leaguesInited) { initLeagues('all'); window._leaguesInited = true; }
   if (id === 'transfers' && !window._transfersInited) { initTransfers(); window._transfersInited = true; }
   if (id === 'toplist' && !window._toplistInited) { showTopList('scorers', document.querySelector('#page-toplist .filter-btn')); window._toplistInited = true; }
   if (id === 'live' && !window._liveInited) { initLive(); window._liveInited = true; }
@@ -2546,46 +2546,88 @@ async function renderLeaguePage(id, name, flag) {
   }
 }
 
-function initLeagues() {
-  const groups = {
-    "Europe": LEAGUES.filter(l => l.region === 'europe'),
-    "Americas": LEAGUES.filter(l => l.region === 'south-america' || l.region === 'north-america'),
-    "Asia & Middle East": LEAGUES.filter(l => l.region === 'asia'),
-    "Africa": LEAGUES.filter(l => l.region === 'africa'),
-  };
-  document.getElementById('allLeaguesContent').innerHTML = Object.entries(groups).map(([region, leagues]) =>
-    !leagues.length ? '' : `
-      <div class="country-section">
-        <div class="country-header"><div class="country-name">${region}</div></div>
-        <div class="leagues-grid">${leagues.map(l => `
-          <div class="league-card" onclick="showLeague(${l.id},'${l.name}','${l.flag}')">
-            <div class="league-flag">${flagImg(l.code)}</div>
-            <div class="league-info">
-              <div class="league-name">${l.name}</div>
-              <div class="league-country">${l.country}</div>
+let _allLeagues = [];
+
+async function initLeagues(region) {
+  const c = document.getElementById('allLeaguesContent');
+  c.innerHTML = `<div class="skeleton" style="height:400px;border-radius:10px"></div>`;
+
+  try {
+    if (!_allLeagues.length) {
+      const data = await apiFetch('leagues', { current: 'true' });
+      _allLeagues = data.response || [];
+    }
+
+    renderLeaguesByCountry(_allLeagues, region);
+  } catch(e) {
+    c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda ligor.</div>`;
+  }
+}
+
+function renderLeaguesByCountry(leagues, region) {
+  const c = document.getElementById('allLeaguesContent');
+
+  // Regionfilter baserat på landets kontinent (enkel mappning)
+  const europeCountries = ['England','Spain','Germany','Italy','France','Portugal','Netherlands','Belgium','Turkey','Scotland','Greece','Russia','Sweden','Norway','Denmark','Switzerland','Austria','Croatia','Serbia','Czech Republic','Poland','Ukraine','Romania','Slovakia','Hungary','Bulgaria','Slovenia','Albania','Kosovo','Bosnia','Montenegro','Armenia','Georgia','Azerbaijan','Cyprus','Malta','Luxembourg','Iceland','Finland','Estonia','Latvia','Lithuania','Faroe Islands','Liechtenstein','San Marino','Andorra','Gibraltar','Northern Ireland','Wales','Ireland','Belarus','North Macedonia','Moldova'];
+  const southAmCountries = ['Brazil','Argentina','Chile','Colombia','Uruguay','Peru','Ecuador','Paraguay','Bolivia','Venezuela'];
+  const northAmCountries = ['United States','Mexico','Canada','Costa Rica','Honduras','Guatemala','El Salvador','Panama','Jamaica','Trinidad and Tobago'];
+  const asiaCountries = ['Japan','South Korea','China','Saudi Arabia','UAE','Qatar','Iran','Iraq','India','Australia','Thailand','Indonesia','Malaysia','Vietnam','Uzbekistan','Kazakhstan','Bahrain','Kuwait','Oman','Jordan','Lebanon','Syria','Israel','Cyprus'];
+  const africaCountries = ['Egypt','Morocco','Nigeria','South Africa','Ghana','Senegal','Tunisia','Algeria','Cameroon','Ivory Coast','Kenya','Ethiopia','Tanzania','Uganda','Zimbabwe','Zambia'];
+
+  const regionMap = { europe: europeCountries, 'south-america': southAmCountries, 'north-america': northAmCountries, asia: asiaCountries, africa: africaCountries };
+
+  const filtered = !region || region === 'all'
+    ? leagues
+    : leagues.filter(l => (regionMap[region] || []).includes(l.country?.name));
+
+  // Groupa per land
+  const byCountry = {};
+  filtered.forEach(l => {
+    const country = l.country?.name || 'World';
+    if (!byCountry[country]) byCountry[country] = { leagues: [], flag: l.country?.flag || '' };
+    byCountry[country].leagues.push(l);
+  });
+
+  // Topländer först
+  const TOP = ['England','Spain','Germany','Italy','France','Portugal','Netherlands','Belgium','Turkey','Brazil','Argentina','United States','Japan','Saudi Arabia'];
+  const sorted = Object.entries(byCountry).sort(([a], [b]) => {
+    const ai = TOP.indexOf(a), bi = TOP.indexOf(b);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
+  c.innerHTML = sorted.map(([country, { leagues: ls, flag }]) => `
+    <div class="country-section">
+      <div class="country-header">
+        ${flag ? `<img src="${flag}" style="width:24px;height:16px;border-radius:2px;object-fit:cover;margin-right:4px">` : ''}
+        <div class="country-name">${country}</div>
+        <span style="color:var(--text3);font-size:12px;margin-left:8px">${ls.length} league${ls.length>1?'s':''}</span>
+      </div>
+      <div class="leagues-grid">
+        ${ls.map(l => `
+          <div class="league-card" onclick="showLeague(${l.league.id},'${(l.league.name||'').replace(/'/g,"\'")}','')">
+            <div class="league-flag">
+              ${l.league.logo ? `<img src="${l.league.logo}" style="width:28px;height:28px;object-fit:contain">` : '🏆'}
             </div>
-            ${l.badge ? `<div class="league-badge">${l.badge}</div>` : ''}
+            <div class="league-info">
+              <div class="league-name">${l.league.name}</div>
+              <div class="league-country">${l.league.type || 'League'}</div>
+            </div>
           </div>`).join('')}
-        </div>
-      </div>`
-  ).join('');
+      </div>
+    </div>`).join('');
 }
 
 function filterLeagues(region, btn) {
   document.querySelectorAll('#page-leagues .filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  const filtered = region === 'all' ? LEAGUES : LEAGUES.filter(l => l.region === region);
-  document.getElementById('allLeaguesContent').innerHTML = `
-    <div class="leagues-grid">${filtered.map(l => `
-      <div class="league-card" onclick="showLeague(${l.id},'${l.name}','${l.flag}')">
-        <div class="league-flag">${flagImg(l.code)}</div>
-        <div class="league-info">
-          <div class="league-name">${l.name}</div>
-          <div class="league-country">${l.country}</div>
-        </div>
-        ${l.badge ? `<div class="league-badge">${l.badge}</div>` : ''}
-      </div>`).join('')}
-    </div>`;
+  if (_allLeagues.length) {
+    renderLeaguesByCountry(_allLeagues, region);
+  } else {
+    initLeagues(region);
+  }
 }
 
 // ═══════════════════════════════════════════
