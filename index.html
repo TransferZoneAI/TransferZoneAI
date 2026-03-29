@@ -2911,7 +2911,34 @@ function renderLeaguesByCountry(leagues, region) {
   };
 
   function leagueRank(name) {
-    return LEAGUE_RANK[name] ?? 7; // okänd liga = mitt i
+    if (!name) return 99;
+    const n = name.toLowerCase();
+
+    // Exakt match först
+    if (LEAGUE_RANK[name] !== undefined) return LEAGUE_RANK[name];
+
+    // Nyckelordsbaserad rangordning
+    // Nivå 1 — toppligor
+    if (/^(premier league|la liga|bundesliga|serie a|ligue 1|eredivisie|primeira liga|pro league|j1 league|mls|série a|liga profesional|eliteserien|superliga|allsvenskan|champions league|premier division|premiership)$/i.test(n)) return 1;
+    if (/(top flight|first division|1st division|premier|division 1$|liga 1|1\. liga|league 1$|superliga|allsvenskan|eliteserien|veikkausliiga|ekstraklasa|fortuna liga|super league|premiership|pro league|a-league)/.test(n) && !/women|damen|dam|feminin|ladies/.test(n)) return 1;
+
+    // Damligors toppliga — samma rang som herrarnas
+    if (/(elitettan|wsl|nwsl|frauen.bundesliga|division 1 féminine|serie a femminile|primera iberdrola|damallsvenskan|toppserien|kvindeliga|naisten liiga)/.test(n)) return 1;
+
+    // Nivå 2
+    if (/(championship|segunda|2\. bundesliga|ligue 2|serie b|eerste divisie|segunda liga|1\. division|superettan|2nd division|division 2$|primera nacional|usl championship|j2 league|série b)/.test(n)) return 2;
+
+    // Nivå 3
+    if (/(league one|tercera|3\. liga|national$|ettan|3rd division|division 3$|j3 league|série c|usl league one)/.test(n)) return 3;
+
+    // Nivå 4+
+    if (/(league two|cuarta|4\. liga|division 4|4th division)/.test(n)) return 4;
+    if (/division [2-9]/.test(n)) return 5;
+
+    // Cuper och tävlingar sist
+    if (/(cup|pokal|coupe|copa|coppa|trofeo|trophy|shield|supercup|supercopa|supercoupe|play.off|relegation|friendly|friendlies|u18|u21|u23|youth|reserve|women|damen|dam |feminin|ladies|girl)/.test(n)) return 50;
+
+    return 10; // okänd liga
   }
 
   // Sortera ligor: herr först (rangordnat), dam sist
