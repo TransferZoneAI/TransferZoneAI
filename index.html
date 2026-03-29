@@ -2363,7 +2363,7 @@ async function showTeam(id) {
         </div>
         <div class="team-meta-large">
           <div class="breadcrumb"><a href="#" onclick="showPage('leagues')">Leagues</a> · ${t.country}</div>
-          <h1>${t.name}</h1>
+          <h1>${fixName(fixEncoding(t.name))}</h1>
           <div class="player-tags" style="margin-top:10px">
             ${v?.name ? `<div class="player-tag">📍 ${v.name}</div>` : ''}
             ${v?.capacity ? `<div class="player-tag">👥 ${v.capacity.toLocaleString()}</div>` : ''}
@@ -2931,6 +2931,7 @@ const NAME_FIXES = {
   'Norrkoping': 'Norrköping',
   'IFK Norrkoping': 'IFK Norrköping',
   'Malmo FF': 'Malmö FF',
+  'Malmo FF W': 'Malmö FF W',
   'Brommapojkarna': 'IF Brommapojkarna',
   'IF Brommapojk...': 'IF Brommapojkarna',
   'Djurgardens IF': 'Djurgårdens IF',
