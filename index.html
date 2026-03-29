@@ -4811,8 +4811,10 @@ async function fastFootballSearch(query) {
 
   // Pattern: most goals/assists in team
   // Supports: "most goals in Arsenal", "who scored most in Malmö FF", "flest mål Arsenal"
-  const teamStatMatch = q.match(/(?:flest|most|top|best|vem|who|scored|made)\s+(?:goals?|assists?|passes?|cards?|tackles?).*?(?:\s+in|\s+i|\s+for|\s+för)?\s+([A-Za-z][\w\s]{2,24})(?:\s+\d{4})?$/) ||
-    q.match(/(?:goals?|assists?|passes?|cards?|tackles?).*?(?:in|i|for)\s+([A-Za-z][\w\s]{2,24})(?:\s+\d{4})?$/);
+  // Use a broader character class that includes unicode letters like ö, ä, å
+  const _teamRe1 = /(?:flest|most|top|best|vem|who|scored|made)\s+(?:goals?|assists?|passes?|cards?|tackles?).*?(?:\s+in|\s+i|\s+for)?\s+(\S[\w\s\u00c0-\u017e]{2,24})(?:\s+\d{4})?$/i;
+  const _teamRe2 = /(?:goals?|assists?|passes?|cards?|tackles?).*?(?:in|i|for)\s+(\S[\w\s\u00c0-\u017e]{2,24})(?:\s+\d{4})?$/i;
+  const teamStatMatch = _teamRe1.exec(q) || _teamRe2.exec(q);
   if (teamStatMatch) {
     const teamName = (teamStatMatch[1] || '').trim().replace(/\d{4}$/, '').trim();
     const team = await findTeamId(teamName);
@@ -4896,12 +4898,13 @@ async function sendAIQuery() {
   try {
     const fast = await fastFootballSearch(query);
     if (fast) {
-      resp.innerHTML = `<div style="white-space:pre-line;line-height:1.8;font-size:14px">${fast}</div>
-        <div style="margin-top:8px;font-size:11px;color:var(--text3)">⚡ Data from API-Football</div>`;
+      resp.innerHTML = '<div style="white-space:pre-line;line-height:1.8;font-size:14px">' + fast + '</div>' +
+        '<div style="margin-top:8px;font-size:11px;color:var(--text3)">Data from API-Football</div>';
       return;
     }
   } catch(e) {
-    // Snabb sökning misslyckades — fortsätt till Claude
+    console.warn('Fast search failed:', e);
+    // fortsätt till Claude
   }
 
   // Falla tillbaka på Claude för komplexa frågor
