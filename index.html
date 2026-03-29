@@ -2152,7 +2152,7 @@ async function showPlayer(id) {
             <a href="#" onclick="showTeam(${currentTeamId})" style="color:var(--gold);text-decoration:none">${fixName(currentTeam)}</a>
             · ${p.nationality||''}
           </div>
-          <h1>${p.name}</h1>
+          <h1>${fixEncoding(p.name)}</h1>
           <div class="player-tags">
             ${s?.games?.position ? `<div class="player-tag pos-tag">${s.games.position}</div>` : ''}
             ${p.age ? `<div class="player-tag">🎂 ${p.age}</div>` : ''}
@@ -2355,6 +2355,33 @@ function fixName(name) {
   return NAME_FIXES[name] || name;
 }
 
+// Reparerar trasig teckenkodning i spelarnamn
+function fixEncoding(str) {
+  if (!str) return str;
+  // Byt ut kända mojibake-mönster
+  return str
+    .replace(/Ä/g, 'ć')
+    .replace(/Ä/g, 'č')
+    .replace(/Å¡/g, 'š')
+    .replace(/Å¾/g, 'ž')
+    .replace(/Ä/g, 'đ')
+    .replace(/Ã¤/g, 'ä')
+    .replace(/Ã¶/g, 'ö')
+    .replace(/Ã¥/g, 'å')
+    .replace(/Ã¸/g, 'ø')
+    .replace(/Ä\?/g,     'ć')
+    .replace(/Ä‡/g,      'ć')
+    .replace(/Å¡/g,      'š')
+    .replace(/Å¾/g,      'ž')
+    .replace(/Ä'/g,      'đ')
+    .replace(/Ã¤/g,      'ä')
+    .replace(/Ã¶/g,      'ö')
+    .replace(/Ã¥/g,      'å')
+    .replace(/Ã©/g,      'é')
+    .replace(/Ã¸/g,      'ø');
+}
+
+
 function formatFee(raw) {
   if (!raw || raw === '—') return '—';
   const l = raw.toLowerCase();
@@ -2531,7 +2558,7 @@ async function initHome() {
         <div class="transfer-card" onclick="showPlayer(${t.playerId})">
           <div class="transfer-player-img">⚽</div>
           <div class="transfer-info">
-            <div class="transfer-player-name">${t.player}</div>
+            <div class="transfer-player-name">${fixEncoding(t.player)}</div>
             <div class="transfer-clubs">
               <span>${fixName(t.from)}</span><span class="transfer-arrow">→</span><span>${fixName(t.to)}</span>
             </div>
@@ -2558,7 +2585,7 @@ function renderTransfersFallback() {
     <div class="transfer-card" onclick="showPage('transfers')">
       <div class="transfer-player-img">${t.flag}</div>
       <div class="transfer-info">
-        <div class="transfer-player-name">${t.player}</div>
+        <div class="transfer-player-name">${fixEncoding(t.player)}</div>
         <div class="transfer-clubs">
           <span>${fixName(t.from)}</span><span class="transfer-arrow">→</span><span>${fixName(t.to)}</span>
         </div>
@@ -2650,7 +2677,7 @@ async function renderLeaguePage(id, name, flag) {
               ${s.player.photo ? `<img src="${s.player.photo}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">` : '⚽'}
             </div>
             <div class="scorer-info">
-              <div class="scorer-name">${s.player.name}</div>
+              <div class="scorer-name">${fixEncoding(s.player.name)}</div>
               <div class="scorer-club">${fixName(s.statistics[0]?.team?.name||'')}</div>
             </div>
             <div class="scorer-goals">${s.statistics[0]?.goals?.total||0}</div>
@@ -2788,7 +2815,7 @@ function renderTransfers(data, page) {
   document.getElementById('transfersBody').innerHTML = slice.map(t => `
     <tr onclick="showPlayer(${t.playerId})">
       <td><div class="t-player"><div class="t-player-img">${t.flag}</div><div>
-        <div class="t-player-name">${t.player}</div>
+        <div class="t-player-name">${fixEncoding(t.player)}</div>
         <div class="t-player-pos">${t.pos}</div>
       </div></div></td>
       <td><div class="t-clubs"><span>${t.from}</span><span class="t-sep">→</span><span>${t.to}</span></div></td>
@@ -2860,7 +2887,7 @@ async function showTopList(type, btn) {
             <tr onclick="showPlayer(${t.playerId})">
               <td><span class="st-pos ${i<3?'st-cl':''}">${i+1}</span></td>
               <td><div class="t-player"><div class="t-player-img">${t.flag}</div><div>
-                <div class="t-player-name">${t.player}</div>
+                <div class="t-player-name">${fixEncoding(t.player)}</div>
               </div></div></td>
               <td><div class="t-clubs"><span>${t.from}</span><span class="t-sep">→</span><span>${t.to}</span></div></td>
               <td><span class="t-fee">${t.fee}</span></td>
@@ -2978,7 +3005,7 @@ document.getElementById('globalSearch').addEventListener('input', function() {
     <div class="search-result-item" onclick="window._srAction_${i}()">
       <div class="sr-icon">${m.icon}</div>
       <div class="sr-text">
-        <div class="sr-name">${m.name}</div>
+        <div class="sr-name">${fixEncoding(m.name)}</div>
         <div class="sr-sub">${m.sub}</div>
       </div>
       <div class="sr-type">${m.type}</div>
