@@ -3400,28 +3400,23 @@ function fixName(name) {
 // Reparerar trasig teckenkodning i spelarnamn
 function fixEncoding(str) {
   if (!str) return str;
-  // API-Football skickar ibland UTF-8 som latin1 — dessa mönster täcker de vanligaste fallen
   return str
-    // Serbiska/kroatiska/bosniska
-    .replace(/Ä/g, 'ć')   // ć
-    .replace(/Ä/g, 'č')   // č
-    .replace(/Å¡/g, 'š')   // š
-    .replace(/Å¾/g, 'ž')   // ž
-    .replace(/Ä/g, 'đ')   // đ
-    .replace(/Ä/g, 'Ć')   // Ć
-    .replace(/Ä/g, 'Č')   // Č
-    .replace(/Å /g, 'Š')   // Š
-    // Skandinaviska
-    .replace(/Ã¤/g, 'ä')   // ä
-    .replace(/Ã¶/g, 'ö')   // ö
-    .replace(/Ã¥/g, 'å')   // å
-    .replace(/Ã¸/g, 'ø')   // ø
-    .replace(/Ã¦/g, 'æ')   // æ
-    // "Ä?" eller "Ä" i slutet av ord = ć (API-Football specifik bugg)
-    .replace(/Ä\?/g, 'ć')
-    .replace(/Ä(?=[\s,.'\-]|$)/g, 'ć');
+    .replace(/\u00c4\u0087/g, '\u0107')
+    .replace(/\u00c4\u008d/g, '\u010d')
+    .replace(/\u00c5\u00a1/g, '\u0161')
+    .replace(/\u00c5\u00be/g, '\u017e')
+    .replace(/\u00c4\u0091/g, '\u0111')
+    .replace(/\u00c4\u0086/g, '\u0106')
+    .replace(/\u00c4\u008c/g, '\u010c')
+    .replace(/\u00c5\u00a0/g, '\u0160')
+    .replace(/\u00c3\u00a4/g, '\u00e4')
+    .replace(/\u00c3\u00b6/g, '\u00f6')
+    .replace(/\u00c3\u00a5/g, '\u00e5')
+    .replace(/\u00c3\u00b8/g, '\u00f8')
+    .replace(/\u00c3\u00a6/g, '\u00e6')
+    .replace(/\u00c4[?]/g, '\u0107')
+    .replace(/\u00c4(?=[\s,.'\-]|$)/g, '\u0107');
 }
-
 
 function renderTeamTransferTable(rows) {
   if (!rows.length) return `<div style="padding:20px;color:var(--text3)">Inga transfers.</div>`;
@@ -4775,13 +4770,11 @@ initHome();
 async function fastFootballSearch(query) {
   const q = query.toLowerCase();
 
-  // Hjälpfunktion: hitta lag-ID från namn
   async function findTeamId(name) {
     const data = await apiFetch('teams', { search: name });
     return data.response?.[0]?.team;
   }
 
-  // Hjälpfunktion: hitta liga-ID
   function findLeagueId(name) {
     const n = name.toLowerCase();
     const map = {
@@ -4797,70 +4790,62 @@ async function fastFootballSearch(query) {
     return null;
   }
 
-  const thisYear = new Date().getFullYear();
-  const season = thisYear - 1; // senaste kompletta
+  const season = new Date().getFullYear() - 1;
 
-  // ── Mönster: "topscorers/flest mål i [liga]" ──
-  const scorerMatch = q.match(/(?:top scorer|most goals|flest m.l|scored most|topscorer).*?(?:in|i|for)\s+(.+?)(?:\s+this|\s+last|\s+season|$)/);
+  // Pattern: topscorers in league
+  const scorerMatch = q.match(/(?:top scorer|most goals|flest|scored most|topscorer).*?(?:in|i|for)\s+(.+?)(?:\s+this|\s+last|\s+season|$)/);
   if (scorerMatch) {
     const leagueId = findLeagueId(scorerMatch[1]);
     if (leagueId) {
       const data = await apiFetch('players/topscorers', { league: leagueId, season });
       const players = data.response?.slice(0, 5) || [];
       if (players.length) {
-        return `⚽ **Top Scorers:**
-` + players.map((p,i) =>
-          `${i+1}. ${fixEncoding(p.player.name)} (${fixName(p.statistics[0]?.team?.name||'')}) — ${p.statistics[0]?.goals?.total||0} goals`
-        ).join('
-');
+        return 'Top Scorers:\n' + players.map((p,i) =>
+          (i+1) + '. ' + fixEncoding(p.player.name) + ' (' + fixName(p.statistics[0]?.team?.name||'') + ') - ' + (p.statistics[0]?.goals?.total||0) + ' goals'
+        ).join('\n');
       }
     }
   }
 
-  // ── Mönster: "flest mål/assists/mål i [lag]" ──
+  // Pattern: most goals/assists in team
   const teamStatMatch = q.match(/(?:flest|most|top|best|vem|who)\s+(?:goals|assists|passes|cards|tackles).*?(?:i|in|for)\s+(.{3,25})(?:\s|$)/);
   if (teamStatMatch) {
     const teamName = teamStatMatch[1].trim();
     const team = await findTeamId(teamName);
     if (team) {
-      // Hitta säsong med data
       let players = [];
       for (const yr of [season, season-1]) {
         const d = await apiFetch('players', { team: team.id, season: yr, page: 1 });
         if (d.response?.length) { players = d.response; break; }
       }
       if (players.length) {
-        const isAssists  = q.includes('assist') || q.includes('passning');
-        const isTackles  = q.includes('tackle');
-        const isPasses   = q.includes('pass');
-        const isCards    = q.includes('card');
+        const isAssists = q.includes('assist');
+        const isTackles = q.includes('tackle');
+        const isPasses  = q.includes('pass');
+        const isCards   = q.includes('card');
+        let valFn, label;
+        if (isAssists)      { valFn = s => s.goals?.assists;    label = 'assists'; }
+        else if (isTackles) { valFn = s => s.tackles?.total;    label = 'tackles'; }
+        else if (isPasses)  { valFn = s => s.passes?.total;     label = 'passes'; }
+        else if (isCards)   { valFn = s => s.cards?.yellow;     label = 'yellow cards'; }
+        else                { valFn = s => s.goals?.total;      label = 'goals'; }
 
         const sumStat = (p, fn) => (p.statistics||[]).reduce((a,s) => a+(fn(s)||0), 0);
-        let sorted, label, valFn;
-
-        if (isAssists)      { valFn = s=>s.goals?.assists;    label = 'assists'; }
-        else if (isTackles) { valFn = s=>s.tackles?.total;    label = 'tackles'; }
-        else if (isPasses)  { valFn = s=>s.passes?.total;     label = 'passes'; }
-        else if (isCards)   { valFn = s=>s.cards?.yellow;     label = 'yellow cards'; }
-        else                { valFn = s=>s.goals?.total;      label = 'goals'; }
-
-        sorted = players
+        const sorted = players
           .map(p => ({ p, val: sumStat(p, valFn) }))
           .filter(x => x.val > 0)
           .sort((a,b) => b.val - a.val)
           .slice(0, 5);
 
         if (sorted.length) {
-          return `📊 **Most ${label} in ${fixName(team.name)}:**
-` +
-            sorted.map((x,i) => `${i+1}. ${fixEncoding(x.p.player.name)} — ${x.val}`).join('
-');
+          return 'Most ' + label + ' in ' + fixName(team.name) + ':\n' +
+            sorted.map((x,i) => (i+1) + '. ' + fixEncoding(x.p.player.name) + ' - ' + x.val).join('\n');
         }
       }
     }
   }
 
-  // ── Mönster: "tabell [liga]" ──
+  // Pattern: table/standings
   const tableMatch = q.match(/(?:table|tabell|standings).*?(?:i|in|for)?\s*(premier league|la liga|bundesliga|serie a|ligue 1|allsvenskan|eliteserien|champions league)/);
   if (tableMatch) {
     const leagueId = findLeagueId(tableMatch[1]);
@@ -4868,15 +4853,13 @@ async function fastFootballSearch(query) {
       const data = await apiFetch('standings', { league: leagueId, season });
       const table = data.response?.[0]?.league?.standings?.[0]?.slice(0,5) || [];
       if (table.length) {
-        return `📊 **Standings (Top 5):**
-` +
-          table.map(r => `${r.rank}. ${fixName(r.team.name)} — ${r.points} pts (${r.all.win}W ${r.all.draw}D ${r.all.lose}L)`).join('
-');
+        return 'Standings (Top 5):\n' +
+          table.map(r => r.rank + '. ' + fixName(r.team.name) + ' - ' + r.points + ' pts (' + r.all.win + 'W ' + r.all.draw + 'D ' + r.all.lose + 'L)').join('\n');
       }
     }
   }
 
-  // ── Mönster: "[spelare] stats/statistik" ──
+  // Pattern: player stats
   const playerMatch = q.match(/(?:stats|goals|assists).*?(?:for|of)?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
   if (playerMatch) {
     const name = playerMatch[1];
@@ -4884,14 +4867,14 @@ async function fastFootballSearch(query) {
     const p = data.response?.[0];
     if (p) {
       const s = p.statistics?.[0];
-      return `👤 **${fixEncoding(p.player.name)}** (${fixName(s?.team?.name||'')})
-` +
-        `⚽ Goals: ${s?.goals?.total||0} | 🅰️ Assists: ${s?.goals?.assists||0} | 📋 Apps: ${s?.games?.appearences||0}`;
+      return fixEncoding(p.player.name) + ' (' + fixName(s?.team?.name||'') + ')\n' +
+        'Goals: ' + (s?.goals?.total||0) + ' | Assists: ' + (s?.goals?.assists||0) + ' | Apps: ' + (s?.games?.appearences||0);
     }
   }
 
-  return null; // Ingen snabb match — falla tillbaka på Claude
+  return null;
 }
+
 
 async function sendAIQuery() {
   const input = document.getElementById('aiSearchInput');
