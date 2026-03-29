@@ -11,13 +11,12 @@ export default async function handler(req) {
   // Bygg URL till API-Football
   const params = new URLSearchParams(searchParams);
   params.delete('endpoint');
-  const url = `https://api-football-v1.p.rapidapi.com/v3/${endpoint}?${params.toString()}`;
+  const url = `https://v3.football.api-sports.io/${endpoint}?${params.toString()}`;
 
   try {
     const response = await fetch(url, {
       headers: {
-        'x-rapidapi-host': 'api-football-v1.p.rapidapi.com',
-        'x-rapidapi-key': process.env.RAPIDAPI_KEY,
+        'x-apisports-key': process.env.APISPORTS_KEY,
       }
     });
 
