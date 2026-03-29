@@ -3938,7 +3938,7 @@ function showPage(id) {
   if (id === 'leagues' && !window._leaguesInited) { initLeagues('all'); window._leaguesInited = true; }
   if (id === 'transfers' && !window._transfersInited) { initTransfers(); window._transfersInited = true; }
   if (id === 'toplist' && !window._toplistInited) { showTopList('scorers', document.querySelector('#page-toplist .filter-btn')); window._toplistInited = true; }
-  if (id === 'live' && !window._liveInited) { initLive(); window._liveInited = true; }
+  if (id === 'live') { initLive(); window._liveInited = true; }
 }
 
 function goBack() {
