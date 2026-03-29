@@ -2055,12 +2055,6 @@ header {
       <h2 class="section-title">Live & <span>Results</span></h2>
       <span class="badge badge-red">LIVE</span>
     </div>
-    <div class="toplist-filters">
-      <button class="filter-btn active" onclick="filterLive('all',this)">All</button>
-      <button class="filter-btn" onclick="filterLive('live',this)">🟢 Live Now</button>
-      <button class="filter-btn" onclick="filterLive('today',this)">Today</button>
-      <button class="filter-btn" onclick="filterLive('upcoming',this)">Upcoming</button>
-    </div>
     <div id="liveContent"></div>
   </div>
 </div>
@@ -3454,78 +3448,173 @@ async function showTopList(type, btn) {
 let _liveData = [];
 
 let _liveFilter = 'all';
+let _liveDate = new Date().toISOString().slice(0, 10);
 
 async function initLive() {
-  document.getElementById('liveContent').innerHTML =
-    `<div class="skeleton" style="height:300px;border-radius:10px"></div>`;
-  try {
-    const data = await apiFetch('fixtures', { live: 'all' });
-    _liveData = data.response || [];
+  renderLiveDatePicker();
+  await loadLiveByDate(_liveDate, _liveFilter);
+}
 
-    // Om inga live-matcher, hämta dagens matcher istället
-    if (!_liveData.length) {
-      const today = new Date().toISOString().slice(0,10);
-      const todayData = await apiFetch('fixtures', { date: today });
-      _liveData = todayData.response || [];
+function renderLiveDatePicker() {
+  const c = document.getElementById('liveContent');
+  // Bygg 7 dagar: -3 till +3
+  const today = new Date();
+  const days = [];
+  for (let i = -3; i <= 3; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    days.push(d);
+  }
+  const dateStr = (d) => d.toISOString().slice(0, 10);
+  const labelStr = (d) => {
+    const diff = Math.round((d - today) / 86400000);
+    if (diff === 0) return 'Today';
+    if (diff === -1) return 'Yesterday';
+    if (diff === 1) return 'Tomorrow';
+    return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  };
+
+  const picker = `
+    <div id="liveDatePicker" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:16px;scrollbar-width:none">
+      ${days.map(d => `
+        <button onclick="selectLiveDate('${dateStr(d)}', this)"
+          class="filter-btn ${dateStr(d) === _liveDate ? 'active' : ''}"
+          style="flex-shrink:0;white-space:nowrap;padding:6px 14px">
+          ${labelStr(d)}
+        </button>`).join('')}
+    </div>
+    <div class="toplist-filters" style="margin-bottom:16px">
+      <button class="filter-btn ${_liveFilter==='all'?'active':''}" onclick="filterLive('all',this)">All</button>
+      <button class="filter-btn ${_liveFilter==='live'?'active':''}" onclick="filterLive('live',this)">🟢 Live</button>
+      <button class="filter-btn ${_liveFilter==='upcoming'?'active':''}" onclick="filterLive('upcoming',this)">Upcoming</button>
+      <button class="filter-btn ${_liveFilter==='finished'?'active':''}" onclick="filterLive('finished',this)">Finished</button>
+    </div>
+    <div id="liveMatchesContent"></div>`;
+
+  c.innerHTML = picker;
+}
+
+async function selectLiveDate(date, btn) {
+  _liveDate = date;
+  document.querySelectorAll('#liveDatePicker .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  await loadLiveByDate(date, _liveFilter);
+}
+
+async function loadLiveByDate(date, type) {
+  const mc = document.getElementById('liveMatchesContent');
+  if (!mc) return;
+  mc.innerHTML = `<div class="skeleton" style="height:300px;border-radius:10px"></div>`;
+
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    let fixtures = [];
+
+    if (date === today) {
+      // Hämta live + dagens matcher parallellt
+      const [liveData, todayData] = await Promise.all([
+        apiFetch('fixtures', { live: 'all' }),
+        apiFetch('fixtures', { date }),
+      ]);
+      const liveF = liveData.response || [];
+      const todayF = todayData.response || [];
+      const seen = new Set();
+      fixtures = [...liveF, ...todayF].filter(f => {
+        if (seen.has(f.fixture.id)) return false;
+        seen.add(f.fixture.id);
+        return true;
+      });
+      _liveData = fixtures;
+    } else {
+      const data = await apiFetch('fixtures', { date });
+      fixtures = data.response || [];
     }
 
-    renderLive(_liveData, _liveFilter);
+    renderLiveMatches(fixtures, type);
   } catch(e) {
-    document.getElementById('liveContent').innerHTML =
-      `<div style="padding:20px;color:var(--text3)">Kunde inte ladda matcher.</div>`;
-    console.error('initLive error:', e);
+    if (mc) mc.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda matcher.</div>`;
   }
 }
 
-function renderLive(fixtures, type) {
-  const c = document.getElementById('liveContent');
+function renderLiveMatches(fixtures, type) {
+  const mc = document.getElementById('liveMatchesContent');
+  if (!mc) return;
 
   // Filtrera
-  const filtered = type === 'live' 
+  const filtered = type === 'live'
     ? fixtures.filter(f => ['1H','HT','2H','ET','P'].includes(f.fixture?.status?.short))
-    : type === 'today'
-    ? fixtures.filter(f => ['1H','HT','2H','ET','P','FT','AET','PEN','NS'].includes(f.fixture?.status?.short))
     : type === 'upcoming'
     ? fixtures.filter(f => f.fixture?.status?.short === 'NS')
+    : type === 'finished'
+    ? fixtures.filter(f => ['FT','AET','PEN'].includes(f.fixture?.status?.short))
     : fixtures;
 
   if (!filtered.length) {
-    c.innerHTML = `<div style="padding:20px;color:var(--text3);text-align:center">
-      ${type === 'live' ? 'Inga live-matcher just nu.' : 'Inga matcher hittades.'}
-    </div>`;
+    mc.innerHTML = `<div style="padding:20px;color:var(--text3);text-align:center">No matches found.</div>`;
     return;
   }
 
-  // Groupa per liga
-  const byLeague = {};
+  // Groupa per land → liga (accordion precis som Leagues-sidan)
+  const byCountry = {};
   filtered.forEach(f => {
-    const key = f.league?.name || 'Unknown';
-    if (!byLeague[key]) byLeague[key] = { fixtures: [], logo: f.league?.logo, country: f.league?.country };
-    byLeague[key].fixtures.push(f);
+    const country = f.league?.country || 'World';
+    const leagueKey = f.league?.id || f.league?.name;
+    if (!byCountry[country]) byCountry[country] = {};
+    if (!byCountry[country][leagueKey]) byCountry[country][leagueKey] = {
+      name: f.league?.name || '—',
+      logo: f.league?.logo || '',
+      fixtures: [],
+    };
+    byCountry[country][leagueKey].fixtures.push(f);
   });
 
-  c.innerHTML = Object.entries(byLeague).map(([league, { fixtures: ls, logo, country }]) => `
-    <div style="margin-bottom:20px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:0 2px">
-        ${logo ? `<img src="${logo}" style="width:20px;height:20px;object-fit:contain">` : ''}
-        <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text2)">${league}</span>
-        <span style="font-size:11px;color:var(--text3)">${country || ''}</span>
-      </div>
-      <div class="matches-list">
-        ${ls.map(f => matchCard(normalizeMatch(f))).join('')}
-      </div>
-    </div>`).join('');
+  // Topländer först
+  const TOP = ['England','Spain','Germany','Italy','France','Portugal','Netherlands','Belgium','Turkey','Brazil','Argentina','United States','Sweden','Norway','Denmark'];
+  const sortedCountries = Object.entries(byCountry).sort(([a],[b]) => {
+    const ai = TOP.indexOf(a), bi = TOP.indexOf(b);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
+  mc.innerHTML = sortedCountries.map(([country, leagues], ci) => {
+    const leagueList = Object.values(leagues);
+    const accId = `live_acc_${ci}`;
+    // Auto-öppna topp-5 länder
+    const isOpen = ci < 5;
+    return `
+      <div class="country-accordion" style="margin-bottom:6px">
+        <div class="country-accordion-header ${isOpen?'open':''}" onclick="toggleAccordion('${accId}', this)">
+          <span class="country-accordion-name" style="font-size:14px">${country}</span>
+          <span class="country-accordion-count">${leagueList.reduce((s,l)=>s+l.fixtures.length,0)} matches</span>
+          <span class="country-accordion-arrow">▼</span>
+        </div>
+        <div class="country-accordion-body ${isOpen?'open':''}" id="${accId}">
+          ${leagueList.map(league => `
+            <div style="margin-bottom:12px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:4px 0">
+                ${league.logo ? `<img src="${league.logo}" style="width:18px;height:18px;object-fit:contain">` : ''}
+                <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text2)">${league.name}</span>
+              </div>
+              <div class="matches-list">
+                ${league.fixtures.map(f => matchCard(normalizeMatch(f))).join('')}
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderLive(fixtures, type) {
+  renderLiveMatches(fixtures, type);
 }
 
 function filterLive(type, btn) {
-  document.querySelectorAll('#page-live .filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#page-live .toplist-filters .filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   _liveFilter = type;
-  if (_liveData.length) {
-    renderLive(_liveData, type);
-  } else {
-    initLive();
-  }
+  renderLiveMatches(_liveData.length ? _liveData : [], type);
 }
 
 // ═══════════════════════════════════════════
