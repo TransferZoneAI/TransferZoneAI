@@ -1799,27 +1799,33 @@ async function apiFetch(endpoint, params = {}) {
 }
 
 // ── Statisk listaordn (används som fallback & navigation) ──
+// Flaggor via flagcdn.com (ISO 3166-1 alpha-2 landskoder)
+function flagImg(code, size=24) {
+  if (!code) return '<span style="font-size:20px">🌍</span>';
+  return `<img src="https://flagcdn.com/w40/${code.toLowerCase()}.png" width="${size}" height="${Math.round(size*0.67)}" style="border-radius:2px;object-fit:cover" onerror="this.style.display='none'">`;
+}
+
 const LEAGUES = [
-  { id:39,  name:"Premier League",    country:"England",     flag:"🏴󠁧󠁢󠁥󠁮󠁧󁿢", badge:"TOP 5", region:"europe" },
-  { id:140, name:"La Liga",           country:"Spain",       flag:"🇪🇸", badge:"TOP 5", region:"europe" },
-  { id:78,  name:"Bundesliga",        country:"Germany",     flag:"🇩🇪", badge:"TOP 5", region:"europe" },
-  { id:135, name:"Serie A",           country:"Italy",       flag:"🇮🇹", badge:"TOP 5", region:"europe" },
-  { id:61,  name:"Ligue 1",           country:"France",      flag:"🇫🇷", badge:"TOP 5", region:"europe" },
-  { id:2,   name:"Champions League",  country:"UEFA",        flag:"🇪🇺", badge:"UCL",   region:"europe" },
-  { id:3,   name:"Europa League",     country:"UEFA",        flag:"🇪🇺", badge:"UEL",   region:"europe" },
-  { id:94,  name:"Primeira Liga",     country:"Portugal",    flag:"🇵🇹", badge:"",      region:"europe" },
-  { id:88,  name:"Eredivisie",        country:"Netherlands", flag:"🇳🇱", badge:"",      region:"europe" },
-  { id:144, name:"Pro League",        country:"Belgium",     flag:"🇧🇪", badge:"",      region:"europe" },
-  { id:203, name:"Süper Lig",         country:"Turkey",      flag:"🇹🇷", badge:"",      region:"europe" },
-  { id:169, name:"Allsvenskan",       country:"Sweden",      flag:"🇸🇪", badge:"",      region:"europe" },
-  { id:307, name:"Saudi Pro League",  country:"Saudi Arabia",flag:"🇸🇦", badge:"",      region:"asia" },
-  { id:332, name:"J1 League",         country:"Japan",       flag:"🇯🇵", badge:"",      region:"asia" },
-  { id:253, name:"MLS",               country:"USA",         flag:"🇺🇸", badge:"",      region:"north-america" },
-  { id:71,  name:"Brasileirão",       country:"Brazil",      flag:"🇧🇷", badge:"",      region:"south-america" },
-  { id:128, name:"Liga Profesional",  country:"Argentina",   flag:"🇦🇷", badge:"",      region:"south-america" },
-  { id:179, name:"Scottish Prem.",    country:"Scotland",    flag:"🏴󠁧󠁢󠁳󠁣󠁴󠁿", badge:"",      region:"europe" },
-  { id:197, name:"Super League",      country:"Greece",      flag:"🇬🇷", badge:"",      region:"europe" },
-  { id:233, name:"AFCON",             country:"Africa",      flag:"🌍", badge:"",       region:"africa" },
+  { id:39,  name:"Premier League",    country:"England",      code:"gb-eng", badge:"TOP 5", region:"europe" },
+  { id:140, name:"La Liga",           country:"Spain",        code:"es",     badge:"TOP 5", region:"europe" },
+  { id:78,  name:"Bundesliga",        country:"Germany",      code:"de",     badge:"TOP 5", region:"europe" },
+  { id:135, name:"Serie A",           country:"Italy",        code:"it",     badge:"TOP 5", region:"europe" },
+  { id:61,  name:"Ligue 1",           country:"France",       code:"fr",     badge:"TOP 5", region:"europe" },
+  { id:2,   name:"Champions League",  country:"UEFA",         code:"eu",     badge:"UCL",   region:"europe" },
+  { id:3,   name:"Europa League",     country:"UEFA",         code:"eu",     badge:"UEL",   region:"europe" },
+  { id:94,  name:"Primeira Liga",     country:"Portugal",     code:"pt",     badge:"",      region:"europe" },
+  { id:88,  name:"Eredivisie",        country:"Netherlands",  code:"nl",     badge:"",      region:"europe" },
+  { id:144, name:"Pro League",        country:"Belgium",      code:"be",     badge:"",      region:"europe" },
+  { id:203, name:"Süper Lig",         country:"Turkey",       code:"tr",     badge:"",      region:"europe" },
+  { id:169, name:"Allsvenskan",       country:"Sweden",       code:"se",     badge:"",      region:"europe" },
+  { id:307, name:"Saudi Pro League",  country:"Saudi Arabia", code:"sa",     badge:"",      region:"asia" },
+  { id:332, name:"J1 League",         country:"Japan",        code:"jp",     badge:"",      region:"asia" },
+  { id:253, name:"MLS",               country:"USA",          code:"us",     badge:"",      region:"north-america" },
+  { id:71,  name:"Brasileirão",       country:"Brazil",       code:"br",     badge:"",      region:"south-america" },
+  { id:128, name:"Liga Profesional",  country:"Argentina",    code:"ar",     badge:"",      region:"south-america" },
+  { id:179, name:"Scottish Prem.",    country:"Scotland",     code:"gb-sct", badge:"",      region:"europe" },
+  { id:197, name:"Super League",      country:"Greece",       code:"gr",     badge:"",      region:"europe" },
+  { id:233, name:"AFCON",             country:"Africa",       code:null,     badge:"",      region:"africa" },
 ];
 
 // ── In-memory cache ──
@@ -2278,7 +2284,7 @@ async function initHome() {
   // ── 1. Statiska ligor — renderas direkt, noll väntetid ──
   document.getElementById('topLeagues').innerHTML = LEAGUES.slice(0, 12).map(l => `
     <div class="league-card" onclick="showLeague(${l.id},'${l.name.replace(/'/g,"\\'")}','${l.flag}')">
-      <div class="league-flag">${l.flag}</div>
+      <div class="league-flag">${flagImg(l.code)}</div>
       <div class="league-info">
         <div class="league-name">${l.name}</div>
         <div class="league-country">${l.country}</div>
@@ -2646,7 +2652,7 @@ function initLeagues() {
         <div class="country-header"><div class="country-name">${region}</div></div>
         <div class="leagues-grid">${leagues.map(l => `
           <div class="league-card" onclick="showLeague(${l.id},'${l.name}','${l.flag}')">
-            <div class="league-flag">${l.flag}</div>
+            <div class="league-flag">${flagImg(l.code)}</div>
             <div class="league-info">
               <div class="league-name">${l.name}</div>
               <div class="league-country">${l.country}</div>
@@ -2665,7 +2671,7 @@ function filterLeagues(region, btn) {
   document.getElementById('allLeaguesContent').innerHTML = `
     <div class="leagues-grid">${filtered.map(l => `
       <div class="league-card" onclick="showLeague(${l.id},'${l.name}','${l.flag}')">
-        <div class="league-flag">${l.flag}</div>
+        <div class="league-flag">${flagImg(l.code)}</div>
         <div class="league-info">
           <div class="league-name">${l.name}</div>
           <div class="league-country">${l.country}</div>
