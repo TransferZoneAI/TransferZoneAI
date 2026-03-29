@@ -48,6 +48,39 @@ body {
   padding-bottom: 70px;
 }
 
+/* ── BACK BUTTON ── */
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 7px 14px;
+  color: var(--text2);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+
+.back-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.page-header-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
 /* ── SCROLLBAR ── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: var(--bg2); }
@@ -1885,6 +1918,13 @@ header {
   </div>
 </header>
 
+<!-- GLOBAL BACK BAR -->
+<div id="globalBackBar" style="display:none;background:var(--bg2);border-bottom:1px solid var(--border2)">
+  <div class="page-header-bar">
+    <button class="back-btn" onclick="goBack()">← Back</button>
+  </div>
+</div>
+
 <!-- LIVE TICKER -->
 <div class="live-ticker">
   <div class="ticker-inner">
@@ -2282,19 +2322,7 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-function showPage(id) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.bottom-nav a').forEach(a => a.classList.remove('active'));
-  document.getElementById('page-'+id)?.classList.add('active');
-  document.getElementById('bnav-'+id)?.classList.add('active');
-  window.scrollTo(0,0);
-
-  // Init pages on first show
-  if (id === 'leagues' && !window._leaguesInited) { initLeagues('all'); window._leaguesInited = true; }
-  if (id === 'transfers' && !window._transfersInited) { initTransfers(); window._transfersInited = true; }
-  if (id === 'toplist' && !window._toplistInited) { showTopList('scorers', document.querySelector('#page-toplist .filter-btn')); window._toplistInited = true; }
-  if (id === 'live' && !window._liveInited) { initLive(); window._liveInited = true; }
-}
+// showPage moved to navigation history section
 
 // Aktiv teamId för tab-navigering
 let _currentTeamId = null;
@@ -3040,8 +3068,7 @@ async function renderLeaguePage(id, name, flag) {
     const topscorers = scorers.response ?? [];
 
     // Backknapp + rubrik
-    const backBtn = `<div style="margin-bottom:20px;display:flex;align-items:center;gap:12px">
-      <button onclick="initLeagues('all')" style="background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:6px 12px;color:var(--text2);font-size:13px;cursor:pointer">← Back</button>
+    const backBtn = `<div style="margin-bottom:20px">
       <div class="section-title"><span>${name}</span> <span style="color:var(--text3);font-size:14px;font-weight:400">${season}/${String(season+1).slice(2)}</span></div>
     </div>`;
 
@@ -3886,6 +3913,62 @@ async function showMatchTab(tab, btn, fixtureId) {
 }
 
 // ═══════════════════════════════════════════
+// NAVIGATION HISTORY
+// ═══════════════════════════════════════════
+
+const _navHistory = [];
+
+function showPage(id) {
+  // Push current page to history before navigating
+  const current = document.querySelector('.page.active')?.id?.replace('page-','');
+  if (current && current !== id) {
+    _navHistory.push(current);
+    // Max 20 steps
+    if (_navHistory.length > 20) _navHistory.shift();
+  }
+
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById('page-'+id)?.classList.add('active');
+  document.getElementById('bnav-'+id)?.classList.add('active');
+  window.scrollTo(0,0);
+
+  updateBackButton(id);
+
+  if (id === 'leagues' && !window._leaguesInited) { initLeagues('all'); window._leaguesInited = true; }
+  if (id === 'transfers' && !window._transfersInited) { initTransfers(); window._transfersInited = true; }
+  if (id === 'toplist' && !window._toplistInited) { showTopList('scorers', document.querySelector('#page-toplist .filter-btn')); window._toplistInited = true; }
+  if (id === 'live' && !window._liveInited) { initLive(); window._liveInited = true; }
+}
+
+function goBack() {
+  if (_navHistory.length === 0) {
+    showPage('home');
+    return;
+  }
+  const prev = _navHistory.pop();
+  // Navigate without pushing to history
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById('page-'+prev)?.classList.add('active');
+  document.getElementById('bnav-'+prev)?.classList.add('active');
+  window.scrollTo(0,0);
+  updateBackButton(prev);
+}
+
+function updateBackButton(pageId) {
+  // Pages that always hide back button (main nav pages)
+  const mainPages = ['home','leagues','transfers','toplist','live','myclubs'];
+  const bar = document.getElementById('globalBackBar');
+  if (!bar) return;
+  if (mainPages.includes(pageId) && _navHistory.length === 0) {
+    bar.style.display = 'none';
+  } else {
+    bar.style.display = 'flex';
+  }
+}
+
+// ═══════════════════════════════════════════
 // BOOT
 // ═══════════════════════════════════════════
 
@@ -3977,6 +4060,62 @@ document.getElementById('globalSearch').addEventListener('keydown', e => {
     sendAIQuery();
   }
 });
+
+// ═══════════════════════════════════════════
+// NAVIGATION HISTORY
+// ═══════════════════════════════════════════
+
+const _navHistory = [];
+
+function showPage(id) {
+  // Push current page to history before navigating
+  const current = document.querySelector('.page.active')?.id?.replace('page-','');
+  if (current && current !== id) {
+    _navHistory.push(current);
+    // Max 20 steps
+    if (_navHistory.length > 20) _navHistory.shift();
+  }
+
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById('page-'+id)?.classList.add('active');
+  document.getElementById('bnav-'+id)?.classList.add('active');
+  window.scrollTo(0,0);
+
+  updateBackButton(id);
+
+  if (id === 'leagues' && !window._leaguesInited) { initLeagues('all'); window._leaguesInited = true; }
+  if (id === 'transfers' && !window._transfersInited) { initTransfers(); window._transfersInited = true; }
+  if (id === 'toplist' && !window._toplistInited) { showTopList('scorers', document.querySelector('#page-toplist .filter-btn')); window._toplistInited = true; }
+  if (id === 'live' && !window._liveInited) { initLive(); window._liveInited = true; }
+}
+
+function goBack() {
+  if (_navHistory.length === 0) {
+    showPage('home');
+    return;
+  }
+  const prev = _navHistory.pop();
+  // Navigate without pushing to history
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById('page-'+prev)?.classList.add('active');
+  document.getElementById('bnav-'+prev)?.classList.add('active');
+  window.scrollTo(0,0);
+  updateBackButton(prev);
+}
+
+function updateBackButton(pageId) {
+  // Pages that always hide back button (main nav pages)
+  const mainPages = ['home','leagues','transfers','toplist','live','myclubs'];
+  const bar = document.getElementById('globalBackBar');
+  if (!bar) return;
+  if (mainPages.includes(pageId) && _navHistory.length === 0) {
+    bar.style.display = 'none';
+  } else {
+    bar.style.display = 'flex';
+  }
+}
 
 // ═══════════════════════════════════════════
 // BOOT
