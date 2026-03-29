@@ -7,6 +7,7 @@
 <meta name="description" content="Free global football database with AI-powered search. Transfer values, stats, leagues and live scores worldwide.">
 <meta name="theme-color" content="#0a0a0f">
 <link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,700&family=Barlow:wght@300;400;500;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
@@ -2888,10 +2889,9 @@ function focusAI() {
 // GLOBAL SEARCH
 // ═══════════════════════════════════════════
 
+// Sökindex — ligor är statiska, spelare/lag laddas dynamiskt via API
 const searchIndex = [
-  ...Object.values(PLAYERS).map(p => ({ type:'Player', name:p.name, sub:`${p.team} · ${p.pos}`, icon:p.flag, action:()=>showPlayer(p.id) })),
-  ...Object.values(TEAMS).map(t => ({ type:'Club', name:t.name, sub:`${t.league} · ${t.country}`, icon:t.emoji, action:()=>showTeam(t.id) })),
-  ...LEAGUES.slice(0,8).map(l => ({ type:'League', name:l.name, sub:l.country, icon:l.flag, action:()=>showPage('leagues') })),
+  ...LEAGUES.map(l => ({ type:'League', name:l.name, sub:l.country, icon:l.flag, action:()=>showLeague(l.id, l.name, l.flag) })),
 ];
 
 document.getElementById('globalSearch').addEventListener('input', function() {
