@@ -2626,28 +2626,30 @@ async function showTeamTab(tab, btn) {
 
       if (!leagueId) throw new Error('no league');
 
-      // Hämta alla topplistor parallellt
-      const [scorers, assistsD, yellowD, redD, appearD] = await Promise.all([
-        apiFetch('players/topscorers',     { league: leagueId, season }),
-        apiFetch('players/topassists',     { league: leagueId, season }),
-        apiFetch('players/topyellowcards', { league: leagueId, season }),
-        apiFetch('players/topredcards',    { league: leagueId, season }),
-        apiFetch('players/topassists',     { league: leagueId, season }), // appearances fallback
+      // Hitta senaste säsong med faktisk data (prova bakåt från aktuell)
+      let activeSeason = season;
+      let allPlayers = [];
+      for (const yr of [season, season-1, season-2]) {
+        const test = await apiFetch('players', { team: teamId, season: yr, page: 1 });
+        if ((test.response||[]).length > 0) {
+          activeSeason = yr;
+          allPlayers = test.response;
+          break;
+        }
+      }
+
+      if (!allPlayers.length) {
+        c.innerHTML = `<div style="padding:20px;color:var(--text3)">Ingen spelarstatistik tillgänglig ännu för denna säsong.</div>`;
+        return;
+      }
+
+      // Hämta topplistor för aktiv säsong
+      const [scorers, assistsD, yellowD, redD] = await Promise.all([
+        apiFetch('players/topscorers',     { league: leagueId, season: activeSeason }),
+        apiFetch('players/topassists',     { league: leagueId, season: activeSeason }),
+        apiFetch('players/topyellowcards', { league: leagueId, season: activeSeason }),
+        apiFetch('players/topredcards',    { league: leagueId, season: activeSeason }),
       ]);
-
-      // Filtrera bara lagets spelare
-      const filterTeam = (arr) => (arr.response||[]).filter(p =>
-        p.statistics?.some(s => s.team?.id === teamId)
-      );
-
-      const teamScorers  = filterTeam(scorers);
-      const teamAssists  = filterTeam(assistsD);
-      const teamYellows  = filterTeam(yellowD);
-      const teamReds     = filterTeam(redD);
-
-      // Hämta alla lagets spelare med stats
-      const playerStatsData = await apiFetch('players', { team: teamId, season, page: 1 });
-      const allPlayers = playerStatsData.response || [];
 
       // Sortera på olika kategorier
       const byGoals    = [...allPlayers].sort((a,b) => (b.statistics[0]?.goals?.total||0) - (a.statistics[0]?.goals?.total||0)).filter(p => (p.statistics[0]?.goals?.total||0) > 0);
@@ -3347,12 +3349,17 @@ async function renderLeaguePage(id, name, flag) {
       || seasons[seasons.length - 1];
     const season = currentSeason?.year ?? new Date().getFullYear();
 
+    // Prova aktuell säsong, annars föregående
+    let activeSeason = season;
+    const testScorers = await apiFetch('players/topscorers', { league: id, season }).catch(() => ({ response:[] }));
+    if (!testScorers.response?.length) activeSeason = season - 1;
+
     const [table, scorers, assistsData, yellowData, redData] = await Promise.all([
-      apiFetch('standings',              { league: id, season }),
-      apiFetch('players/topscorers',     { league: id, season }),
-      apiFetch('players/topassists',     { league: id, season }).catch(() => ({ response:[] })),
-      apiFetch('players/topyellowcards', { league: id, season }).catch(() => ({ response:[] })),
-      apiFetch('players/topredcards',    { league: id, season }).catch(() => ({ response:[] })),
+      apiFetch('standings',              { league: id, season: activeSeason }),
+      activeSeason === season ? Promise.resolve(testScorers) : apiFetch('players/topscorers', { league: id, season: activeSeason }),
+      apiFetch('players/topassists',     { league: id, season: activeSeason }).catch(() => ({ response:[] })),
+      apiFetch('players/topyellowcards', { league: id, season: activeSeason }).catch(() => ({ response:[] })),
+      apiFetch('players/topredcards',    { league: id, season: activeSeason }).catch(() => ({ response:[] })),
     ]);
 
     const standings  = table.response?.[0]?.league?.standings?.[0] ?? [];
