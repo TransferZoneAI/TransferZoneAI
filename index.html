@@ -4801,7 +4801,7 @@ async function fastFootballSearch(query) {
   const season = thisYear - 1; // senaste kompletta
 
   // ── Mönster: "topscorers/flest mål i [liga]" ──
-  const scorerMatch = q.match(/(?:top scorer|most goals|flest mål|göra mål|scored most|topscorer).*?(?:in|i|för)\s+(.+?)(?:\s+this|\s+förra|\s+last|\s+season|\s+säsong|$)/);
+  const scorerMatch = q.match(/(?:top scorer|most goals|flest m.l|scored most|topscorer).*?(?:in|i|for)\s+(.+?)(?:\s+this|\s+last|\s+season|$)/);
   if (scorerMatch) {
     const leagueId = findLeagueId(scorerMatch[1]);
     if (leagueId) {
@@ -4818,7 +4818,7 @@ async function fastFootballSearch(query) {
   }
 
   // ── Mönster: "flest mål/assists/mål i [lag]" ──
-  const teamStatMatch = q.match(/(?:flest|most|top|best|vem|who)\s+(?:mål|goals|assists|passningar|passes|kort|cards|tacklingar|tackles).*?(?:i|in|for|för)\s+(.{3,25})(?:\s|$)/);
+  const teamStatMatch = q.match(/(?:flest|most|top|best|vem|who)\s+(?:goals|assists|passes|cards|tackles).*?(?:i|in|for)\s+(.{3,25})(?:\s|$)/);
   if (teamStatMatch) {
     const teamName = teamStatMatch[1].trim();
     const team = await findTeamId(teamName);
@@ -4831,9 +4831,9 @@ async function fastFootballSearch(query) {
       }
       if (players.length) {
         const isAssists  = q.includes('assist') || q.includes('passning');
-        const isTackles  = q.includes('tackling') || q.includes('tackle');
+        const isTackles  = q.includes('tackle');
         const isPasses   = q.includes('pass');
-        const isCards    = q.includes('kort') || q.includes('card');
+        const isCards    = q.includes('card');
 
         const sumStat = (p, fn) => (p.statistics||[]).reduce((a,s) => a+(fn(s)||0), 0);
         let sorted, label, valFn;
@@ -4861,7 +4861,7 @@ async function fastFootballSearch(query) {
   }
 
   // ── Mönster: "tabell [liga]" ──
-  const tableMatch = q.match(/(?:table|tabell|standings|tabellen).*?(?:i|in|for|för)?\s*(premier league|la liga|bundesliga|serie a|ligue 1|allsvenskan|eliteserien|champions league)/);
+  const tableMatch = q.match(/(?:table|tabell|standings).*?(?:i|in|for)?\s*(premier league|la liga|bundesliga|serie a|ligue 1|allsvenskan|eliteserien|champions league)/);
   if (tableMatch) {
     const leagueId = findLeagueId(tableMatch[1]);
     if (leagueId) {
@@ -4877,7 +4877,7 @@ async function fastFootballSearch(query) {
   }
 
   // ── Mönster: "[spelare] stats/statistik" ──
-  const playerMatch = q.match(/(?:stats|statistik|goals|mål|assists).*?(?:for|för|of|av)?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
+  const playerMatch = q.match(/(?:stats|goals|assists).*?(?:for|of)?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
   if (playerMatch) {
     const name = playerMatch[1];
     const data = await apiFetch('players', { search: name, season });
