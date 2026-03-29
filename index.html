@@ -2462,21 +2462,22 @@ async function showTeam(id) {
             ${v?.capacity ? `<div class="player-tag">👥 ${v.capacity.toLocaleString()}</div>` : ''}
             ${t.founded ? `<div class="player-tag">🎓 Founded ${t.founded}</div>` : ''}
           </div>
+          <div id="teamFollowBtn" style="margin-top:12px"></div>
         </div>
       </div>`;
 
     // Spara squad och lagnamn globalt för tabs
     window._currentSquad = squad;
     window._currentTeamName = t.name;
-    window._currentTeamData = { id: teamId, name: t.name, logo: t.logo, country: t.country };
+    window._currentTeamData = { id, name: t.name, logo: t.logo, country: t.country };
 
     // Lägg till följ-knapp i hero
-    const isFollowing = isFollowingTeam(teamId);
+    const isFollowing = isFollowingTeam(id);
     const followBtn = document.getElementById('teamFollowBtn');
     if (followBtn) {
       followBtn.innerHTML = isFollowing
-        ? `<button class="btn-follow following" onclick="unfollowTeam(${teamId})">★ Following</button>`
-        : `<button class="btn-follow" onclick="followTeam(${teamId})">☆ Follow</button>`;
+        ? `<button class="btn-follow following" onclick="unfollowTeam(${id})">★ Following</button>`
+        : `<button class="btn-follow" onclick="followTeam(${id})">☆ Follow</button>`;
     }
     showTeamTab('squad');
   } catch(e) {
