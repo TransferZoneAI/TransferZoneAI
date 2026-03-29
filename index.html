@@ -1528,6 +1528,229 @@ header {
 .badge-green { background: rgba(34,197,94,0.2); color: var(--green); }
 .badge-red { background: rgba(239,68,68,0.2); color: var(--red); }
 
+/* ── MATCH PAGE ── */
+.match-hero-wrap {
+  background: linear-gradient(180deg, var(--bg2) 0%, var(--bg) 100%);
+  border-bottom: 1px solid var(--border2);
+  padding: 24px 16px 20px;
+}
+
+.match-hero-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.match-hero-league {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--text3);
+}
+
+.match-hero-league img { width: 20px; height: 20px; object-fit: contain; }
+.match-hero-league a { color: var(--gold); text-decoration: none; }
+
+.match-scoreboard {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 20px;
+  text-align: center;
+}
+
+.match-team-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.match-team-hero:hover .match-team-name-hero { color: var(--gold); }
+
+.match-team-logo-hero {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+
+.match-team-logo-hero img { width: 52px; height: 52px; object-fit: contain; }
+
+.match-team-name-hero {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: clamp(16px, 3vw, 24px);
+  font-weight: 800;
+  transition: color 0.2s;
+}
+
+.match-score-hero {
+  text-align: center;
+}
+
+.match-score-big {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: clamp(48px, 8vw, 80px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 4px;
+  color: var(--text);
+}
+
+.match-score-big.live { color: var(--green); }
+
+.match-status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+
+.match-status-badge.live { background: rgba(34,197,94,0.2); color: var(--green); }
+.match-status-badge.ft   { background: rgba(255,255,255,0.08); color: var(--text3); }
+.match-status-badge.ns   { background: rgba(201,168,76,0.15); color: var(--gold); }
+
+.match-meta-row {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--text3);
+  flex-wrap: wrap;
+}
+
+.match-meta-item { display: flex; align-items: center; gap: 4px; }
+
+/* Events timeline */
+.events-list { display: flex; flex-direction: column; gap: 2px; margin-top: 16px; }
+
+.event-row {
+  display: grid;
+  grid-template-columns: 1fr 60px 1fr;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.event-row:hover { background: var(--surface); }
+
+.event-home { text-align: right; }
+.event-away { text-align: left; }
+
+.event-center {
+  text-align: center;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text3);
+}
+
+.event-player { font-size: 13px; font-weight: 600; }
+.event-assist { font-size: 11px; color: var(--text3); }
+.event-icon { font-size: 16px; }
+
+/* Lineup */
+.lineup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 600px) { .lineup-grid { grid-template-columns: 1fr; } }
+
+.lineup-team-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lineup-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border2);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.lineup-player:hover { opacity: 0.8; }
+.lineup-player:last-child { border-bottom: none; }
+
+.lineup-number {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--gold);
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.lineup-name { font-size: 14px; font-weight: 500; flex: 1; }
+.lineup-pos  { font-size: 11px; color: var(--text3); font-family: 'Barlow Condensed', sans-serif; }
+
+/* Stats bars */
+.stat-bar-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 60px;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.stat-bar-label {
+  font-size: 11px;
+  color: var(--text3);
+  text-align: center;
+  font-family: 'Barlow Condensed', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  grid-column: 1 / -1;
+  margin-bottom: 4px;
+  margin-top: 4px;
+}
+
+.stat-bar-val {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.stat-bar-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface2);
+  overflow: hidden;
+  display: flex;
+}
+
+.stat-bar-home {
+  height: 100%;
+  background: var(--gold);
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
 /* ── LOADING ── */
 .skeleton {
   background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
@@ -1877,6 +2100,13 @@ header {
   </a>
 </nav>
 
+<!-- ══════════════ MATCH PAGE ══════════════ -->
+<div class="page" id="page-match">
+  <div id="matchHero"></div>
+  <div class="team-tabs" id="matchTabs"></div>
+  <div style="padding:0 16px;max-width:1280px;margin:0 auto;" id="matchContent"></div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -2008,15 +2238,19 @@ async function fetchTransfers(teamId) {
 function normalizeMatch(f) {
   const s = f.fixture.status;
   const live = ['1H','HT','2H','ET','P'].includes(s.short);
-  const finished = s.short === 'FT';
+  const finished = ['FT','AET','PEN'].includes(s.short);
   return {
+    id: f.fixture.id,
     home: f.teams.home.name,
     away: f.teams.away.name,
+    homeLogo: f.teams.home.logo || '',
+    awayLogo: f.teams.away.logo || '',
     scoreH: f.goals.home,
     scoreA: f.goals.away,
     min: s.elapsed ? `${s.elapsed}'` : '',
     time: new Date(f.fixture.date).toLocaleTimeString('sv-SE', { hour:'2-digit', minute:'2-digit' }),
     league: f.league.name,
+    leagueLogo: f.league.logo || '',
     live, finished,
     flagH: '⚽', flagA: '⚽',
   };
@@ -2415,19 +2649,19 @@ function matchCard(m) {
     ? `<div class="match-score-display">${m.scoreH} – ${m.scoreA}</div>`
     : `<div class="match-score-display upcoming">${m.time || '–'}</div>`;
 
-  return `<div class="match-card" onclick="showToast('Match details coming soon')">
+  return `<div class="match-card" onclick="showMatch(${m.id || 0})" style="cursor:pointer">
     <div class="match-meta">
       <span class="match-league-badge">${m.league}</span>
       <span class="match-status ${statusClass}">${m.live?'● ':''} ${statusText}</span>
     </div>
     <div class="match-teams">
       <div class="match-team">
-        <div class="team-logo">${m.flagH||'⚽'}</div>
+        <div class="team-logo">${m.homeLogo ? `<img src="${m.homeLogo}" style="width:22px;height:22px;object-fit:contain">` : '⚽'}</div>
         <span class="team-name-m">${m.home}</span>
       </div>
       ${score}
       <div class="match-team away">
-        <div class="team-logo">${m.flagA||'⚽'}</div>
+        <div class="team-logo">${m.awayLogo ? `<img src="${m.awayLogo}" style="width:22px;height:22px;object-fit:contain">` : '⚽'}</div>
         <span class="team-name-m">${m.away}</span>
       </div>
     </div>
@@ -3295,6 +3529,252 @@ function filterLive(type, btn) {
 }
 
 // ═══════════════════════════════════════════
+// MATCH PAGE
+// ═══════════════════════════════════════════
+
+let _currentFixtureId = null;
+
+async function showMatch(fixtureId) {
+  _currentFixtureId = fixtureId;
+  showPage('match');
+
+  // Hero skeleton
+  document.getElementById('matchHero').innerHTML = `
+    <div class="match-hero-wrap">
+      <div class="match-hero-inner">
+        <div class="skeleton" style="height:140px;border-radius:10px"></div>
+      </div>
+    </div>`;
+  document.getElementById('matchTabs').innerHTML = '';
+  document.getElementById('matchContent').innerHTML =
+    `<div class="skeleton" style="height:300px;border-radius:10px;margin-top:20px"></div>`;
+
+  try {
+    const data = await apiFetch('fixtures', { id: fixtureId });
+    const f = data.response?.[0];
+    if (!f) throw new Error('No fixture');
+
+    const status = f.fixture.status;
+    const isLive = ['1H','HT','2H','ET','P'].includes(status.short);
+    const isFT   = ['FT','AET','PEN'].includes(status.short);
+    const isNS   = status.short === 'NS';
+
+    const scoreClass = isLive ? 'live' : '';
+    const statusLabel = isLive
+      ? `${status.elapsed}'`
+      : isFT ? 'Full Time'
+      : isNS ? new Date(f.fixture.date).toLocaleString('en-GB', { hour:'2-digit', minute:'2-digit', day:'numeric', month:'short' })
+      : status.long;
+
+    const statusBadgeClass = isLive ? 'live' : isFT ? 'ft' : 'ns';
+
+    document.getElementById('matchHero').innerHTML = `
+      <div class="match-hero-wrap">
+        <div class="match-hero-inner">
+          <div class="match-hero-league">
+            ${f.league.logo ? `<img src="${f.league.logo}">` : ''}
+            <a href="#" onclick="showLeague(${f.league.id},'${(f.league.name||'').replace(/'/g,"\'")}','')">${f.league.name}</a>
+            <span>·</span>
+            <span>${f.league.country}</span>
+            <span>·</span>
+            <span>Round ${f.league.round || ''}</span>
+          </div>
+          <div class="match-scoreboard">
+            <div class="match-team-hero" onclick="showTeam(${f.teams.home.id})">
+              <div class="match-team-logo-hero">
+                ${f.teams.home.logo ? `<img src="${f.teams.home.logo}">` : '⚽'}
+              </div>
+              <div class="match-team-name-hero">${f.teams.home.name}</div>
+            </div>
+            <div class="match-score-hero">
+              <div class="match-score-big ${scoreClass}">
+                ${isNS ? '–' : `${f.goals.home ?? 0} – ${f.goals.away ?? 0}`}
+              </div>
+              <div class="match-status-badge ${statusBadgeClass}">${statusLabel}</div>
+            </div>
+            <div class="match-team-hero" onclick="showTeam(${f.teams.away.id})">
+              <div class="match-team-logo-hero">
+                ${f.teams.away.logo ? `<img src="${f.teams.away.logo}">` : '⚽'}
+              </div>
+              <div class="match-team-name-hero">${f.teams.away.name}</div>
+            </div>
+          </div>
+          <div class="match-meta-row">
+            ${f.fixture.venue?.name ? `<span class="match-meta-item">🏟️ ${f.fixture.venue.name}</span>` : ''}
+            ${f.fixture.venue?.city ? `<span class="match-meta-item">📍 ${f.fixture.venue.city}</span>` : ''}
+            ${f.fixture.referee ? `<span class="match-meta-item">🟡 ${f.fixture.referee}</span>` : ''}
+            <span class="match-meta-item">📅 ${new Date(f.fixture.date).toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'})}</span>
+          </div>
+        </div>
+      </div>`;
+
+    document.getElementById('matchTabs').innerHTML = `
+      <button class="tab-btn active" onclick="showMatchTab('events',this,${fixtureId})">Events</button>
+      <button class="tab-btn" onclick="showMatchTab('lineups',this,${fixtureId})">Lineups</button>
+      <button class="tab-btn" onclick="showMatchTab('stats',this,${fixtureId})">Statistics</button>`;
+
+    // Store fixture for tab use
+    window._currentFixture = f;
+    showMatchTab('events', null, fixtureId);
+
+  } catch(e) {
+    document.getElementById('matchHero').innerHTML =
+      `<div style="padding:20px;color:var(--text3)">Kunde inte ladda matchen.</div>`;
+    console.error(e);
+  }
+}
+
+async function showMatchTab(tab, btn, fixtureId) {
+  document.querySelectorAll('#matchTabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn?.classList.add('active');
+  const c = document.getElementById('matchContent');
+  c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
+
+  try {
+    if (tab === 'events') {
+      const data = await apiFetch('fixtures/events', { fixture: fixtureId });
+      const events = data.response || [];
+
+      if (!events.length) {
+        c.innerHTML = `<div style="padding:20px;color:var(--text3);text-align:center;margin-top:20px">No events yet.</div>`;
+        return;
+      }
+
+      const f = window._currentFixture;
+      const homeId = f?.teams?.home?.id;
+
+      const eventIcon = (type, detail) => {
+        if (type === 'Goal') {
+          if (detail?.includes('Own')) return '⚽🔴';
+          if (detail?.includes('Penalty')) return '⚽🎯';
+          return '⚽';
+        }
+        if (type === 'Card') return detail?.includes('Yellow') ? '🟡' : '🔴';
+        if (type === 'subst') return '🔄';
+        if (type === 'Var') return '📺';
+        return '•';
+      };
+
+      c.innerHTML = `
+        <div style="margin-top:20px">
+          <div style="display:grid;grid-template-columns:1fr 40px 1fr;gap:8px;padding:0 4px;margin-bottom:6px">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3)">${f?.teams?.home?.name||'Home'}</div>
+            <div></div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);text-align:right">${f?.teams?.away?.name||'Away'}</div>
+          </div>
+          <div class="events-list">
+            ${events.map(e => {
+              const isHome = e.team?.id === homeId;
+              const icon = eventIcon(e.type, e.detail);
+              const playerName = fixEncoding(e.player?.name || '');
+              const assistName = fixEncoding(e.assist?.name || '');
+              return `<div class="event-row">
+                <div class="event-home">
+                  ${isHome ? `<div class="event-player">${playerName} ${icon}</div>${assistName?`<div class="event-assist">${assistName}</div>`:''}` : ''}
+                </div>
+                <div class="event-center">${e.time?.elapsed}'</div>
+                <div class="event-away">
+                  ${!isHome ? `<div class="event-player">${icon} ${playerName}</div>${assistName?`<div class="event-assist">${assistName}</div>`:''}` : ''}
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+    }
+
+    if (tab === 'lineups') {
+      const data = await apiFetch('fixtures/lineups', { fixture: fixtureId });
+      const lineups = data.response || [];
+
+      if (!lineups.length) {
+        c.innerHTML = `<div style="padding:20px;color:var(--text3);text-align:center;margin-top:20px">Lineup not available yet.</div>`;
+        return;
+      }
+
+      const renderTeam = (team) => {
+        const starters = team.startXI || [];
+        const subs = team.substitutes || [];
+        return `
+          <div>
+            <div class="lineup-team-title">
+              ${team.team?.logo ? `<img src="${team.team.logo}" style="width:22px;height:22px;object-fit:contain">` : ''}
+              ${team.team?.name || ''}
+              <span style="color:var(--text3);font-size:13px;font-weight:400">${team.formation || ''}</span>
+            </div>
+            ${starters.map(p => `
+              <div class="lineup-player" onclick="showPlayer(${p.player?.id})">
+                <div class="lineup-number">${p.player?.number || '—'}</div>
+                <div class="lineup-name">${fixEncoding(p.player?.name || '')}</div>
+                <div class="lineup-pos">${p.player?.pos || ''}</div>
+              </div>`).join('')}
+            ${subs.length ? `
+              <div style="margin-top:10px;font-size:11px;color:var(--text3);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:1px;padding:6px 0">Substitutes</div>
+              ${subs.map(p => `
+                <div class="lineup-player" onclick="showPlayer(${p.player?.id})" style="opacity:0.7">
+                  <div class="lineup-number">${p.player?.number || '—'}</div>
+                  <div class="lineup-name">${fixEncoding(p.player?.name || '')}</div>
+                  <div class="lineup-pos">${p.player?.pos || ''}</div>
+                </div>`).join('')}` : ''}
+          </div>`;
+      };
+
+      c.innerHTML = `
+        <div class="lineup-grid" style="margin-top:20px">
+          ${lineups.map(renderTeam).join('')}
+        </div>`;
+    }
+
+    if (tab === 'stats') {
+      const data = await apiFetch('fixtures/statistics', { fixture: fixtureId });
+      const stats = data.response || [];
+
+      if (!stats.length) {
+        c.innerHTML = `<div style="padding:20px;color:var(--text3);text-align:center;margin-top:20px">Statistics not available yet.</div>`;
+        return;
+      }
+
+      const home = stats[0]?.statistics || [];
+      const away = stats[1]?.statistics || [];
+
+      const parseVal = (v) => {
+        if (v === null || v === undefined) return 0;
+        if (typeof v === 'string' && v.includes('%')) return parseFloat(v);
+        return parseFloat(v) || 0;
+      };
+
+      c.innerHTML = `
+        <div style="margin-top:20px;max-width:600px;margin-left:auto;margin-right:auto">
+          <div style="display:flex;justify-content:space-between;margin-bottom:16px;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">
+            <span>${stats[0]?.team?.name || 'Home'}</span>
+            <span>${stats[1]?.team?.name || 'Away'}</span>
+          </div>
+          ${home.map((stat, i) => {
+            const awayStat = away[i];
+            const hVal = parseVal(stat.value);
+            const aVal = parseVal(awayStat?.value);
+            const total = hVal + aVal || 1;
+            const hPct = Math.round((hVal / total) * 100);
+            return `
+              <div style="margin-bottom:16px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                  <span style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--gold)">${stat.value ?? 0}</span>
+                  <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">${stat.type}</span>
+                  <span style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--text2)">${awayStat?.value ?? 0}</span>
+                </div>
+                <div class="stat-bar-track">
+                  <div class="stat-bar-home" style="width:${hPct}%"></div>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>`;
+    }
+  } catch(e) {
+    c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda data.</div>`;
+    console.error(e);
+  }
+}
+
+// ═══════════════════════════════════════════
 // BOOT
 // ═══════════════════════════════════════════
 
@@ -3386,6 +3866,252 @@ document.getElementById('globalSearch').addEventListener('keydown', e => {
     sendAIQuery();
   }
 });
+
+// ═══════════════════════════════════════════
+// MATCH PAGE
+// ═══════════════════════════════════════════
+
+let _currentFixtureId = null;
+
+async function showMatch(fixtureId) {
+  _currentFixtureId = fixtureId;
+  showPage('match');
+
+  // Hero skeleton
+  document.getElementById('matchHero').innerHTML = `
+    <div class="match-hero-wrap">
+      <div class="match-hero-inner">
+        <div class="skeleton" style="height:140px;border-radius:10px"></div>
+      </div>
+    </div>`;
+  document.getElementById('matchTabs').innerHTML = '';
+  document.getElementById('matchContent').innerHTML =
+    `<div class="skeleton" style="height:300px;border-radius:10px;margin-top:20px"></div>`;
+
+  try {
+    const data = await apiFetch('fixtures', { id: fixtureId });
+    const f = data.response?.[0];
+    if (!f) throw new Error('No fixture');
+
+    const status = f.fixture.status;
+    const isLive = ['1H','HT','2H','ET','P'].includes(status.short);
+    const isFT   = ['FT','AET','PEN'].includes(status.short);
+    const isNS   = status.short === 'NS';
+
+    const scoreClass = isLive ? 'live' : '';
+    const statusLabel = isLive
+      ? `${status.elapsed}'`
+      : isFT ? 'Full Time'
+      : isNS ? new Date(f.fixture.date).toLocaleString('en-GB', { hour:'2-digit', minute:'2-digit', day:'numeric', month:'short' })
+      : status.long;
+
+    const statusBadgeClass = isLive ? 'live' : isFT ? 'ft' : 'ns';
+
+    document.getElementById('matchHero').innerHTML = `
+      <div class="match-hero-wrap">
+        <div class="match-hero-inner">
+          <div class="match-hero-league">
+            ${f.league.logo ? `<img src="${f.league.logo}">` : ''}
+            <a href="#" onclick="showLeague(${f.league.id},'${(f.league.name||'').replace(/'/g,"\'")}','')">${f.league.name}</a>
+            <span>·</span>
+            <span>${f.league.country}</span>
+            <span>·</span>
+            <span>Round ${f.league.round || ''}</span>
+          </div>
+          <div class="match-scoreboard">
+            <div class="match-team-hero" onclick="showTeam(${f.teams.home.id})">
+              <div class="match-team-logo-hero">
+                ${f.teams.home.logo ? `<img src="${f.teams.home.logo}">` : '⚽'}
+              </div>
+              <div class="match-team-name-hero">${f.teams.home.name}</div>
+            </div>
+            <div class="match-score-hero">
+              <div class="match-score-big ${scoreClass}">
+                ${isNS ? '–' : `${f.goals.home ?? 0} – ${f.goals.away ?? 0}`}
+              </div>
+              <div class="match-status-badge ${statusBadgeClass}">${statusLabel}</div>
+            </div>
+            <div class="match-team-hero" onclick="showTeam(${f.teams.away.id})">
+              <div class="match-team-logo-hero">
+                ${f.teams.away.logo ? `<img src="${f.teams.away.logo}">` : '⚽'}
+              </div>
+              <div class="match-team-name-hero">${f.teams.away.name}</div>
+            </div>
+          </div>
+          <div class="match-meta-row">
+            ${f.fixture.venue?.name ? `<span class="match-meta-item">🏟️ ${f.fixture.venue.name}</span>` : ''}
+            ${f.fixture.venue?.city ? `<span class="match-meta-item">📍 ${f.fixture.venue.city}</span>` : ''}
+            ${f.fixture.referee ? `<span class="match-meta-item">🟡 ${f.fixture.referee}</span>` : ''}
+            <span class="match-meta-item">📅 ${new Date(f.fixture.date).toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'})}</span>
+          </div>
+        </div>
+      </div>`;
+
+    document.getElementById('matchTabs').innerHTML = `
+      <button class="tab-btn active" onclick="showMatchTab('events',this,${fixtureId})">Events</button>
+      <button class="tab-btn" onclick="showMatchTab('lineups',this,${fixtureId})">Lineups</button>
+      <button class="tab-btn" onclick="showMatchTab('stats',this,${fixtureId})">Statistics</button>`;
+
+    // Store fixture for tab use
+    window._currentFixture = f;
+    showMatchTab('events', null, fixtureId);
+
+  } catch(e) {
+    document.getElementById('matchHero').innerHTML =
+      `<div style="padding:20px;color:var(--text3)">Kunde inte ladda matchen.</div>`;
+    console.error(e);
+  }
+}
+
+async function showMatchTab(tab, btn, fixtureId) {
+  document.querySelectorAll('#matchTabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn?.classList.add('active');
+  const c = document.getElementById('matchContent');
+  c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
+
+  try {
+    if (tab === 'events') {
+      const data = await apiFetch('fixtures/events', { fixture: fixtureId });
+      const events = data.response || [];
+
+      if (!events.length) {
+        c.innerHTML = `<div style="padding:20px;color:var(--text3);text-align:center;margin-top:20px">No events yet.</div>`;
+        return;
+      }
+
+      const f = window._currentFixture;
+      const homeId = f?.teams?.home?.id;
+
+      const eventIcon = (type, detail) => {
+        if (type === 'Goal') {
+          if (detail?.includes('Own')) return '⚽🔴';
+          if (detail?.includes('Penalty')) return '⚽🎯';
+          return '⚽';
+        }
+        if (type === 'Card') return detail?.includes('Yellow') ? '🟡' : '🔴';
+        if (type === 'subst') return '🔄';
+        if (type === 'Var') return '📺';
+        return '•';
+      };
+
+      c.innerHTML = `
+        <div style="margin-top:20px">
+          <div style="display:grid;grid-template-columns:1fr 40px 1fr;gap:8px;padding:0 4px;margin-bottom:6px">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3)">${f?.teams?.home?.name||'Home'}</div>
+            <div></div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);text-align:right">${f?.teams?.away?.name||'Away'}</div>
+          </div>
+          <div class="events-list">
+            ${events.map(e => {
+              const isHome = e.team?.id === homeId;
+              const icon = eventIcon(e.type, e.detail);
+              const playerName = fixEncoding(e.player?.name || '');
+              const assistName = fixEncoding(e.assist?.name || '');
+              return `<div class="event-row">
+                <div class="event-home">
+                  ${isHome ? `<div class="event-player">${playerName} ${icon}</div>${assistName?`<div class="event-assist">${assistName}</div>`:''}` : ''}
+                </div>
+                <div class="event-center">${e.time?.elapsed}'</div>
+                <div class="event-away">
+                  ${!isHome ? `<div class="event-player">${icon} ${playerName}</div>${assistName?`<div class="event-assist">${assistName}</div>`:''}` : ''}
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+    }
+
+    if (tab === 'lineups') {
+      const data = await apiFetch('fixtures/lineups', { fixture: fixtureId });
+      const lineups = data.response || [];
+
+      if (!lineups.length) {
+        c.innerHTML = `<div style="padding:20px;color:var(--text3);text-align:center;margin-top:20px">Lineup not available yet.</div>`;
+        return;
+      }
+
+      const renderTeam = (team) => {
+        const starters = team.startXI || [];
+        const subs = team.substitutes || [];
+        return `
+          <div>
+            <div class="lineup-team-title">
+              ${team.team?.logo ? `<img src="${team.team.logo}" style="width:22px;height:22px;object-fit:contain">` : ''}
+              ${team.team?.name || ''}
+              <span style="color:var(--text3);font-size:13px;font-weight:400">${team.formation || ''}</span>
+            </div>
+            ${starters.map(p => `
+              <div class="lineup-player" onclick="showPlayer(${p.player?.id})">
+                <div class="lineup-number">${p.player?.number || '—'}</div>
+                <div class="lineup-name">${fixEncoding(p.player?.name || '')}</div>
+                <div class="lineup-pos">${p.player?.pos || ''}</div>
+              </div>`).join('')}
+            ${subs.length ? `
+              <div style="margin-top:10px;font-size:11px;color:var(--text3);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:1px;padding:6px 0">Substitutes</div>
+              ${subs.map(p => `
+                <div class="lineup-player" onclick="showPlayer(${p.player?.id})" style="opacity:0.7">
+                  <div class="lineup-number">${p.player?.number || '—'}</div>
+                  <div class="lineup-name">${fixEncoding(p.player?.name || '')}</div>
+                  <div class="lineup-pos">${p.player?.pos || ''}</div>
+                </div>`).join('')}` : ''}
+          </div>`;
+      };
+
+      c.innerHTML = `
+        <div class="lineup-grid" style="margin-top:20px">
+          ${lineups.map(renderTeam).join('')}
+        </div>`;
+    }
+
+    if (tab === 'stats') {
+      const data = await apiFetch('fixtures/statistics', { fixture: fixtureId });
+      const stats = data.response || [];
+
+      if (!stats.length) {
+        c.innerHTML = `<div style="padding:20px;color:var(--text3);text-align:center;margin-top:20px">Statistics not available yet.</div>`;
+        return;
+      }
+
+      const home = stats[0]?.statistics || [];
+      const away = stats[1]?.statistics || [];
+
+      const parseVal = (v) => {
+        if (v === null || v === undefined) return 0;
+        if (typeof v === 'string' && v.includes('%')) return parseFloat(v);
+        return parseFloat(v) || 0;
+      };
+
+      c.innerHTML = `
+        <div style="margin-top:20px;max-width:600px;margin-left:auto;margin-right:auto">
+          <div style="display:flex;justify-content:space-between;margin-bottom:16px;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">
+            <span>${stats[0]?.team?.name || 'Home'}</span>
+            <span>${stats[1]?.team?.name || 'Away'}</span>
+          </div>
+          ${home.map((stat, i) => {
+            const awayStat = away[i];
+            const hVal = parseVal(stat.value);
+            const aVal = parseVal(awayStat?.value);
+            const total = hVal + aVal || 1;
+            const hPct = Math.round((hVal / total) * 100);
+            return `
+              <div style="margin-bottom:16px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                  <span style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--gold)">${stat.value ?? 0}</span>
+                  <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">${stat.type}</span>
+                  <span style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--text2)">${awayStat?.value ?? 0}</span>
+                </div>
+                <div class="stat-bar-track">
+                  <div class="stat-bar-home" style="width:${hPct}%"></div>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>`;
+    }
+  } catch(e) {
+    c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda data.</div>`;
+    console.error(e);
+  }
+}
 
 // ═══════════════════════════════════════════
 // BOOT
