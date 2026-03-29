@@ -2030,7 +2030,7 @@ async function showTeamTab(tab, btn) {
                 ${p.photo ? `<img src="${p.photo}" style="width:52px;height:52px;border-radius:50%;object-fit:cover">` : '⚽'}
               </div>
               <div class="player-number">${p.number || '—'}</div>
-              <div class="player-card-name">${p.name}</div>
+              <div class="player-card-name">${fixEncoding(p.name)}</div>
               <div class="player-card-pos">${p.position || ''}</div>
             </div>`).join('')}
         </div>
