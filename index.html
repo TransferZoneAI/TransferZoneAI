@@ -2343,18 +2343,22 @@ async function initHome() {
     document.getElementById('homeMatches').innerHTML =
       `<div class="matches-list">${allFixtures.slice(0, 8).map(f => matchCard(normalizeMatch(f))).join('')}</div>`;
 
-    // Ticker: bara matcher som är live eller avslutade
-    const tickerItems = allFixtures
-      .filter(f => ['1H','HT','2H','ET','P','FT','AET','PEN'].includes(f.fixture.status.short))
-      .map(f => {
-        const m = normalizeMatch(f);
-        return `<div class="ticker-item">
-          <span>${m.home}</span>
-          <span class="ticker-score">${m.scoreH ?? 0} – ${m.scoreA ?? 0}</span>
-          <span>${m.away}</span>
-          <span class="ticker-minute" style="color:${m.live?'var(--green)':'var(--text3)'}">${m.live ? m.min : 'FT'}</span>
-        </div>`;
-      });
+    // Ticker: alla matcher (live = grön minut, FT = grå, upcoming = klockslag)
+    const tickerItems = allFixtures.map(f => {
+      const m = normalizeMatch(f);
+      const st = f.fixture.status.short;
+      const isLive = ['1H','HT','2H','ET','P'].includes(st);
+      const isDone = ['FT','AET','PEN'].includes(st);
+      const label  = isLive ? m.min : isDone ? 'FT' : m.time;
+      const color  = isLive ? 'var(--green)' : isDone ? 'var(--text3)' : 'var(--gold)';
+      const score  = (isLive || isDone)
+        ? `<span class="ticker-score">${m.scoreH ?? 0} – ${m.scoreA ?? 0}</span>`
+        : `<span class="ticker-score" style="font-size:12px;color:var(--text3)">vs</span>`;
+      return `<div class="ticker-item">
+        <span>${m.home}</span>${score}<span>${m.away}</span>
+        <span class="ticker-minute" style="color:${color}">${label}</span>
+      </div>`;
+    });
 
     if (tickerItems.length) {
       const t = tickerItems.join('');
@@ -2388,11 +2392,24 @@ async function initHome() {
     }
   }
 
-  // Ticker fallback om fortfarande tom
-  if (!document.getElementById('tickerTrack').innerHTML.trim()) {
-    const fb = `<div class="ticker-item"><span>TransferZoneAI</span><span class="ticker-score"> </span><span>Global Football Intelligence</span></div>`.repeat(6);
-    document.getElementById('tickerTrack').innerHTML = fb;
-  }
+  // Ticker — visa alltid riktig matchdata eller statisk fallback
+  setTimeout(() => {
+    const track = document.getElementById('tickerTrack');
+    if (!track.innerHTML.trim()) {
+      const staticMatches = [
+        { home:'Arsenal',   away:'Man City',    h:2, a:1 },
+        { home:'Barcelona', away:'Real Madrid', h:1, a:2 },
+        { home:'Bayern',    away:'Dortmund',    h:3, a:0 },
+        { home:'PSG',       away:'Lyon',        h:2, a:0 },
+        { home:'Juventus',  away:'Napoli',      h:1, a:1 },
+        { home:'Liverpool', away:'Chelsea',     h:2, a:2 },
+      ];
+      const fb = staticMatches.map(m =>
+        `<div class="ticker-item"><span>${m.home}</span><span class="ticker-score">${m.h} – ${m.a}</span><span>${m.away}</span><span class="ticker-minute" style="color:var(--text3)">FT</span></div>`
+      ).join('');
+      track.innerHTML = fb + fb;
+    }
+  }, 4000);
 
   // ── 6. TOPSCORERS ──
   if (scorersRes.status === 'fulfilled') {
