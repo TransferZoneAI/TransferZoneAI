@@ -1,0 +1,2519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TransferZoneAI — Global Football Intelligence</title>
+<meta name="description" content="Free global football database with AI-powered search. Transfer values, stats, leagues and live scores worldwide.">
+<meta name="theme-color" content="#0a0a0f">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,700&family=Barlow:wght@300;400;500;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --gold: #c9a84c;
+  --gold-bright: #f0c040;
+  --gold-dim: #7a6120;
+  --bg: #0a0a0f;
+  --bg2: #0f0f18;
+  --bg3: #141420;
+  --bg4: #1a1a2a;
+  --surface: #1e1e2e;
+  --surface2: #252538;
+  --border: rgba(201,168,76,0.15);
+  --border2: rgba(255,255,255,0.06);
+  --text: #e8e8f0;
+  --text2: #9898b0;
+  --text3: #5a5a78;
+  --accent: #3b82f6;
+  --green: #22c55e;
+  --red: #ef4444;
+  --radius: 10px;
+  --radius-sm: 6px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Barlow', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  padding-bottom: 70px;
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 2px; }
+
+/* ── HEADER ── */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(10,10,15,0.92);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+}
+
+.header-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 16px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.logo-icon {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--gold), var(--gold-bright));
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.logo-text {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  color: var(--text);
+  letter-spacing: 0.5px;
+}
+
+.logo-text span { color: var(--gold); }
+
+.header-search {
+  flex: 1;
+  max-width: 480px;
+  position: relative;
+}
+
+.header-search input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 8px 40px 8px 36px;
+  color: var(--text);
+  font-family: 'Barlow', sans-serif;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.header-search input:focus { border-color: var(--gold); }
+.header-search input::placeholder { color: var(--text3); }
+
+.search-icon, .search-ai-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.search-icon { left: 10px; color: var(--text3); font-size: 14px; }
+
+.search-ai-btn {
+  right: 8px;
+  background: linear-gradient(135deg, var(--gold-dim), var(--gold));
+  border: none;
+  border-radius: 5px;
+  padding: 3px 7px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--bg);
+  cursor: pointer;
+}
+
+.header-nav {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.header-nav a {
+  padding: 6px 12px;
+  border-radius: 6px;
+  color: var(--text2);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.header-nav a:hover, .header-nav a.active { color: var(--gold); background: rgba(201,168,76,0.1); }
+
+@media (max-width: 768px) {
+  .header-nav { display: none; }
+  .logo-text { font-size: 17px; }
+}
+
+/* ── BOTTOM NAV (mobile) ── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 100;
+  background: rgba(10,10,15,0.96);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border);
+  display: flex;
+  padding: 4px 0 env(safe-area-inset-bottom);
+}
+
+.bottom-nav a {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  text-decoration: none;
+  color: var(--text3);
+  font-size: 9px;
+  font-weight: 600;
+  font-family: 'Barlow Condensed', sans-serif;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  transition: color 0.2s;
+}
+
+.bottom-nav a.active, .bottom-nav a:hover { color: var(--gold); }
+.bottom-nav .nav-icon { font-size: 18px; }
+
+/* ── PAGES ── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── HERO BANNER ── */
+.hero {
+  background: linear-gradient(180deg, var(--bg2) 0%, var(--bg) 100%);
+  border-bottom: 1px solid var(--border2);
+  padding: 32px 16px 24px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -60px; left: 50%; transform: translateX(-50%);
+  width: 600px; height: 300px;
+  background: radial-gradient(ellipse, rgba(201,168,76,0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero h1 {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: clamp(32px, 6vw, 56px);
+  font-weight: 900;
+  letter-spacing: -1px;
+  line-height: 1;
+  color: var(--text);
+  text-transform: uppercase;
+}
+
+.hero h1 span { color: var(--gold); }
+
+.hero-sub {
+  margin-top: 8px;
+  color: var(--text2);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.hero-stats {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.hero-stat {
+  text-align: center;
+}
+
+.hero-stat .val {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--gold);
+}
+
+.hero-stat .lbl {
+  font-size: 11px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── AI SEARCH BAR (homepage) ── */
+.ai-search-wrap {
+  max-width: 700px;
+  margin: 0 auto 32px;
+  padding: 0 16px;
+}
+
+.ai-search-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-top: 24px;
+}
+
+.ai-search-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.ai-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+.ai-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.ai-input-row input {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-family: 'Barlow', sans-serif;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.ai-input-row input:focus { border-color: var(--gold); }
+.ai-input-row input::placeholder { color: var(--text3); }
+
+.ai-send-btn {
+  background: linear-gradient(135deg, var(--gold-dim), var(--gold));
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  color: var(--bg);
+  cursor: pointer;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+
+.ai-send-btn:hover { opacity: 0.85; }
+
+.ai-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ai-chip {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Barlow', sans-serif;
+}
+
+.ai-chip:hover { border-color: var(--gold); color: var(--gold); background: rgba(201,168,76,0.08); }
+
+.ai-response {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: var(--bg3);
+  border-radius: 8px;
+  border-left: 3px solid var(--gold);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+  display: none;
+}
+
+.ai-response.visible { display: block; }
+
+.ai-thinking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text2);
+  font-size: 13px;
+}
+
+.ai-thinking-dots span {
+  display: inline-block;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: bounce 1.4s infinite ease-in-out;
+}
+
+.ai-thinking-dots span:nth-child(1) { animation-delay: 0s; }
+.ai-thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+.ai-thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+/* ── SECTION HEADERS ── */
+.section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.section-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.section-title span { color: var(--gold); }
+
+.section-link {
+  font-size: 12px;
+  color: var(--gold);
+  text-decoration: none;
+  font-weight: 500;
+  transition: opacity 0.2s;
+}
+
+.section-link:hover { opacity: 0.7; }
+
+/* ── MAIN LAYOUT ── */
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 24px;
+  padding: 24px 16px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+@media (max-width: 960px) {
+  .main-grid { grid-template-columns: 1fr; }
+  .sidebar { order: -1; }
+}
+
+/* ── LIVE TICKER ── */
+.live-ticker {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border2);
+  padding: 0;
+  overflow: hidden;
+}
+
+.ticker-inner {
+  display: flex;
+  align-items: center;
+  height: 38px;
+}
+
+.ticker-label {
+  flex-shrink: 0;
+  background: var(--red);
+  padding: 0 12px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: white;
+  gap: 5px;
+}
+
+.live-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: white;
+  animation: pulse 1s infinite;
+}
+
+.ticker-scroll {
+  flex: 1;
+  overflow: hidden;
+}
+
+.ticker-track {
+  display: flex;
+  gap: 32px;
+  animation: scrollTicker 40s linear infinite;
+  white-space: nowrap;
+}
+
+.ticker-track:hover { animation-play-state: paused; }
+
+@keyframes scrollTicker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.ticker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text2);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.ticker-item:hover { color: var(--text); }
+
+.ticker-score {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.ticker-minute {
+  font-size: 11px;
+  color: var(--green);
+  font-weight: 600;
+}
+
+/* ── LEAGUE GRID ── */
+.leagues-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 480px) {
+  .leagues-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.league-card {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.league-card:hover {
+  border-color: var(--gold);
+  background: var(--surface2);
+  transform: translateY(-1px);
+}
+
+.league-flag {
+  font-size: 24px;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg3);
+  border-radius: 8px;
+}
+
+.league-info { min-width: 0; }
+
+.league-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.league-country {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 2px;
+}
+
+.league-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 10px;
+  background: rgba(201,168,76,0.15);
+  color: var(--gold);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-weight: 700;
+  font-family: 'Barlow Condensed', sans-serif;
+}
+
+/* ── LIVE MATCHES ── */
+.matches-list { display: flex; flex-direction: column; gap: 8px; }
+
+.match-card {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.match-card:hover { border-color: var(--border); }
+
+.match-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.match-league-badge {
+  font-size: 10px;
+  color: var(--text3);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.match-status {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'Barlow Condensed', sans-serif;
+}
+
+.match-status.live { color: var(--green); }
+.match-status.upcoming { color: var(--text3); }
+.match-status.finished { color: var(--text3); }
+
+.match-teams {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.match-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.match-team.away { flex-direction: row-reverse; }
+
+.team-logo {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--bg3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.team-name-m {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.match-score-display {
+  text-align: center;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--text);
+  letter-spacing: 2px;
+  min-width: 60px;
+}
+
+.match-score-display.upcoming {
+  font-size: 14px;
+  color: var(--text3);
+  font-weight: 400;
+}
+
+/* ── TRANSFERS FEED ── */
+.transfer-card {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  margin-bottom: 8px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.transfer-card:hover { border-color: var(--gold-dim); }
+
+.transfer-player-img {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: var(--bg3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  border: 1px solid var(--border2);
+}
+
+.transfer-info { flex: 1; min-width: 0; }
+
+.transfer-player-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.transfer-clubs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text2);
+}
+
+.transfer-arrow { color: var(--gold); font-size: 10px; }
+
+.transfer-fee {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+.transfer-fee.loan { color: var(--accent); }
+.transfer-fee.free { color: var(--green); }
+
+/* ── SIDEBAR ── */
+.sidebar { display: flex; flex-direction: column; gap: 20px; }
+
+.sidebar-card {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.sidebar-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text);
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── TOP SCORERS ── */
+.scorer-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border2);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.scorer-row:last-child { border-bottom: none; }
+.scorer-row:hover { opacity: 0.8; }
+
+.scorer-rank {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text3);
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.scorer-rank.top { color: var(--gold); }
+
+.scorer-img {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--bg3);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.scorer-info { flex: 1; min-width: 0; }
+
+.scorer-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scorer-club {
+  font-size: 11px;
+  color: var(--text3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scorer-goals {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--text);
+}
+
+/* ── STANDINGS TABLE ── */
+.standings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.standings-table th {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text3);
+  text-align: left;
+  padding: 6px 6px;
+  border-bottom: 1px solid var(--border2);
+}
+
+.standings-table th:not(:nth-child(2)) { text-align: center; }
+
+.standings-table td {
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border2);
+}
+
+.standings-table td:not(:nth-child(2)) { text-align: center; }
+
+.standings-table tr:last-child td { border-bottom: none; }
+
+.standings-table tr:hover td { background: rgba(255,255,255,0.02); cursor: pointer; }
+
+.st-pos {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text3);
+  width: 22px;
+}
+
+.st-cl { color: var(--accent); }
+.st-el { color: var(--gold); }
+.st-rel { color: var(--red); }
+
+.st-team-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+}
+
+.st-pts {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.st-form { display: flex; gap: 2px; justify-content: center; }
+
+.form-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+}
+
+.form-w { background: var(--green); }
+.form-d { background: var(--gold-dim); }
+.form-l { background: var(--red); }
+
+/* ── TEAM PAGE ── */
+.team-hero {
+  background: linear-gradient(180deg, var(--bg2) 0%, var(--bg) 100%);
+  border-bottom: 1px solid var(--border2);
+  padding: 24px 16px;
+}
+
+.team-hero-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.team-badge-large {
+  width: 80px; height: 80px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  flex-shrink: 0;
+}
+
+.team-meta-large h1 {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: clamp(24px, 5vw, 40px);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+.team-meta-large .breadcrumb {
+  font-size: 12px;
+  color: var(--text3);
+  margin-bottom: 6px;
+}
+
+.team-meta-large .breadcrumb a {
+  color: var(--gold);
+  text-decoration: none;
+}
+
+.team-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--bg2);
+  padding: 0 16px;
+}
+
+.team-tabs::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  color: var(--text3);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.tab-btn.active { color: var(--gold); border-bottom-color: var(--gold); }
+.tab-btn:hover { color: var(--text); }
+
+.tab-content { display: none; padding: 20px 0; }
+.tab-content.active { display: block; }
+
+/* ── SQUAD GRID ── */
+.squad-section { margin-bottom: 24px; }
+
+.squad-section-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border2);
+}
+
+.squad-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 480px) {
+  .squad-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.player-card {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.player-card:hover {
+  border-color: var(--gold-dim);
+  background: var(--surface2);
+}
+
+.player-card-img {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: var(--bg3);
+  margin: 0 auto 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  border: 1px solid var(--border2);
+}
+
+.player-number {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--gold);
+  line-height: 1;
+}
+
+.player-card-name {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-card-pos {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 2px;
+}
+
+.player-card-nat {
+  font-size: 16px;
+  margin-top: 4px;
+}
+
+/* ── PLAYER PAGE ── */
+.player-hero {
+  background: linear-gradient(180deg, var(--bg2) 0%, var(--bg) 100%);
+  border-bottom: 1px solid var(--border2);
+  padding: 24px 16px;
+}
+
+.player-hero-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.player-avatar-large {
+  width: 100px; height: 100px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 50px;
+  flex-shrink: 0;
+}
+
+.player-meta h1 {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: clamp(28px, 5vw, 48px);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+.player-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.player-tag {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--text2);
+}
+
+.player-tag.pos-tag {
+  background: rgba(201,168,76,0.15);
+  border-color: var(--gold-dim);
+  color: var(--gold);
+  font-weight: 600;
+}
+
+/* ── STATS GRID ── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.stat-box {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 14px;
+  text-align: center;
+}
+
+.stat-box-val {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--gold);
+  line-height: 1;
+}
+
+.stat-box-lbl {
+  font-size: 11px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+/* ── CAREER TABLE ── */
+.career-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.career-table th {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text3);
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border2);
+  background: var(--bg3);
+}
+
+.career-table th:not(:first-child):not(:nth-child(2)) { text-align: center; }
+
+.career-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border2);
+}
+
+.career-table td:not(:first-child):not(:nth-child(2)) { text-align: center; }
+
+.career-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+.career-season {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.career-club {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.career-highlight { color: var(--gold); font-weight: 700; }
+
+/* ── TRANSFERS TABLE ── */
+.transfers-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.transfers-table th {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text3);
+  text-align: left;
+  padding: 10px;
+  border-bottom: 1px solid var(--border2);
+}
+
+.transfers-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--border2);
+}
+
+.transfers-table tr:hover td { background: rgba(255,255,255,0.02); cursor: pointer; }
+
+.t-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.t-player-img {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--bg3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.t-player-name { font-weight: 600; font-size: 14px; }
+.t-player-pos { font-size: 11px; color: var(--text3); }
+
+.t-clubs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.t-club { font-weight: 500; }
+.t-sep { color: var(--gold); font-size: 10px; }
+
+.t-fee {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--gold);
+}
+
+.t-fee.loan-fee { color: var(--accent); }
+.t-fee.free-fee { color: var(--green); }
+
+/* ── PAGINATION ── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 20px;
+}
+
+.page-btn {
+  width: 36px; height: 36px;
+  border: 1px solid var(--border2);
+  background: var(--surface);
+  border-radius: 6px;
+  color: var(--text2);
+  font-size: 13px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.page-btn:hover, .page-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(201,168,76,0.1); }
+
+/* ── MARKET VALUE BADGE ── */
+.market-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(201,168,76,0.12);
+  border: 1px solid var(--gold-dim);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--gold);
+}
+
+/* ── SEARCH RESULTS ── */
+.search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0; right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  z-index: 200;
+  display: none;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+.search-results.visible { display: block; }
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--border2);
+}
+
+.search-result-item:last-child { border-bottom: none; }
+.search-result-item:hover { background: var(--surface2); }
+
+.sr-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: var(--bg3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.sr-text { flex: 1; }
+.sr-name { font-size: 14px; font-weight: 600; }
+.sr-sub { font-size: 11px; color: var(--text3); }
+
+.sr-type {
+  font-size: 10px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text3);
+  background: var(--bg3);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+/* ── COUNTRY SECTIONS ── */
+.country-section { margin-bottom: 24px; }
+
+.country-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.country-flag-lg { font-size: 24px; }
+
+.country-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── BADGES & CHIPS ── */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'Barlow Condensed', sans-serif;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.badge-gold { background: rgba(201,168,76,0.2); color: var(--gold); }
+.badge-blue { background: rgba(59,130,246,0.2); color: var(--accent); }
+.badge-green { background: rgba(34,197,94,0.2); color: var(--green); }
+.badge-red { background: rgba(239,68,68,0.2); color: var(--red); }
+
+/* ── LOADING ── */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* ── TOAST ── */
+.toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--text);
+  z-index: 999;
+  opacity: 0;
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── UTILS ── */
+.flex { display: flex; }
+.items-center { align-items: center; }
+.gap-8 { gap: 8px; }
+.gap-12 { gap: 12px; }
+.mt-4 { margin-top: 4px; }
+.mt-8 { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.mt-16 { margin-top: 16px; }
+.mb-8 { margin-bottom: 8px; }
+.text-gold { color: var(--gold); }
+.text-dim { color: var(--text3); }
+.font-mono { font-family: 'Barlow Condensed', sans-serif; }
+.fw-800 { font-weight: 800; }
+.overflow-hidden { overflow: hidden; }
+
+/* ── RESPONSIVE TABLE WRAPPER ── */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ── TOP SCORERS / LEADERBOARD PAGE ── */
+.toplist-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.filter-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border2);
+  background: var(--surface);
+  border-radius: 20px;
+  color: var(--text2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Barlow', sans-serif;
+}
+
+.filter-btn.active, .filter-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: rgba(201,168,76,0.1);
+}
+
+/* ── MY CLUBS ── */
+.my-clubs-empty {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--text3);
+}
+
+.my-clubs-empty .big-icon { font-size: 48px; margin-bottom: 12px; }
+.my-clubs-empty p { margin-bottom: 16px; font-size: 14px; }
+
+.btn-primary {
+  display: inline-block;
+  background: linear-gradient(135deg, var(--gold-dim), var(--gold));
+  color: var(--bg);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 24px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  text-decoration: none;
+}
+
+.btn-primary:hover { opacity: 0.85; }
+
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-inner">
+    <a class="logo" href="#" onclick="showPage('home')">
+      <div class="logo-icon">⚽</div>
+      <div class="logo-text">Transfer<span>Zone</span>AI</div>
+    </a>
+    <div class="header-search">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="globalSearch" placeholder="Search players, clubs, leagues…" autocomplete="off">
+      <button class="search-ai-btn" onclick="focusAI()">AI</button>
+      <div class="search-results" id="searchResults"></div>
+    </div>
+    <nav class="header-nav">
+      <a href="#" class="active" onclick="showPage('home')">Home</a>
+      <a href="#" onclick="showPage('leagues')">Leagues</a>
+      <a href="#" onclick="showPage('transfers')">Transfers</a>
+      <a href="#" onclick="showPage('toplist')">Top Lists</a>
+      <a href="#" onclick="showPage('live')">Live</a>
+    </nav>
+  </div>
+</header>
+
+<!-- LIVE TICKER -->
+<div class="live-ticker">
+  <div class="ticker-inner">
+    <div class="ticker-label"><div class="live-dot"></div> LIVE</div>
+    <div class="ticker-scroll">
+      <div class="ticker-track" id="tickerTrack"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ HOME PAGE ══════════════ -->
+<div class="page active" id="page-home">
+
+  <div class="hero">
+    <h1>Global Football <span>Intelligence</span></h1>
+    <p class="hero-sub">Transfers · Stats · Live Scores · AI Search — All Free</p>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="val">900+</div><div class="lbl">Leagues</div></div>
+      <div class="hero-stat"><div class="val">500K+</div><div class="lbl">Players</div></div>
+      <div class="hero-stat"><div class="val">2M+</div><div class="lbl">Transfers</div></div>
+      <div class="hero-stat"><div class="val">AI</div><div class="lbl">Powered</div></div>
+    </div>
+  </div>
+
+  <!-- AI SEARCH -->
+  <div class="ai-search-wrap">
+    <div class="ai-search-box">
+      <div class="ai-search-label"><div class="ai-dot"></div> AI Football Search</div>
+      <div class="ai-input-row">
+        <input type="text" id="aiSearchInput" placeholder="Who has the most assists in the Premier League this season?">
+        <button class="ai-send-btn" onclick="sendAIQuery()">Ask AI ✦</button>
+      </div>
+      <div class="ai-suggestions">
+        <div class="ai-chip" onclick="setAIQuery(this.textContent)">Top scorers in La Liga 2024/25</div>
+        <div class="ai-chip" onclick="setAIQuery(this.textContent)">Most expensive transfer this summer</div>
+        <div class="ai-chip" onclick="setAIQuery(this.textContent)">Haaland stats this season</div>
+        <div class="ai-chip" onclick="setAIQuery(this.textContent)">Best young players under 21</div>
+        <div class="ai-chip" onclick="setAIQuery(this.textContent)">Bundesliga table right now</div>
+      </div>
+      <div class="ai-response" id="aiResponse"></div>
+    </div>
+  </div>
+
+  <!-- MAIN GRID -->
+  <div class="main-grid">
+    <div class="main-col">
+
+      <!-- TOP LEAGUES -->
+      <div class="section-header">
+        <h2 class="section-title">Top <span>Leagues</span></h2>
+        <a href="#" class="section-link" onclick="showPage('leagues')">All leagues →</a>
+      </div>
+      <div class="leagues-grid" id="topLeagues"></div>
+
+      <!-- RECENT TRANSFERS -->
+      <div style="margin-top:28px">
+        <div class="section-header">
+          <h2 class="section-title">Latest <span>Transfers</span></h2>
+          <a href="#" class="section-link" onclick="showPage('transfers')">View all →</a>
+        </div>
+        <div id="recentTransfers"></div>
+      </div>
+
+      <!-- LIVE / UPCOMING MATCHES -->
+      <div style="margin-top:28px">
+        <div class="section-header">
+          <h2 class="section-title">Live & <span>Upcoming</span></h2>
+          <a href="#" class="section-link" onclick="showPage('live')">All matches →</a>
+        </div>
+        <div class="matches-list" id="homeMatches"></div>
+      </div>
+
+    </div>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+      <div class="sidebar-card">
+        <div class="sidebar-title">🏆 Top Scorers</div>
+        <div id="topScorers"></div>
+      </div>
+
+      <div class="sidebar-card">
+        <div class="sidebar-title">📊 Premier League</div>
+        <div class="table-wrap">
+          <table class="standings-table" id="sidebarStandings"></table>
+        </div>
+      </div>
+
+      <div class="sidebar-card">
+        <div class="sidebar-title">🔥 Most Valuable</div>
+        <div id="mostValuable"></div>
+      </div>
+
+    </aside>
+  </div>
+</div>
+
+<!-- ══════════════ LEAGUES PAGE ══════════════ -->
+<div class="page" id="page-leagues">
+  <div style="padding:24px 16px;max-width:1280px;margin:0 auto;">
+    <div class="section-header">
+      <h2 class="section-title">All <span>Leagues</span></h2>
+    </div>
+    <div class="toplist-filters">
+      <button class="filter-btn active" onclick="filterLeagues('all',this)">All</button>
+      <button class="filter-btn" onclick="filterLeagues('europe',this)">Europe</button>
+      <button class="filter-btn" onclick="filterLeagues('south-america',this)">S. America</button>
+      <button class="filter-btn" onclick="filterLeagues('north-america',this)">N. America</button>
+      <button class="filter-btn" onclick="filterLeagues('asia',this)">Asia</button>
+      <button class="filter-btn" onclick="filterLeagues('africa',this)">Africa</button>
+    </div>
+    <div id="allLeaguesContent"></div>
+  </div>
+</div>
+
+<!-- ══════════════ TEAM PAGE ══════════════ -->
+<div class="page" id="page-team">
+  <div class="team-hero" id="teamHero"></div>
+  <div class="team-tabs" id="teamTabs"></div>
+  <div style="padding:0 16px;max-width:1280px;margin:0 auto;" id="teamContent"></div>
+</div>
+
+<!-- ══════════════ PLAYER PAGE ══════════════ -->
+<div class="page" id="page-player">
+  <div class="player-hero" id="playerHero"></div>
+  <div class="team-tabs" id="playerTabs"></div>
+  <div style="padding:0 16px;max-width:1280px;margin:0 auto;" id="playerContent"></div>
+</div>
+
+<!-- ══════════════ TRANSFERS PAGE ══════════════ -->
+<div class="page" id="page-transfers">
+  <div style="padding:24px 16px;max-width:1280px;margin:0 auto;">
+    <div class="section-header">
+      <h2 class="section-title">Transfer <span>Market</span></h2>
+    </div>
+    <div class="toplist-filters">
+      <button class="filter-btn active" onclick="filterTransfers('all',this)">All</button>
+      <button class="filter-btn" onclick="filterTransfers('confirmed',this)">Confirmed</button>
+      <button class="filter-btn" onclick="filterTransfers('rumours',this)">Rumours</button>
+      <button class="filter-btn" onclick="filterTransfers('loans',this)">Loans</button>
+      <button class="filter-btn" onclick="filterTransfers('free',this)">Free Agents</button>
+    </div>
+    <div class="table-wrap">
+      <table class="transfers-table" id="transfersTable">
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Movement</th>
+            <th>Fee</th>
+            <th>Date</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="transfersBody"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="transfersPagination"></div>
+  </div>
+</div>
+
+<!-- ══════════════ TOP LISTS PAGE ══════════════ -->
+<div class="page" id="page-toplist">
+  <div style="padding:24px 16px;max-width:1280px;margin:0 auto;">
+    <div class="section-header">
+      <h2 class="section-title">Top <span>Lists</span></h2>
+    </div>
+    <div class="toplist-filters">
+      <button class="filter-btn active" onclick="showTopList('scorers',this)">⚽ Top Scorers</button>
+      <button class="filter-btn" onclick="showTopList('assists',this)">🅰️ Assists</button>
+      <button class="filter-btn" onclick="showTopList('value',this)">💰 Market Value</button>
+      <button class="filter-btn" onclick="showTopList('transfers',this)">💸 Transfer Fees</button>
+      <button class="filter-btn" onclick="showTopList('clean',this)">🧤 Clean Sheets</button>
+    </div>
+    <div id="topListContent"></div>
+  </div>
+</div>
+
+<!-- ══════════════ LIVE PAGE ══════════════ -->
+<div class="page" id="page-live">
+  <div style="padding:24px 16px;max-width:1280px;margin:0 auto;">
+    <div class="section-header">
+      <h2 class="section-title">Live & <span>Results</span></h2>
+      <span class="badge badge-red">LIVE</span>
+    </div>
+    <div class="toplist-filters">
+      <button class="filter-btn active" onclick="filterLive('all',this)">All</button>
+      <button class="filter-btn" onclick="filterLive('live',this)">🟢 Live Now</button>
+      <button class="filter-btn" onclick="filterLive('today',this)">Today</button>
+      <button class="filter-btn" onclick="filterLive('upcoming',this)">Upcoming</button>
+    </div>
+    <div id="liveContent"></div>
+  </div>
+</div>
+
+<!-- ══════════════ MY CLUBS PAGE ══════════════ -->
+<div class="page" id="page-myclubs">
+  <div style="padding:24px 16px;max-width:1280px;margin:0 auto;">
+    <div class="section-header">
+      <h2 class="section-title">My <span>Clubs</span></h2>
+    </div>
+    <div id="myClubsContent">
+      <div class="my-clubs-empty">
+        <div class="big-icon">⭐</div>
+        <p>Follow your favourite clubs to get push notifications for transfers, match results and injury news.</p>
+        <button class="btn-primary" onclick="showPage('leagues')">Browse Leagues</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <a href="#" class="active" onclick="showPage('home')" id="bnav-home">
+    <span class="nav-icon">🏠</span>Home
+  </a>
+  <a href="#" onclick="showPage('leagues')" id="bnav-leagues">
+    <span class="nav-icon">🏆</span>Leagues
+  </a>
+  <a href="#" onclick="showPage('transfers')" id="bnav-transfers">
+    <span class="nav-icon">💸</span>Transfers
+  </a>
+  <a href="#" onclick="showPage('live')" id="bnav-live">
+    <span class="nav-icon">📺</span>Live
+  </a>
+  <a href="#" onclick="showPage('myclubs')" id="bnav-myclubs">
+    <span class="nav-icon">⭐</span>My Clubs
+  </a>
+</nav>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════
+// DATA — realistic mock data (replace with API-Football)
+// ═══════════════════════════════════════════
+
+const LEAGUES = [
+  { id:39,  name:"Premier League",    country:"England",     flag:"🏴󠁧󠁢󠁥󠁮󠁧󁿢", badge:"TOP 5" },
+  { id:140, name:"La Liga",           country:"Spain",       flag:"🇪🇸", badge:"TOP 5" },
+  { id:78,  name:"Bundesliga",        country:"Germany",     flag:"🇩🇪", badge:"TOP 5" },
+  { id:135, name:"Serie A",           country:"Italy",       flag:"🇮🇹", badge:"TOP 5" },
+  { id:61,  name:"Ligue 1",           country:"France",      flag:"🇫🇷", badge:"TOP 5" },
+  { id:2,   name:"Champions League",  country:"UEFA",        flag:"🇪🇺", badge:"UCL" },
+  { id:3,   name:"Europa League",     country:"UEFA",        flag:"🇪🇺", badge:"UEL" },
+  { id:94,  name:"Primeira Liga",     country:"Portugal",    flag:"🇵🇹", badge:"" },
+  { id:88,  name:"Eredivisie",        country:"Netherlands", flag:"🇳🇱", badge:"" },
+  { id:144, name:"Pro League",        country:"Belgium",     flag:"🇧🇪", badge:"" },
+  { id:203, name:"Süper Lig",         country:"Turkey",      flag:"🇹🇷", badge:"" },
+  { id:307, name:"Saudi Pro League",  country:"Saudi Arabia",flag:"🇸🇦", badge:"" },
+  { id:253, name:"MLS",               country:"USA",         flag:"🇺🇸", badge:"" },
+  { id:71,  name:"Brasileirão",       country:"Brazil",      flag:"🇧🇷", badge:"" },
+  { id:128, name:"Liga Profesional",  country:"Argentina",   flag:"🇦🇷", badge:"" },
+  { id:169, name:"Allsvenskan",       country:"Sweden",      flag:"🇸🇪", badge:"" },
+  { id:179, name:"Scottish Prem.",    country:"Scotland",    flag:"🏴󠁧󠁢󠁳󠁣󠁴󠁿", badge:"" },
+  { id:197, name:"Super League",      country:"Greece",      flag:"🇬🇷", badge:"" },
+  { id:235, name:"Russian Premier",   country:"Russia",      flag:"🇷🇺", badge:"" },
+  { id:332, name:"J1 League",         country:"Japan",       flag:"🇯🇵", badge:"" },
+];
+
+const TEAMS = {
+  1: { id:1, name:"Manchester City", league:"Premier League", country:"England", flag:"🇬🇧", emoji:"🔵",
+       founded:1880, stadium:"Etihad Stadium", capacity:"53,400", coach:"Pep Guardiola",
+       value:"€1.1B", squad: genSquad("Manchester City") },
+  2: { id:2, name:"Real Madrid", league:"La Liga", country:"Spain", flag:"🇪🇸", emoji:"⚪",
+       founded:1902, stadium:"Santiago Bernabéu", capacity:"81,044", coach:"Carlo Ancelotti",
+       value:"€1.3B", squad: genSquad("Real Madrid") },
+  3: { id:3, name:"Bayern Munich", league:"Bundesliga", country:"Germany", flag:"🇩🇪", emoji:"🔴",
+       founded:1900, stadium:"Allianz Arena", capacity:"75,024", coach:"Vincent Kompany",
+       value:"€1.0B", squad: genSquad("Bayern Munich") },
+};
+
+const PLAYERS = {
+  1: { id:1, name:"Erling Haaland", team:"Manchester City", teamId:1, nation:"Norway", flag:"🇳🇴",
+       pos:"Centre-Forward", age:24, height:"194cm", foot:"Left", value:"€180M",
+       stats: { apps:32, goals:27, assists:5, shots:4.2, passes:21.3, rating:7.9 },
+       career: [
+         { season:"2024/25", club:"Man City", league:"Premier League", apps:32, goals:27, assists:5 },
+         { season:"2023/24", club:"Man City", league:"Premier League", apps:31, goals:27, assists:5 },
+         { season:"2022/23", club:"Man City", league:"Premier League", apps:35, goals:36, assists:8 },
+         { season:"2021/22", club:"Dortmund", league:"Bundesliga", apps:24, goals:22, assists:8 },
+         { season:"2020/21", club:"Dortmund", league:"Bundesliga", apps:28, goals:27, assists:8 },
+       ]},
+  2: { id:2, name:"Kylian Mbappé", team:"Real Madrid", teamId:2, nation:"France", flag:"🇫🇷",
+       pos:"Left Winger / Striker", age:26, height:"178cm", foot:"Right", value:"€200M",
+       stats: { apps:34, goals:25, assists:9, shots:3.8, passes:28.1, rating:8.1 },
+       career: [
+         { season:"2024/25", club:"Real Madrid", league:"La Liga", apps:34, goals:25, assists:9 },
+         { season:"2023/24", club:"PSG", league:"Ligue 1", apps:29, goals:27, assists:7 },
+         { season:"2022/23", club:"PSG", league:"Ligue 1", apps:34, goals:29, assists:5 },
+       ]},
+  3: { id:3, name:"Vinicius Jr.", team:"Real Madrid", teamId:2, nation:"Brazil", flag:"🇧🇷",
+       pos:"Left Winger", age:24, height:"176cm", foot:"Right", value:"€180M",
+       stats: { apps:33, goals:18, assists:10, shots:3.1, passes:31.4, rating:8.0 },
+       career: [
+         { season:"2024/25", club:"Real Madrid", league:"La Liga", apps:33, goals:18, assists:10 },
+         { season:"2023/24", club:"Real Madrid", league:"La Liga", apps:36, goals:24, assists:9 },
+       ]},
+};
+
+const TRANSFERS = [
+  { id:1, player:"Kylian Mbappé", pos:"FWD", from:"PSG", to:"Real Madrid", fee:"Free", type:"free", date:"Jul 2024", flag:"🇫🇷" },
+  { id:2, player:"Xavi Simons", pos:"MID", from:"PSG", to:"RB Leipzig", fee:"Loan", type:"loan", date:"Aug 2024", flag:"🇳🇱" },
+  { id:3, player:"Mauro Icardi", pos:"FWD", from:"PSG", to:"Galatasaray", fee:"€10M", type:"paid", date:"Aug 2024", flag:"🇦🇷" },
+  { id:4, player:"Nico Williams", pos:"FWD", from:"Ath. Bilbao", to:"Chelsea", fee:"€70M", type:"paid", date:"Jul 2024", flag:"🇪🇸" },
+  { id:5, player:"Alejandro Garnacho", pos:"FWD", from:"Man Utd", to:"Napoli", fee:"€55M", type:"paid", date:"Jan 2025", flag:"🇦🇷" },
+  { id:6, player:"Rayan Cherki", pos:"MID", from:"Lyon", to:"Man City", fee:"€35M", type:"paid", date:"Jan 2025", flag:"🇫🇷" },
+  { id:7, player:"Sandro Tonali", pos:"MID", from:"Newcastle", to:"AC Milan", fee:"€68M", type:"paid", date:"Jul 2025", flag:"🇮🇹" },
+  { id:8, player:"Pedri", pos:"MID", from:"Barcelona", to:"Liverpool", fee:"€80M", type:"paid", date:"Jul 2025", flag:"🇪🇸" },
+  { id:9, player:"Gavi", pos:"MID", from:"Barcelona", to:"Barcelona", fee:"New contract", type:"free", date:"Jun 2025", flag:"🇪🇸" },
+  { id:10, player:"Lamine Yamal", pos:"FWD", from:"Barcelona", to:"Barcelona", fee:"Renewal", type:"free", date:"Jun 2025", flag:"🇪🇸" },
+  { id:11, player:"Marcus Rashford", pos:"FWD", from:"Man Utd", to:"Aston Villa", fee:"£40M", type:"paid", date:"Jan 2025", flag:"🏴󠁧󠁢󠁥󠁮󠁧󁿢" },
+  { id:12, player:"Bryan Mbeumo", pos:"FWD", from:"Brentford", to:"Manchester Utd", fee:"£62M", type:"paid", date:"Jul 2025", flag:"🇨🇲" },
+];
+
+const LIVE_MATCHES = [
+  { home:"Arsenal", away:"Chelsea", scoreH:2, scoreA:1, min:"67", league:"Premier League", live:true, flagH:"🔴", flagA:"🔵" },
+  { home:"Barcelona", away:"Atletico", scoreH:1, scoreA:1, min:"45+2", league:"La Liga", live:true, flagH:"🔵🔴", flagA:"🔴⚪" },
+  { home:"Dortmund", away:"Leverkusen", scoreH:0, scoreA:0, min:"23", league:"Bundesliga", live:true, flagH:"🟡", flagA:"⚫🔴" },
+  { home:"PSG", away:"Lyon", scoreH:null, scoreA:null, time:"21:00", league:"Ligue 1", live:false, flagH:"🔵🔴", flagA:"🔵⚪" },
+  { home:"Juventus", away:"Napoli", scoreH:null, scoreA:null, time:"20:45", league:"Serie A", live:false, flagH:"⚫⚪", flagA:"🔵" },
+  { home:"Man City", away:"Tottenham", scoreH:3, scoreA:1, min:"FT", league:"Premier League", live:false, finished:true, flagH:"🔵", flagA:"⚪" },
+];
+
+const TOP_SCORERS = [
+  { name:"E. Haaland", club:"Man City", nation:"🇳🇴", goals:27, playerId:1 },
+  { name:"K. Mbappé", club:"Real Madrid", nation:"🇫🇷", goals:25, playerId:2 },
+  { name:"H. Kane", club:"Bayern Munich", nation:"🏴󠁧󠁢󠁥󠁮󠁧󁿢", goals:24, playerId:3 },
+  { name:"V. Osimhen", club:"Galatasaray", nation:"🇳🇬", goals:23, playerId:1 },
+  { name:"L. Yamal", club:"Barcelona", nation:"🇪🇸", goals:21, playerId:2 },
+  { name:"V. Jr.", club:"Real Madrid", nation:"🇧🇷", goals:18, playerId:3 },
+];
+
+const STANDINGS_PL = [
+  { pos:1, name:"Man City", w:20, d:5, l:3, gd:42, pts:65, form:["W","W","D","W","W"], cl:true },
+  { pos:2, name:"Arsenal", w:19, d:6, l:3, gd:38, pts:63, form:["W","W","W","D","W"], cl:true },
+  { pos:3, name:"Liverpool", w:18, d:7, l:3, gd:31, pts:61, form:["D","W","W","W","W"], cl:true },
+  { pos:4, name:"Aston Villa", w:16, d:5, l:7, gd:20, pts:53, form:["L","W","W","D","W"], cl:true },
+  { pos:5, name:"Chelsea", w:15, d:6, l:7, gd:18, pts:51, form:["W","D","W","L","W"], el:true },
+];
+
+// ═══════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════
+
+function genSquad(club) {
+  const gks = [
+    { name:"Éderson", no:31, pos:"GK", nat:"🇧🇷" },
+    { name:"S. Carson", no:33, pos:"GK", nat:"🏴󠁧󠁢󠁥󠁮󠁧󁿢" },
+  ];
+  const defs = [
+    { name:"K. Walker", no:2, pos:"RB", nat:"🏴󠁧󠁢󠁥󠁮󠁧󁿢" },
+    { name:"R. Dias", no:3, pos:"CB", nat:"🇵🇹" },
+    { name:"M. Akanji", no:25, pos:"CB", nat:"🇨🇭" },
+    { name:"J. Gvardiol", no:24, pos:"LB", nat:"🇭🇷" },
+  ];
+  const mids = [
+    { name:"R. Mahrez", no:26, pos:"RM", nat:"🇩🇿" },
+    { name:"B. Silva", no:20, pos:"CM", nat:"🇵🇹" },
+    { name:"K. De Bruyne", no:17, pos:"CM", nat:"🇧🇪" },
+    { name:"M. Kovacic", no:8, pos:"CM", nat:"🇭🇷" },
+    { name:"P. Foden", no:47, pos:"LM", nat:"🏴󠁧󠁢󠁥󠁮󠁧󁿢" },
+  ];
+  const fwds = [
+    { name:"E. Haaland", no:9, pos:"ST", nat:"🇳🇴" },
+    { name:"J. Doku", no:11, pos:"LW", nat:"🇧🇪" },
+    { name:"S. Savinho", no:26, pos:"RW", nat:"🇧🇷" },
+  ];
+  return { gks, defs, mids, fwds };
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById('page-'+id)?.classList.add('active');
+  document.getElementById('bnav-'+id)?.classList.add('active');
+  window.scrollTo(0,0);
+
+  // Init pages on first show
+  if (id === 'leagues' && !window._leaguesInited) { initLeagues(); window._leaguesInited = true; }
+  if (id === 'transfers' && !window._transfersInited) { initTransfers(); window._transfersInited = true; }
+  if (id === 'toplist' && !window._toplistInited) { showTopList('scorers', document.querySelector('#page-toplist .filter-btn')); window._toplistInited = true; }
+  if (id === 'live' && !window._liveInited) { initLive(); window._liveInited = true; }
+}
+
+function showTeam(id) {
+  const team = TEAMS[id];
+  if (!team) return;
+  document.getElementById('teamHero').innerHTML = `
+    <div class="team-hero-inner">
+      <div class="team-badge-large">${team.emoji}</div>
+      <div class="team-meta-large">
+        <div class="breadcrumb"><a href="#" onclick="showPage('leagues')">${team.league}</a> · ${team.country} ${team.flag}</div>
+        <h1>${team.name}</h1>
+        <div class="player-tags" style="margin-top:10px">
+          <div class="player-tag">📍 ${team.stadium}</div>
+          <div class="player-tag">👥 ${team.capacity}</div>
+          <div class="player-tag">🎓 Founded ${team.founded}</div>
+          <div class="player-tag player-tag pos-tag">💰 ${team.value}</div>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('teamTabs').innerHTML = `
+    <button class="tab-btn active" onclick="showTeamTab('squad',this)">Squad</button>
+    <button class="tab-btn" onclick="showTeamTab('stats',this)">Statistics</button>
+    <button class="tab-btn" onclick="showTeamTab('transfers',this)">Transfers</button>
+    <button class="tab-btn" onclick="showTeamTab('fixtures',this)">Fixtures</button>`;
+
+  showTeamTab('squad');
+  showPage('team');
+}
+
+function showTeamTab(tab, btn) {
+  document.querySelectorAll('#teamTabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn?.classList.add('active');
+
+  const team = TEAMS[1]; // demo
+  const c = document.getElementById('teamContent');
+
+  if (tab === 'squad') {
+    const { gks, defs, mids, fwds } = team.squad;
+    const section = (title, players) => `
+      <div class="squad-section">
+        <div class="squad-section-title">${title}</div>
+        <div class="squad-grid">
+          ${players.map(p => `
+            <div class="player-card" onclick="showPlayer(1)">
+              <div class="player-card-img"><span>${p.nat}</span></div>
+              <div class="player-number">${p.no}</div>
+              <div class="player-card-name">${p.name}</div>
+              <div class="player-card-pos">${p.pos}</div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+    c.innerHTML = section('Goalkeepers', gks) + section('Defenders', defs) + section('Midfielders', mids) + section('Forwards', fwds);
+  }
+
+  if (tab === 'stats') {
+    c.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-box"><div class="stat-box-val">32</div><div class="stat-box-lbl">Matches</div></div>
+        <div class="stat-box"><div class="stat-box-val">74</div><div class="stat-box-lbl">Goals</div></div>
+        <div class="stat-box"><div class="stat-box-val">49</div><div class="stat-box-lbl">Assists</div></div>
+        <div class="stat-box"><div class="stat-box-val">14</div><div class="stat-box-lbl">Clean Sheets</div></div>
+        <div class="stat-box"><div class="stat-box-val">62%</div><div class="stat-box-lbl">Possession</div></div>
+        <div class="stat-box"><div class="stat-box-val">2.3</div><div class="stat-box-lbl">xG/Game</div></div>
+      </div>`;
+  }
+
+  if (tab === 'transfers') {
+    c.innerHTML = `<div class="table-wrap">
+      <table class="transfers-table">
+        <thead><tr><th>Player</th><th>Movement</th><th>Fee</th><th>Date</th></tr></thead>
+        <tbody>${TRANSFERS.slice(0,6).map(t => `
+          <tr onclick="showPlayer(1)">
+            <td><div class="t-player"><div class="t-player-img">${t.flag}</div><div><div class="t-player-name">${t.player}</div><div class="t-player-pos">${t.pos}</div></div></div></td>
+            <td><div class="t-clubs"><span class="t-club">${t.from}</span><span class="t-sep">→</span><span class="t-club">${t.to}</span></div></td>
+            <td><span class="t-fee ${t.type==='loan'?'loan-fee':t.type==='free'?'free-fee':''}">${t.fee}</span></td>
+            <td style="color:var(--text3);font-size:12px">${t.date}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>`;
+  }
+
+  if (tab === 'fixtures') {
+    c.innerHTML = `<div class="matches-list">${LIVE_MATCHES.map(m => matchCard(m)).join('')}</div>`;
+  }
+}
+
+function showPlayer(id) {
+  const p = PLAYERS[id];
+  if (!p) { p = PLAYERS[1]; id=1; }
+  const player = PLAYERS[id] || PLAYERS[1];
+
+  document.getElementById('playerHero').innerHTML = `
+    <div class="player-hero-inner">
+      <div class="player-avatar-large">${player.flag}</div>
+      <div class="player-meta">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:4px">
+          <a href="#" onclick="showTeam(${player.teamId})" style="color:var(--gold);text-decoration:none">${player.team}</a>
+        </div>
+        <h1>${player.name}</h1>
+        <div class="player-tags">
+          <div class="player-tag pos-tag">${player.pos}</div>
+          <div class="player-tag">🎂 ${player.age}</div>
+          <div class="player-tag">📏 ${player.height}</div>
+          <div class="player-tag">🦶 ${player.foot}</div>
+          <div class="market-value" style="margin-top:2px">💰 ${player.value}</div>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('playerTabs').innerHTML = `
+    <button class="tab-btn active" onclick="showPlayerTab('overview',this)">Overview</button>
+    <button class="tab-btn" onclick="showPlayerTab('career',this)">Career</button>
+    <button class="tab-btn" onclick="showPlayerTab('transfers',this)">Transfers</button>`;
+
+  showPlayerTab('overview', null, player);
+  showPage('player');
+}
+
+function showPlayerTab(tab, btn, player) {
+  player = player || PLAYERS[1];
+  document.querySelectorAll('#playerTabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn?.classList.add('active');
+  const c = document.getElementById('playerContent');
+
+  if (tab === 'overview') {
+    c.innerHTML = `
+      <div style="margin-top:20px">
+        <div class="section-title" style="margin-bottom:12px">Season <span>2024/25</span></div>
+        <div class="stats-grid">
+          <div class="stat-box"><div class="stat-box-val">${player.stats.apps}</div><div class="stat-box-lbl">Appearances</div></div>
+          <div class="stat-box"><div class="stat-box-val">${player.stats.goals}</div><div class="stat-box-lbl">Goals</div></div>
+          <div class="stat-box"><div class="stat-box-val">${player.stats.assists}</div><div class="stat-box-lbl">Assists</div></div>
+          <div class="stat-box"><div class="stat-box-val">${player.stats.shots}</div><div class="stat-box-lbl">Shots/90</div></div>
+          <div class="stat-box"><div class="stat-box-val">${player.stats.passes}</div><div class="stat-box-lbl">Passes/90</div></div>
+          <div class="stat-box"><div class="stat-box-val">${player.stats.rating}</div><div class="stat-box-lbl">Avg Rating</div></div>
+        </div>
+      </div>`;
+  }
+
+  if (tab === 'career') {
+    c.innerHTML = `
+      <div style="margin-top:20px" class="table-wrap">
+        <table class="career-table">
+          <thead><tr><th>Season</th><th>Club</th><th>League</th><th>Apps</th><th>G</th><th>A</th></tr></thead>
+          <tbody>${player.career.map((r,i) => `
+            <tr>
+              <td><span class="career-season">${r.season}</span></td>
+              <td><div class="career-club">${r.club}</div></td>
+              <td style="color:var(--text3);font-size:12px">${r.league}</td>
+              <td>${r.apps}</td>
+              <td class="${i===0?'career-highlight':''}">${r.goals}</td>
+              <td>${r.assists}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+}
+
+function matchCard(m) {
+  const statusClass = m.live ? 'live' : m.finished ? 'finished' : 'upcoming';
+  const statusText = m.live ? `${m.min}'` : m.finished ? 'FT' : m.time || '';
+  const score = m.live || m.finished
+    ? `<div class="match-score-display">${m.scoreH} – ${m.scoreA}</div>`
+    : `<div class="match-score-display upcoming">${m.time || '–'}</div>`;
+
+  return `<div class="match-card" onclick="showToast('Match details coming soon')">
+    <div class="match-meta">
+      <span class="match-league-badge">${m.league}</span>
+      <span class="match-status ${statusClass}">${m.live?'● ':''} ${statusText}</span>
+    </div>
+    <div class="match-teams">
+      <div class="match-team">
+        <div class="team-logo">${m.flagH||'⚽'}</div>
+        <span class="team-name-m">${m.home}</span>
+      </div>
+      ${score}
+      <div class="match-team away">
+        <div class="team-logo">${m.flagA||'⚽'}</div>
+        <span class="team-name-m">${m.away}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════
+// INIT HOME
+// ═══════════════════════════════════════════
+
+function initHome() {
+  // Top leagues
+  document.getElementById('topLeagues').innerHTML = LEAGUES.slice(0,12).map(l => `
+    <div class="league-card" onclick="showTeam(1)">
+      <div class="league-flag">${l.flag}</div>
+      <div class="league-info">
+        <div class="league-name">${l.name}</div>
+        <div class="league-country">${l.country}</div>
+      </div>
+      ${l.badge ? `<div class="league-badge">${l.badge}</div>` : ''}
+    </div>`).join('');
+
+  // Recent transfers
+  document.getElementById('recentTransfers').innerHTML = TRANSFERS.slice(0,5).map(t => `
+    <div class="transfer-card" onclick="showPlayer(1)">
+      <div class="transfer-player-img">${t.flag}</div>
+      <div class="transfer-info">
+        <div class="transfer-player-name">${t.player}</div>
+        <div class="transfer-clubs">
+          <span>${t.from}</span>
+          <span class="transfer-arrow">→</span>
+          <span>${t.to}</span>
+          <span class="badge badge-${t.pos==='GK'?'blue':t.pos==='DEF'?'green':t.pos==='MID'?'gold':'red'}" style="margin-left:4px">${t.pos}</span>
+        </div>
+      </div>
+      <div class="transfer-fee ${t.type==='loan'?'loan':t.type==='free'?'free':''}">${t.fee}</div>
+    </div>`).join('');
+
+  // Home matches
+  document.getElementById('homeMatches').innerHTML = LIVE_MATCHES.map(m => matchCard(m)).join('');
+
+  // Top scorers
+  document.getElementById('topScorers').innerHTML = TOP_SCORERS.map((s,i) => `
+    <div class="scorer-row" onclick="showPlayer(${s.playerId})">
+      <div class="scorer-rank ${i<3?'top':''}">${i+1}</div>
+      <div class="scorer-img">${s.nation}</div>
+      <div class="scorer-info">
+        <div class="scorer-name">${s.name}</div>
+        <div class="scorer-club">${s.club}</div>
+      </div>
+      <div class="scorer-goals">${s.goals}</div>
+    </div>`).join('');
+
+  // Standings
+  document.getElementById('sidebarStandings').innerHTML = `
+    <thead><tr>
+      <th>#</th><th>Club</th><th>W</th><th>D</th><th>L</th><th>Pts</th><th>Form</th>
+    </tr></thead>
+    <tbody>${STANDINGS_PL.map(r => `
+      <tr onclick="showTeam(1)">
+        <td><span class="st-pos ${r.cl?'st-cl':r.el?'st-el':r.rel?'st-rel':''}">${r.pos}</span></td>
+        <td><span class="st-team-name">${r.name}</span></td>
+        <td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>
+        <td><span class="st-pts">${r.pts}</span></td>
+        <td><div class="st-form">${r.form.map(f => `<div class="form-dot form-${f.toLowerCase()}"></div>`).join('')}</div></td>
+      </tr>`).join('')}
+    </tbody>`;
+
+  // Most valuable
+  document.getElementById('mostValuable').innerHTML = Object.values(PLAYERS).map((p,i) => `
+    <div class="scorer-row" onclick="showPlayer(${p.id})">
+      <div class="scorer-rank ${i<3?'top':''}">${i+1}</div>
+      <div class="scorer-img">${p.flag}</div>
+      <div class="scorer-info">
+        <div class="scorer-name">${p.name}</div>
+        <div class="scorer-club">${p.team}</div>
+      </div>
+      <div class="scorer-goals" style="font-size:13px">${p.value}</div>
+    </div>`).join('');
+
+  // Ticker
+  const items = LIVE_MATCHES.filter(m => m.live || m.finished);
+  const tickerHTML = items.map(m =>
+    `<div class="ticker-item">
+      <span>${m.home}</span>
+      <span class="ticker-score">${m.scoreH} – ${m.scoreA}</span>
+      <span>${m.away}</span>
+      ${m.live ? `<span class="ticker-minute">${m.min}'</span>` : '<span class="ticker-minute">FT</span>'}
+    </div>`).join('');
+  document.getElementById('tickerTrack').innerHTML = tickerHTML + tickerHTML; // duplicate for scroll
+}
+
+// ═══════════════════════════════════════════
+// LEAGUES PAGE
+// ═══════════════════════════════════════════
+
+function initLeagues() {
+  const groups = {
+    "Europe": LEAGUES.filter(l => ["England","Spain","Germany","Italy","France","Portugal","Netherlands","Belgium","Turkey","Sweden","Scotland","Greece","Russia"].includes(l.country) || l.country==="UEFA"),
+    "Middle East / Asia": LEAGUES.filter(l => ["Saudi Arabia","Japan"].includes(l.country)),
+    "Americas": LEAGUES.filter(l => ["USA","Brazil","Argentina"].includes(l.country)),
+  };
+
+  document.getElementById('allLeaguesContent').innerHTML = Object.entries(groups).map(([region, leagues]) => `
+    <div class="country-section">
+      <div class="country-header">
+        <div class="country-name">${region}</div>
+      </div>
+      <div class="leagues-grid">${leagues.map(l => `
+        <div class="league-card" onclick="showTeam(1)">
+          <div class="league-flag">${l.flag}</div>
+          <div class="league-info">
+            <div class="league-name">${l.name}</div>
+            <div class="league-country">${l.country}</div>
+          </div>
+          ${l.badge ? `<div class="league-badge">${l.badge}</div>` : ''}
+        </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function filterLeagues(region, btn) {
+  document.querySelectorAll('#page-leagues .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  initLeagues(); // simplified — in real app filter by region
+}
+
+// ═══════════════════════════════════════════
+// TRANSFERS PAGE
+// ═══════════════════════════════════════════
+
+let currentTransferPage = 1;
+const TRANSFERS_PER_PAGE = 6;
+
+function initTransfers() {
+  renderTransfers(TRANSFERS, 1);
+}
+
+function renderTransfers(data, page) {
+  const start = (page-1)*TRANSFERS_PER_PAGE;
+  const slice = data.slice(start, start+TRANSFERS_PER_PAGE);
+
+  document.getElementById('transfersBody').innerHTML = slice.map(t => `
+    <tr onclick="showPlayer(1)">
+      <td><div class="t-player"><div class="t-player-img">${t.flag}</div><div><div class="t-player-name">${t.player}</div><div class="t-player-pos">${t.pos}</div></div></div></td>
+      <td><div class="t-clubs"><span class="t-club">${t.from}</span><span class="t-sep">→</span><span class="t-club">${t.to}</span></div></td>
+      <td><span class="t-fee ${t.type==='loan'?'loan-fee':t.type==='free'?'free-fee':''}">${t.fee}</span></td>
+      <td style="color:var(--text3);font-size:12px">${t.date}</td>
+      <td><span class="badge badge-${t.type==='paid'?'gold':t.type==='loan'?'blue':'green'}">${t.type==='paid'?'Confirmed':t.type==='loan'?'Loan':'Free'}</span></td>
+    </tr>`).join('');
+
+  const pages = Math.ceil(data.length / TRANSFERS_PER_PAGE);
+  document.getElementById('transfersPagination').innerHTML =
+    Array.from({length:pages},(_,i) => `
+      <button class="page-btn ${i+1===page?'active':''}" onclick="renderTransfers(window._transfersData||TRANSFERS,${i+1})">${i+1}</button>`
+    ).join('');
+
+  window._transfersData = data;
+}
+
+function filterTransfers(type, btn) {
+  document.querySelectorAll('#page-transfers .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const filtered = type === 'all' ? TRANSFERS :
+    type === 'loans' ? TRANSFERS.filter(t => t.type==='loan') :
+    type === 'free' ? TRANSFERS.filter(t => t.type==='free') :
+    TRANSFERS.filter(t => t.type==='paid');
+  renderTransfers(filtered, 1);
+}
+
+// ═══════════════════════════════════════════
+// TOP LISTS PAGE
+// ═══════════════════════════════════════════
+
+function showTopList(type, btn) {
+  document.querySelectorAll('#page-toplist .filter-btn').forEach(b => b.classList.remove('active'));
+  btn?.classList.add('active');
+  const c = document.getElementById('topListContent');
+
+  if (type === 'scorers' || type === 'assists') {
+    c.innerHTML = `
+      <div class="table-wrap">
+        <table class="career-table">
+          <thead><tr><th>#</th><th>Player</th><th>Club</th><th>${type==='assists'?'Assists':'Goals'}</th><th>Apps</th><th>Per 90</th></tr></thead>
+          <tbody>${TOP_SCORERS.map((s,i) => `
+            <tr onclick="showPlayer(${s.playerId})">
+              <td><span class="st-pos ${i<3?'st-cl':''}">${i+1}</span></td>
+              <td><div class="career-club"><span>${s.nation}</span>${s.name}</div></td>
+              <td style="color:var(--text3)">${s.club}</td>
+              <td class="${i===0?'career-highlight':''}"><b>${s.goals}</b></td>
+              <td>32</td>
+              <td>${(s.goals/32).toFixed(2)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  if (type === 'value') {
+    c.innerHTML = `
+      <div class="table-wrap">
+        <table class="career-table">
+          <thead><tr><th>#</th><th>Player</th><th>Club</th><th>Market Value</th><th>Age</th><th>Pos</th></tr></thead>
+          <tbody>${Object.values(PLAYERS).map((p,i) => `
+            <tr onclick="showPlayer(${p.id})">
+              <td><span class="st-pos ${i<3?'st-cl':''}">${i+1}</span></td>
+              <td><div class="career-club"><span>${p.flag}</span>${p.name}</div></td>
+              <td style="color:var(--text3)">${p.team}</td>
+              <td class="${i===0?'career-highlight':''}">${p.value}</td>
+              <td>${p.age}</td>
+              <td><span class="badge badge-gold">${p.pos.split('/')[0].trim()}</span></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  if (type === 'transfers') {
+    const paid = TRANSFERS.filter(t=>t.type==='paid').slice(0,8);
+    c.innerHTML = `
+      <div class="table-wrap">
+        <table class="transfers-table">
+          <thead><tr><th>#</th><th>Player</th><th>Movement</th><th>Fee</th><th>Date</th></tr></thead>
+          <tbody>${paid.map((t,i) => `
+            <tr onclick="showPlayer(1)">
+              <td><span class="st-pos ${i<3?'st-cl':''}">${i+1}</span></td>
+              <td><div class="t-player"><div class="t-player-img">${t.flag}</div><div><div class="t-player-name">${t.player}</div><div class="t-player-pos">${t.pos}</div></div></div></td>
+              <td><div class="t-clubs"><span>${t.from}</span><span class="t-sep">→</span><span>${t.to}</span></div></td>
+              <td><span class="t-fee">${t.fee}</span></td>
+              <td style="color:var(--text3);font-size:12px">${t.date}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  if (type === 'clean') {
+    c.innerHTML = `
+      <div class="table-wrap">
+        <table class="career-table">
+          <thead><tr><th>#</th><th>Goalkeeper</th><th>Club</th><th>Clean Sheets</th><th>Apps</th></tr></thead>
+          <tbody>
+            <tr><td><span class="st-pos st-cl">1</span></td><td><div class="career-club">🇧🇷 Éderson</div></td><td style="color:var(--text3)">Man City</td><td class="career-highlight">14</td><td>32</td></tr>
+            <tr><td><span class="st-pos st-cl">2</span></td><td><div class="career-club">🇺🇦 Lunin</div></td><td style="color:var(--text3)">Real Madrid</td><td>13</td><td>30</td></tr>
+            <tr><td><span class="st-pos">3</span></td><td><div class="career-club">🇸🇰 Ramsdale</div></td><td style="color:var(--text3)">Arsenal</td><td>12</td><td>31</td></tr>
+          </tbody>
+        </table>
+      </div>`;
+  }
+}
+
+// ═══════════════════════════════════════════
+// LIVE PAGE
+// ═══════════════════════════════════════════
+
+function initLive() {
+  document.getElementById('liveContent').innerHTML =
+    `<div class="matches-list">${LIVE_MATCHES.map(m => matchCard(m)).join('')}</div>`;
+}
+
+function filterLive(type, btn) {
+  document.querySelectorAll('#page-live .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const filtered = type === 'all' ? LIVE_MATCHES :
+    type === 'live' ? LIVE_MATCHES.filter(m => m.live) :
+    type === 'upcoming' ? LIVE_MATCHES.filter(m => !m.live && !m.finished) :
+    LIVE_MATCHES;
+  document.getElementById('liveContent').innerHTML =
+    `<div class="matches-list">${filtered.map(m => matchCard(m)).join('')}</div>`;
+}
+
+// ═══════════════════════════════════════════
+// AI SEARCH
+// ═══════════════════════════════════════════
+
+const AI_ANSWERS = {
+  "top scorers": `**Top scorers in the Premier League 2024/25:**\n\n1. Erling Haaland (Man City) — 27 goals in 32 apps\n2. Cole Palmer (Chelsea) — 21 goals in 31 apps\n3. Alexander Isak (Newcastle) — 19 goals in 28 apps\n\nHaaland continues to dominate with a goals-per-game ratio of 0.84.`,
+  "haaland": `**Erling Haaland — 2024/25 Season:**\n\n⚽ 27 goals in 32 Premier League appearances\n🅰️ 5 assists · 📊 Rating: 7.9\n💰 Market Value: €180M\n\nHaaland is the top scorer in Europe's top 5 leagues this season. He scored in 19 of his last 22 league matches.`,
+  "la liga": `**La Liga Top Scorers 2024/25:**\n\n1. Kylian Mbappé (Real Madrid) — 25 goals\n2. Vinicius Jr. (Real Madrid) — 18 goals\n3. Dani Olmo (Barcelona) — 16 goals\n4. Lamine Yamal (Barcelona) — 21 goals / 14 assists\n\nReal Madrid leads the table with 65 points after 32 matchdays.`,
+  "bundesliga": `**Bundesliga table (Matchday 28):**\n\n🥇 Bayern Munich — 68 pts\n🥈 Bayer Leverkusen — 61 pts\n🥉 Stuttgart — 55 pts\n\nHarry Kane leads the scoring charts with 24 goals. Bayern are on track for their 13th consecutive title.`,
+  "most expensive": `**Most expensive transfers Summer 2025:**\n\n1. Pedri — Barcelona → Liverpool · €80M\n2. Sandro Tonali — Newcastle → AC Milan · €68M\n3. Bryan Mbeumo — Brentford → Man Utd · £62M\n4. Nico Williams — Ath. Bilbao → Chelsea · €70M\n5. Garnacho — Man Utd → Napoli · €55M`,
+  "young": `**Best players under 21 in 2024/25:**\n\n1. Lamine Yamal (17, Barcelona) — 21G/14A 🔥\n2. Pedri (22, Barcelona) — Elite midfielder\n3. Xavi Simons (21, Leipzig) — 12G/11A\n4. Endrick (18, Real Madrid) — Emerging star\n5. Warren Zaïre-Emery (19, PSG) — 8G/6A`,
+};
+
+async function sendAIQuery() {
+  const input = document.getElementById('aiSearchInput');
+  const query = input.value.trim();
+  if (!query) return;
+
+  const resp = document.getElementById('aiResponse');
+  resp.style.display = 'block';
+  resp.innerHTML = `<div class="ai-thinking"><div class="ai-thinking-dots"><span></span><span></span><span></span></div> Analysing your query…</div>`;
+
+  // Check local answers first (fast path)
+  const localKey = Object.keys(AI_ANSWERS).find(k => query.toLowerCase().includes(k));
+
+  if (localKey) {
+    await new Promise(r => setTimeout(r, 600));
+    const text = AI_ANSWERS[localKey];
+    resp.innerHTML = `<div style="white-space:pre-line;line-height:1.7">${text}</div>
+      <div style="margin-top:10px;font-size:11px;color:var(--text3)">⚡ Answered in 0.6s via local stats engine</div>`;
+    return;
+  }
+
+  // Call Claude API
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        system: "You are TransferZoneAI's football intelligence assistant. Answer questions about football statistics, transfers, leagues and players. Keep answers concise, factual and well-structured. Use bullet points or numbered lists when listing data. Always mention if data is estimated or based on training data cutoff. End with a ⚡ note about data freshness.",
+        messages: [{ role: "user", content: query }]
+      })
+    });
+    const data = await response.json();
+    const text = data.content?.[0]?.text || "No response received.";
+    resp.innerHTML = `<div style="white-space:pre-line;line-height:1.7">${text}</div>`;
+  } catch (err) {
+    resp.innerHTML = `<div style="color:var(--text2)">⚠️ AI temporarily unavailable. Try one of the suggested queries above, or check your connection.</div>`;
+  }
+}
+
+function setAIQuery(text) {
+  document.getElementById('aiSearchInput').value = text;
+  sendAIQuery();
+}
+
+function focusAI() {
+  document.getElementById('aiSearchInput').focus();
+  document.querySelector('.ai-search-box')?.scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+// ═══════════════════════════════════════════
+// GLOBAL SEARCH
+// ═══════════════════════════════════════════
+
+const searchIndex = [
+  ...Object.values(PLAYERS).map(p => ({ type:'Player', name:p.name, sub:`${p.team} · ${p.pos}`, icon:p.flag, action:()=>showPlayer(p.id) })),
+  ...Object.values(TEAMS).map(t => ({ type:'Club', name:t.name, sub:`${t.league} · ${t.country}`, icon:t.emoji, action:()=>showTeam(t.id) })),
+  ...LEAGUES.slice(0,8).map(l => ({ type:'League', name:l.name, sub:l.country, icon:l.flag, action:()=>showPage('leagues') })),
+];
+
+document.getElementById('globalSearch').addEventListener('input', function() {
+  const q = this.value.toLowerCase().trim();
+  const results = document.getElementById('searchResults');
+  if (!q) { results.classList.remove('visible'); return; }
+
+  const matches = searchIndex.filter(item => item.name.toLowerCase().includes(q)).slice(0,5);
+  if (!matches.length) { results.classList.remove('visible'); return; }
+
+  results.innerHTML = matches.map((m,i) => `
+    <div class="search-result-item" onclick="window._srAction_${i}()">
+      <div class="sr-icon">${m.icon}</div>
+      <div class="sr-text">
+        <div class="sr-name">${m.name}</div>
+        <div class="sr-sub">${m.sub}</div>
+      </div>
+      <div class="sr-type">${m.type}</div>
+    </div>`).join('');
+
+  matches.forEach((m,i) => window[`_srAction_${i}`] = () => {
+    m.action();
+    results.classList.remove('visible');
+    document.getElementById('globalSearch').value = '';
+  });
+
+  results.classList.add('visible');
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.header-search')) {
+    document.getElementById('searchResults').classList.remove('visible');
+  }
+});
+
+document.getElementById('globalSearch').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const q = e.target.value;
+    document.getElementById('aiSearchInput').value = q;
+    showPage('home');
+    sendAIQuery();
+  }
+});
+
+// ═══════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════
+
+initHome();
+</script>
+</body>
+</html>
