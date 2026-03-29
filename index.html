@@ -2358,27 +2358,26 @@ function fixName(name) {
 // Reparerar trasig teckenkodning i spelarnamn
 function fixEncoding(str) {
   if (!str) return str;
-  // Byt ut kända mojibake-mönster
+  // API-Football skickar ibland UTF-8 som latin1 — dessa mönster täcker de vanligaste fallen
   return str
-    .replace(/Ä/g, 'ć')
-    .replace(/Ä/g, 'č')
-    .replace(/Å¡/g, 'š')
-    .replace(/Å¾/g, 'ž')
-    .replace(/Ä/g, 'đ')
-    .replace(/Ã¤/g, 'ä')
-    .replace(/Ã¶/g, 'ö')
-    .replace(/Ã¥/g, 'å')
-    .replace(/Ã¸/g, 'ø')
-    .replace(/Ä\?/g,     'ć')
-    .replace(/Ä‡/g,      'ć')
-    .replace(/Å¡/g,      'š')
-    .replace(/Å¾/g,      'ž')
-    .replace(/Ä'/g,      'đ')
-    .replace(/Ã¤/g,      'ä')
-    .replace(/Ã¶/g,      'ö')
-    .replace(/Ã¥/g,      'å')
-    .replace(/Ã©/g,      'é')
-    .replace(/Ã¸/g,      'ø');
+    // Serbiska/kroatiska/bosniska
+    .replace(/Ä/g, 'ć')   // ć
+    .replace(/Ä/g, 'č')   // č
+    .replace(/Å¡/g, 'š')   // š
+    .replace(/Å¾/g, 'ž')   // ž
+    .replace(/Ä/g, 'đ')   // đ
+    .replace(/Ä/g, 'Ć')   // Ć
+    .replace(/Ä/g, 'Č')   // Č
+    .replace(/Å /g, 'Š')   // Š
+    // Skandinaviska
+    .replace(/Ã¤/g, 'ä')   // ä
+    .replace(/Ã¶/g, 'ö')   // ö
+    .replace(/Ã¥/g, 'å')   // å
+    .replace(/Ã¸/g, 'ø')   // ø
+    .replace(/Ã¦/g, 'æ')   // æ
+    // "Ä?" eller "Ä" i slutet av ord = ć (API-Football specifik bugg)
+    .replace(/Ä\?/g, 'ć')
+    .replace(/Ä(?=[\s,.'\-]|$)/g, 'ć');
 }
 
 
