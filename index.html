@@ -445,17 +445,10 @@ header {
 }
 
 .main-grid {
-  display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: 24px;
+  display: block;
   padding: 24px 16px;
-  max-width: 1280px;
+  max-width: 900px;
   margin: 0 auto;
-}
-
-@media (max-width: 960px) {
-  .main-grid { grid-template-columns: 1fr; }
-  .sidebar { order: -1; }
 }
 
 /* ── LIVE TICKER ── */
