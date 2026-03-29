@@ -2661,6 +2661,25 @@ function showToast(msg) {
 // Aktiv teamId för tab-navigering
 let _currentTeamId = null;
 
+function buildYearPicker(activeSeason, teamId, tab, globalVar) {
+  const el = document.createElement('div');
+  el.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px';
+  for (let y = new Date().getFullYear(); y >= new Date().getFullYear() - 7; y--) {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn' + (activeSeason === y ? ' active' : '');
+    btn.style.cssText = 'padding:4px 12px;font-size:12px';
+    btn.textContent = y;
+    btn.onclick = (function(yr) {
+      return function() {
+        window[globalVar] = yr;
+        showTeamTab(tab, null, teamId);
+      };
+    })(y);
+    el.appendChild(btn);
+  }
+  return el.outerHTML;
+}
+
 async function showTeam(id) {
   _currentTeamId = id;
   showPage('team');
@@ -2760,9 +2779,10 @@ async function showTeamTab(tab, btn) {
   }
 
   if (tab === 'stats') {
+    const statsYear = window._statsYear || null;
     c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
     try {
-      // Hämta lagets aktuella liga dynamiskt
+      // Hämta lagets alla ligor
       const leagueData = await apiFetch('leagues', { team: teamId, current: 'true' });
       const leagues = leagueData.response || [];
 
@@ -2776,8 +2796,17 @@ async function showTeamTab(tab, btn) {
       const isCup = (name) => cupKeywords.some(k => (name||'').toLowerCase().includes(k));
 
       const primaryLeague = leagues.find(l => !isCup(l.league.name)) || leagues[0];
-      const season = primaryLeague?.seasons?.find(s => s.current)?.year
-                  ?? new Date().getFullYear() - 1;
+      const defaultSeason = primaryLeague?.seasons?.find(s => s.current)?.year
+                         ?? new Date().getFullYear() - 1;
+      const season = statsYear || defaultSeason;
+
+      // Årsväljare
+      const thisYear = new Date().getFullYear();
+      const yearBtns = Array.from({length: 7}, (_, i) => thisYear - i).map(y =>
+        '<button onclick="window._statsYear=' + y + ';showTeamTab(\'stats\',null,' + teamId + ')" ' +
+        'class="filter-btn ' + (season === y ? 'active' : '') + '" style="padding:4px 12px;font-size:12px">' + y + '</button>'
+      ).join('');
+      const yearPickerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">' + yearBtns + '</div>';
 
       // Hämta bara primär liga
       const statsResults = [
@@ -2854,9 +2883,10 @@ async function showTeamTab(tab, btn) {
 
       c.innerHTML = `
         <div style="margin-top:20px">
+          ${yearPickerHTML}
           ${formHTML}
 
-          <div class="section-title" style="margin-bottom:12px;font-size:16px">Season Overview</div>
+          <div class="section-title" style="margin-bottom:12px;font-size:16px">Season Overview — ${season}</div>
           <div class="stats-grid" style="margin-bottom:24px">
             <div class="stat-box"><div class="stat-box-val">${played||'—'}</div><div class="stat-box-lbl">Matches</div></div>
             <div class="stat-box"><div class="stat-box-val">${totalWins||'—'}</div><div class="stat-box-lbl">Wins</div></div>
@@ -2959,6 +2989,7 @@ async function showTeamTab(tab, btn) {
   }
 
   if (tab === 'toplayers') {
+    const selectedYear = window._topPlayersYear || null;
     c.innerHTML = `<div class="skeleton" style="height:300px;border-radius:10px;margin-top:20px"></div>`;
     try {
       // Hämta aktuell liga och säsong
@@ -3005,6 +3036,9 @@ async function showTeamTab(tab, btn) {
         return;
       }
 
+      // Bygg årsväljare via DOM-funktion
+      const yearPickerHTML = buildYearPicker(activeSeason, teamId, 'toplayers', '_topPlayersYear');
+
       // Pagination hanteras nu i fallback-loopen ovan
 
       // Summera statistik per spelare över alla ligor/cuper den säsongen
@@ -3038,19 +3072,17 @@ async function showTeamTab(tab, btn) {
           ${players.slice(0,8).map((p,i) => pRow(p, i, valFn(p))).join('')}
         </div>`;
 
-      c.innerHTML = `
-        <div style="margin-top:20px">
-          <div style="color:var(--text3);font-size:12px;margin-bottom:16px">Season ${activeSeason}/${String(activeSeason+1).slice(2)}</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
-            ${card('Goals',        '⚽', byGoals,   p => sumStat(p,s=>s.goals?.total))}
-            ${card('Assists',      '🅰️', byAssists, p => sumStat(p,s=>s.goals?.assists))}
-            ${card('Appearances',  '📋', byApps,    p => sumStat(p,s=>s.games?.appearences))}
-            ${card('Passes',       '🎯', byPasses,  p => sumStat(p,s=>s.passes?.total))}
-            ${card('Tackles',      '🛡️', byTackles, p => sumStat(p,s=>s.tackles?.total))}
-            ${card('Yellow Cards', '🟡', byYellow,  p => sumStat(p,s=>s.cards?.yellow))}
-            ${card('Red Cards',    '🔴', byRed,     p => sumStat(p,s=>s.cards?.red))}
-          </div>
-        </div>`;
+      c.innerHTML = '<div style="margin-top:20px">' + yearPickerHTML +
+        '<div style="color:var(--text3);font-size:12px;margin-bottom:16px">Season ' + activeSeason + '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">' +
+        card('Goals',        'Goals',   byGoals,   p => sumStat(p, s => s.goals?.total)) +
+        card('Assists',      'Assists',  byAssists, p => sumStat(p, s => s.goals?.assists)) +
+        card('Appearances',  'Apps',    byApps,    p => sumStat(p, s => s.games?.appearences)) +
+        card('Passes',       'Passes',  byPasses,  p => sumStat(p, s => s.passes?.total)) +
+        card('Tackles',      'Tackles', byTackles, p => sumStat(p, s => s.tackles?.total)) +
+        card('Yellow Cards', 'Yellow',  byYellow,  p => sumStat(p, s => s.cards?.yellow)) +
+        card('Red Cards',    'Red',     byRed,     p => sumStat(p, s => s.cards?.red)) +
+        '</div></div>';
     } catch(e) {
       c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda spelarstatistik.</div>`;
       console.error(e);
@@ -4770,7 +4802,11 @@ initHome();
 
 // ── Snabb mönsterigenkänning för vanliga fotbollsfrågor ──
 async function fastFootballSearch(query) {
-  const q = query.toLowerCase();
+  // Normalisera svenska tecken så "Malmo FF" matchar "Malmö FF" och vice versa
+  const q = query.toLowerCase()
+    .replace(/ö/g, 'o').replace(/ä/g, 'a').replace(/å/g, 'a')
+    .replace(/ø/g, 'o').replace(/æ/g, 'ae');
+  const qOrig = query.toLowerCase(); // original med specialtecken
 
   async function findTeamId(name) {
     const data = await apiFetch('teams', { search: name });
@@ -4823,7 +4859,10 @@ async function fastFootballSearch(query) {
   const teamStatMatch = _teamRe1.exec(q) || _teamRe2.exec(q);
   if (teamStatMatch) {
     const teamName = (teamStatMatch[1] || '').trim().replace(/\d{4}$/, '').trim();
-    const team = await findTeamId(teamName);
+    // Try original query to preserve ö/ä/å for API search
+    const origMatch = query.toLowerCase().match(/(?:in|i|for)\s+(\S[\w\sÀ-ž]{2,24})(?:\s+\d{4})?$/i);
+    const teamNameOrig = origMatch ? origMatch[1].trim().replace(/\d{4}$/, '').trim() : teamName;
+    const team = await findTeamId(teamNameOrig) || await findTeamId(teamName);
     if (team) {
       let players = [];
       const yearsToTry = askedYear
