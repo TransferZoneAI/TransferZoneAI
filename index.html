@@ -1630,22 +1630,7 @@ header {
     <!-- SIDEBAR -->
     <aside class="sidebar">
 
-      <div class="sidebar-card">
-        <div class="sidebar-title">🏆 Top Scorers</div>
-        <div id="topScorers"></div>
-      </div>
 
-      <div class="sidebar-card">
-        <div class="sidebar-title">📊 Premier League</div>
-        <div class="table-wrap">
-          <table class="standings-table" id="sidebarStandings"></table>
-        </div>
-      </div>
-
-      <div class="sidebar-card">
-        <div class="sidebar-title">🔥 Most Valuable</div>
-        <div id="mostValuable"></div>
-      </div>
 
     </aside>
   </div>
@@ -2279,6 +2264,26 @@ function skeletonRows(n, cols) {
   ).join('');
 }
 
+function formatFee(raw) {
+  if (!raw || raw === '—') return '—';
+  const l = raw.toLowerCase();
+  if (l === 'free' || l === 'free agent') return 'Free';
+  if (l.includes('loan')) return 'Loan';
+  // Konvertera "7400000" eller "7.4M" till "€7.4M"
+  const num = parseFloat(raw.replace(/[^0-9.]/g, ''));
+  if (!isNaN(num) && num > 0) {
+    if (num >= 1000000) return `€${(num/1000000).toFixed(1)}M`;
+    if (num >= 1000)    return `€${(num/1000).toFixed(0)}K`;
+    return `€${num}`;
+  }
+  // Redan formaterat t.ex "7.4M €" → "€7.4M"
+  const match = raw.match(/([\d.]+)\s*M/i);
+  if (match) return `€${match[1]}M`;
+  const matchK = raw.match(/([\d.]+)\s*K/i);
+  if (matchK) return `€${matchK[1]}K`;
+  return raw;
+}
+
 async function initHome() {
 
   // ── 1. Statiska ligor — renderas direkt, noll väntetid ──
@@ -2292,34 +2297,12 @@ async function initHome() {
       ${l.badge ? `<div class="league-badge">${l.badge}</div>` : ''}
     </div>`).join('');
 
-  // ── 2. Statisk "Most Valuable" — renderas direkt ──
-  const VALUABLE = [
-    { name:'Kylian Mbappé',   club:'Real Madrid',    val:'€200M', flag:'🇫🇷', id:278  },
-    { name:'Vinicius Jr.',    club:'Real Madrid',    val:'€180M', flag:'🇧🇷', id:165  },
-    { name:'Erling Haaland',  club:'Man City',       val:'€180M', flag:'🇳🇴', id:1100 },
-    { name:'Lamine Yamal',    club:'Barcelona',      val:'€150M', flag:'🇪🇸', id:2295 },
-    { name:'Pedri',           club:'Barcelona',      val:'€120M', flag:'🇪🇸', id:2296 },
-    { name:'Jude Bellingham', club:'Real Madrid',    val:'€180M', flag:'🏴󠁧󠁢󠁥󠁮󠁧󁿢', id:1229 },
-  ];
-  document.getElementById('mostValuable').innerHTML = VALUABLE.map((p,i) => `
-    <div class="scorer-row" onclick="showPlayer(${p.id})">
-      <div class="scorer-rank ${i<3?'top':''}">${i+1}</div>
-      <div class="scorer-img">${p.flag}</div>
-      <div class="scorer-info">
-        <div class="scorer-name">${p.name}</div>
-        <div class="scorer-club">${p.club}</div>
-      </div>
-      <div class="scorer-goals" style="font-size:13px;color:var(--gold)">${p.val}</div>
-    </div>`).join('');
+  // valuable removed
 
   // ── 3. Skeleton placeholders medan API laddar ──
   document.getElementById('homeMatches').innerHTML =
     [1,2,3].map(() => `<div class="skeleton" style="height:80px;border-radius:10px"></div>`).join('');
-  document.getElementById('topScorers').innerHTML =
-    `<div class="skeleton" style="height:220px;border-radius:8px"></div>`;
-  document.getElementById('sidebarStandings').innerHTML = `
-    <thead><tr><th>#</th><th>Club</th><th>W</th><th>D</th><th>L</th><th>Pts</th></tr></thead>
-    <tbody>${skeletonRows(6, 6)}</tbody>`;
+
   document.getElementById('recentTransfers').innerHTML =
     [1,2,3].map(() => `<div class="skeleton" style="height:60px;border-radius:10px;margin-bottom:8px"></div>`).join('');
 
@@ -2330,8 +2313,8 @@ async function initHome() {
     apiFetch('fixtures', { live: 'all' }),                                   // Alla live-matcher i världen
     apiFetch('fixtures', { date: today }),                                   // Alla matcher idag (alla ligor)
     apiFetch('fixtures', { league: '39-140-78-135-61', season: SEASON, next: 10 }), // Kommande top 5
-    apiFetch('players/topscorers', { league: 39, season: SEASON }),
-    apiFetch('standings', { league: 39, season: SEASON }),
+    Promise.resolve({ response: [] }), // topscorers removed
+    Promise.resolve({ response: [] }), // standings removed
     apiFetch('transfers/global', { season: SEASON }),  // Transfers från top 6 ligor
   ]);
 
@@ -2429,72 +2412,9 @@ async function initHome() {
     }
   }, 4000);
 
-  // ── 6. TOPSCORERS ──
-  if (scorersRes.status === 'fulfilled') {
-    const scorers = scorersRes.value.response || [];
-    if (scorers.length) {
-      document.getElementById('topScorers').innerHTML = scorers.slice(0, 6).map((s, i) => {
-        // API-Football: s.player.name, s.player.photo, s.statistics[0].team.name, s.statistics[0].goals.total
-        const goals = s.statistics?.[0]?.goals?.total ?? 0;
-        const club  = s.statistics?.[0]?.team?.name  ?? '';
-        const photo = s.player?.photo ?? '';
-        return `<div class="scorer-row" onclick="showPlayer(${s.player.id})">
-          <div class="scorer-rank ${i<3?'top':''}">${i+1}</div>
-          <div class="scorer-img">
-            ${photo ? `<img src="${photo}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid var(--border2)">` : '⚽'}
-          </div>
-          <div class="scorer-info">
-            <div class="scorer-name">${s.player.name}</div>
-            <div class="scorer-club">${club}</div>
-          </div>
-          <div class="scorer-goals">${goals}</div>
-        </div>`;
-      }).join('');
-    } else {
-      document.getElementById('topScorers').innerHTML =
-        `<div style="padding:12px;color:var(--text3);font-size:13px">Säsongen har inte börjat än.</div>`;
-    }
-  } else {
-    document.getElementById('topScorers').innerHTML =
-      `<div style="padding:12px;color:var(--text3);font-size:13px">Kunde inte ladda topscorers.</div>`;
-  }
+  // scorers removed
 
-  // ── 7. TABELL Premier League ──
-  if (tableRes.status === 'fulfilled') {
-    // API-Football standings: response[0].league.standings[0] = array av lag
-    const standing = tableRes.value.response?.[0]?.league?.standings?.[0] ?? [];
-    if (standing.length) {
-      document.getElementById('sidebarStandings').innerHTML = `
-        <thead><tr><th>#</th><th>Club</th><th>W</th><th>D</th><th>L</th><th>Pts</th><th>Form</th></tr></thead>
-        <tbody>${standing.slice(0, 8).map(r => {
-          const desc = (r.description || '').toLowerCase();
-          const cl  = desc.includes('champions league');
-          const el  = desc.includes('europa') || desc.includes('conference');
-          const rel = desc.includes('relegat');
-          return `<tr onclick="showTeam(${r.team.id})" style="cursor:pointer">
-            <td><span class="st-pos ${cl?'st-cl':el?'st-el':rel?'st-rel':''}">${r.rank}</span></td>
-            <td>
-              <div style="display:flex;align-items:center;gap:5px">
-                ${r.team.logo ? `<img src="${r.team.logo}" style="width:16px;height:16px;object-fit:contain;flex-shrink:0">` : ''}
-                <span class="st-team-name">${r.team.name}</span>
-              </div>
-            </td>
-            <td>${r.all?.win  ?? 0}</td>
-            <td>${r.all?.draw ?? 0}</td>
-            <td>${r.all?.lose ?? 0}</td>
-            <td><span class="st-pts">${r.points}</span></td>
-            <td><div class="st-form">${formDots(r.form)}</div></td>
-          </tr>`;
-        }).join('')}
-        </tbody>`;
-    } else {
-      document.getElementById('sidebarStandings').innerHTML =
-        `<caption style="color:var(--text3);font-size:12px;padding:12px;caption-side:bottom">Tabellen är inte tillgänglig ännu.</caption>`;
-    }
-  } else {
-    document.getElementById('sidebarStandings').innerHTML =
-      `<caption style="color:var(--text3);font-size:12px;padding:12px;caption-side:bottom">Kunde inte ladda tabellen.</caption>`;
-  }
+  // standings removed
 
   // ── 8. SENASTE TRANSFERS ──
   if (transfersRes.status === 'fulfilled') {
@@ -2511,9 +2431,7 @@ async function initHome() {
         type: (t.type||'').toLowerCase().includes('loan') ? 'loan'
             : (t.type||'').toLowerCase() === 'free'       ? 'free'
             : 'paid',
-        fee : t.type
-               ? t.type.charAt(0).toUpperCase() + t.type.slice(1)
-               : '—',
+        fee : formatFee(t.type),
       }))
       .slice(0, 6);
 
