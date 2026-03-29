@@ -2862,10 +2862,64 @@ function renderLeaguesByCountry(leagues, region) {
     return womenKeywords.some(k => name.toLowerCase().includes(k));
   }
 
+  // Hierarkisk rangordning av ligor per land
+  const LEAGUE_RANK = {
+    // Sverige
+    'Allsvenskan': 1, 'Superettan': 2, 'Ettan - Norra': 3, 'Ettan - Södra': 3,
+    'Ettan - Relegation Round': 4, 'Division 2 - Norra Götaland': 5,
+    'Division 2 - Södra Svealand': 5, 'Division 2 - Norra Svealand': 5,
+    'Division 2 - Västra Götaland': 5, 'Division 2 - Östra Götaland': 5,
+    'Division 2 - Norrland': 5, 'Division 2 - Play-offs': 6,
+    'Svenska Cupen': 10, 'Elitettan': 1,
+    // England
+    'Premier League': 1, 'Championship': 2, 'League One': 3, 'League Two': 4,
+    'National League': 5, 'FA Cup': 10, 'League Cup': 10, 'Community Shield': 10,
+    'FA WSL': 1,
+    // Spanien
+    'La Liga': 1, 'Segunda División': 2, 'Primera Federación': 3,
+    'Copa del Rey': 10,
+    // Tyskland
+    'Bundesliga': 1, '2. Bundesliga': 2, '3. Liga': 3, 'DFB Pokal': 10,
+    'Frauen-Bundesliga': 1,
+    // Italien
+    'Serie A': 1, 'Serie B': 2, 'Serie C': 3, 'Coppa Italia': 10,
+    // Frankrike
+    'Ligue 1': 1, 'Ligue 2': 2, 'National': 3, 'Coupe de France': 10,
+    // Portugal
+    'Primeira Liga': 1, 'Segunda Liga': 2, 'Taça de Portugal': 10,
+    // Nederländerna
+    'Eredivisie': 1, 'Eerste Divisie': 2, 'KNVB Beker': 10,
+    // Norge
+    'Eliteserien': 1, '1. divisjon': 2, '2. divisjon': 3, 'NM Cupen': 10,
+    'Toppserien': 1,
+    // Danmark
+    'Superliga': 1, '1st Division': 2, '2nd Division': 3, 'DBU Pokalen': 10,
+    'Kvindeliga': 1,
+    // Brasilien
+    'Série A': 1, 'Série B': 2, 'Série C': 3, 'Copa do Brasil': 10,
+    // Argentina
+    'Liga Profesional': 1, 'Primera Nacional': 2, 'Copa Argentina': 10,
+    // USA
+    'MLS': 1, 'USL Championship': 2, 'USL League One': 3, 'NWSL': 1,
+    // Saudiarabien
+    'Pro League': 1, 'Division 1': 2,
+    // Japan
+    'J1 League': 1, 'J2 League': 2, 'J3 League': 3, 'Emperor Cup': 10,
+    // UEFA
+    'Champions League': 1, 'Europa League': 2, 'Conference League': 3,
+    'UEFA Nations League': 4, 'Euro Championship': 5, 'World Cup': 5,
+  };
+
+  function leagueRank(name) {
+    return LEAGUE_RANK[name] ?? 7; // okänd liga = mitt i
+  }
+
   // Sortera ligor: herr först (rangordnat), dam sist
   function sortLeagues(ls) {
-    const men   = ls.filter(l => !isWomen(l.league.name)).sort((a,b) => (a.league.name||'').localeCompare(b.league.name));
-    const women = ls.filter(l =>  isWomen(l.league.name)).sort((a,b) => (a.league.name||'').localeCompare(b.league.name));
+    const men   = ls.filter(l => !isWomen(l.league.name))
+                    .sort((a,b) => leagueRank(a.league.name) - leagueRank(b.league.name));
+    const women = ls.filter(l =>  isWomen(l.league.name))
+                    .sort((a,b) => leagueRank(a.league.name) - leagueRank(b.league.name));
     return { men, women };
   }
 
