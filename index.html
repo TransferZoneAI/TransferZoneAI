@@ -3360,12 +3360,13 @@ async function renderLeaguePage(id, name, flag) {
 
     // Prova aktuell säsong, annars föregående
     let activeSeason = season;
-    const testScorers = await apiFetch('players/topscorers', { league: id, season }).catch(() => ({ response:[] }));
-    if (!testScorers.response?.length) activeSeason = season - 1;
+    const testTable = await apiFetch('standings', { league: id, season }).catch(() => ({ response:[] }));
+    if (!testTable.response?.length) activeSeason = season - 1;
+    const testScorers = await apiFetch('players/topscorers', { league: id, season: activeSeason }).catch(() => ({ response:[] }));
 
     const [table, scorers, assistsData, yellowData, redData] = await Promise.all([
-      apiFetch('standings',              { league: id, season: activeSeason }),
-      activeSeason === season ? Promise.resolve(testScorers) : apiFetch('players/topscorers', { league: id, season: activeSeason }),
+      testTable.response?.length ? Promise.resolve(testTable) : apiFetch('standings', { league: id, season: activeSeason }),
+      Promise.resolve(testScorers),
       apiFetch('players/topassists',     { league: id, season: activeSeason }).catch(() => ({ response:[] })),
       apiFetch('players/topyellowcards', { league: id, season: activeSeason }).catch(() => ({ response:[] })),
       apiFetch('players/topredcards',    { league: id, season: activeSeason }).catch(() => ({ response:[] })),
@@ -3378,8 +3379,13 @@ async function renderLeaguePage(id, name, flag) {
     const reds       = redData.response     ?? [];
 
     // Backknapp + rubrik
+    // Sommarligor (Sverige, Norge, Danmark, USA etc) visas som "2025", vinterligor som "2025/26"
+    const summerLeagueCountries = ['Sweden','Norway','Denmark','Finland','USA','Canada','Australia','Japan','South Korea','Russia','Ukraine','Belarus'];
+    const isSummerLeague = summerLeagueCountries.some(c => (leagueInfo.response?.[0]?.country?.name||'').includes(c));
+    const seasonLabel = isSummerLeague ? `${activeSeason}` : `${activeSeason}/${String(activeSeason+1).slice(2)}`;
+
     const backBtn = `<div style="margin-bottom:20px">
-      <div class="section-title"><span>${name}</span> <span style="color:var(--text3);font-size:14px;font-weight:400">${season}/${String(season+1).slice(2)}</span></div>
+      <div class="section-title"><span>${name}</span> <span style="color:var(--text3);font-size:14px;font-weight:400">${seasonLabel}</span></div>
     </div>`;
 
     if (!standings.length && !topscorers.length) {
