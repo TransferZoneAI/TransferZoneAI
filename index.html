@@ -2116,8 +2116,9 @@ async function showTeam(id) {
         </div>
       </div>`;
 
-    // Spara squad globalt för tabs
+    // Spara squad och lagnamn globalt för tabs
     window._currentSquad = squad;
+    window._currentTeamName = t.name;
     showTeamTab('squad');
   } catch(e) {
     document.getElementById('teamHero').innerHTML =
@@ -2181,28 +2182,43 @@ async function showTeamTab(tab, btn) {
     c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
     try {
       const data = await fetchTransfers(teamId);
-      const rows = data.slice(0,10).flatMap(t =>
-        (t.transfers||[]).slice(0,1).map(tr => ({
-          player: t.player.name,
-          from: tr.teams.out.name,
-          to: tr.teams.in.name,
-          fee: tr.type || '—',
-          date: tr.date?.slice(0,7) || '',
-          playerId: t.player.id,
-        }))
-      );
-      c.innerHTML = `<div class="table-wrap" style="margin-top:20px">
-        <table class="transfers-table">
-          <thead><tr><th>Player</th><th>Movement</th><th>Fee</th><th>Date</th></tr></thead>
-          <tbody>${rows.map(r => `
-            <tr onclick="showPlayer(${r.playerId})">
-              <td><div class="t-player"><div class="t-player-img">⚽</div><div><div class="t-player-name">${r.player}</div></div></div></td>
-              <td><div class="t-clubs"><span>${r.from}</span><span class="t-sep">→</span><span>${r.to}</span></div></td>
-              <td><span class="t-fee">${r.fee}</span></td>
-              <td style="color:var(--text3);font-size:12px">${r.date}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table></div>`;
+
+      // Platta ut alla transfers, sortera senaste först
+      const rows = data
+        .flatMap(t =>
+          (t.transfers || []).map(tr => ({
+            player:   fixEncoding(t.player?.name ?? '—'),
+            playerId: t.player?.id ?? 0,
+            from:     fixName(tr.teams?.out?.name ?? '—'),
+            to:       fixName(tr.teams?.in?.name  ?? '—'),
+            fromLogo: tr.teams?.out?.logo ?? '',
+            toLogo:   tr.teams?.in?.logo  ?? '',
+            fee:      formatFee(tr.type),
+            feeType:  (tr.type||'').toLowerCase().includes('loan') ? 'loan'
+                    : (tr.type||'').toLowerCase() === 'free' ? 'free' : 'paid',
+            date:     tr.date ?? '—',
+          }))
+        )
+        .filter(r => r.date !== '—')
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      if (!rows.length) {
+        c.innerHTML = `<div style="padding:20px;color:var(--text3)">Inga transfers hittades.</div>`;
+        return;
+      }
+
+      // Filterknapp: All / In / Out
+      const filterHTML = `
+        <div class="toplist-filters" style="margin-bottom:12px">
+          <button class="filter-btn active" onclick="filterTeamTransfers('all', this, ${teamId})">All</button>
+          <button class="filter-btn" onclick="filterTeamTransfers('in', this, ${teamId})">Arrivals</button>
+          <button class="filter-btn" onclick="filterTeamTransfers('out', this, ${teamId})">Departures</button>
+        </div>`;
+
+      window._teamTransfers = rows;
+      window._teamId = teamId;
+
+      c.innerHTML = filterHTML + renderTeamTransferTable(rows);
     } catch(e) {
       c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda transfers.</div>`;
     }
@@ -2498,6 +2514,56 @@ function fixEncoding(str) {
     .replace(/Ä(?=[\s,.'\-]|$)/g, 'ć');
 }
 
+
+function renderTeamTransferTable(rows) {
+  if (!rows.length) return `<div style="padding:20px;color:var(--text3)">Inga transfers.</div>`;
+  return `<div class="table-wrap">
+    <table class="transfers-table">
+      <thead><tr><th>Player</th><th>Movement</th><th>Fee</th><th>Date</th></tr></thead>
+      <tbody>${rows.slice(0, 50).map(r => `
+        <tr onclick="showPlayer(${r.playerId})" style="cursor:pointer">
+          <td>
+            <div class="t-player">
+              <div class="t-player-img">⚽</div>
+              <div><div class="t-player-name">${r.player}</div></div>
+            </div>
+          </td>
+          <td>
+            <div class="t-clubs" style="align-items:center">
+              ${r.fromLogo ? `<img src="${r.fromLogo}" style="width:16px;height:16px;object-fit:contain">` : ''}
+              <span>${r.from}</span>
+              <span class="t-sep">→</span>
+              ${r.toLogo ? `<img src="${r.toLogo}" style="width:16px;height:16px;object-fit:contain">` : ''}
+              <span>${r.to}</span>
+            </div>
+          </td>
+          <td><span class="t-fee ${r.feeType==='loan'?'loan-fee':r.feeType==='free'?'free-fee':''}">${r.fee}</span></td>
+          <td style="color:var(--text3);font-size:12px">${r.date?.slice(0,7)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function filterTeamTransfers(type, btn, teamId) {
+  document.querySelectorAll('#teamContent .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const rows = window._teamTransfers || [];
+  const filtered = type === 'all' ? rows
+    : type === 'in'  ? rows.filter(r => r.to   === fixName(btn.closest('[id]')?.dataset?.name ?? r.to))
+    : rows;
+  // Enklare: filtrera på om lagets namn finns i from/to
+  // Vi vet inte lagets namn här, men vi kan kolla mot window._currentTeamName
+  const teamName = window._currentTeamName || '';
+  const filteredRows = type === 'all' ? rows
+    : type === 'in'  ? rows.filter(r => r.to.toLowerCase().includes(teamName.toLowerCase()) || r.toLogo)
+    : type === 'out' ? rows.filter(r => r.from.toLowerCase().includes(teamName.toLowerCase()) || r.fromLogo)
+    : rows;
+
+  const tableContainer = btn.closest('.tab-content, [id="teamContent"]') || document.getElementById('teamContent');
+  const table = tableContainer.querySelector('.table-wrap');
+  if (table) table.outerHTML = renderTeamTransferTable(type === 'all' ? rows : filteredRows);
+}
 
 function formatFee(raw) {
   if (!raw || raw === '—') return '—';
