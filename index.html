@@ -3219,39 +3219,79 @@ async function showTopList(type, btn) {
 
 let _liveData = [];
 
+let _liveFilter = 'all';
+
 async function initLive() {
   document.getElementById('liveContent').innerHTML =
     `<div class="skeleton" style="height:300px;border-radius:10px"></div>`;
   try {
-    const fixtures = await fetchLiveMatches();
-    _liveData = fixtures;
-    renderLive(fixtures);
+    const data = await apiFetch('fixtures', { live: 'all' });
+    _liveData = data.response || [];
+
+    // Om inga live-matcher, hämta dagens matcher istället
+    if (!_liveData.length) {
+      const today = new Date().toISOString().slice(0,10);
+      const todayData = await apiFetch('fixtures', { date: today });
+      _liveData = todayData.response || [];
+    }
+
+    renderLive(_liveData, _liveFilter);
   } catch(e) {
     document.getElementById('liveContent').innerHTML =
       `<div style="padding:20px;color:var(--text3)">Kunde inte ladda matcher.</div>`;
+    console.error('initLive error:', e);
   }
 }
 
-function renderLive(fixtures) {
-  if (!fixtures.length) {
-    document.getElementById('liveContent').innerHTML =
-      `<div style="padding:20px;color:var(--text3)">Inga matcher just nu.</div>`;
+function renderLive(fixtures, type) {
+  const c = document.getElementById('liveContent');
+
+  // Filtrera
+  const filtered = type === 'live' 
+    ? fixtures.filter(f => ['1H','HT','2H','ET','P'].includes(f.fixture?.status?.short))
+    : type === 'today'
+    ? fixtures.filter(f => ['1H','HT','2H','ET','P','FT','AET','PEN','NS'].includes(f.fixture?.status?.short))
+    : type === 'upcoming'
+    ? fixtures.filter(f => f.fixture?.status?.short === 'NS')
+    : fixtures;
+
+  if (!filtered.length) {
+    c.innerHTML = `<div style="padding:20px;color:var(--text3);text-align:center">
+      ${type === 'live' ? 'Inga live-matcher just nu.' : 'Inga matcher hittades.'}
+    </div>`;
     return;
   }
-  document.getElementById('liveContent').innerHTML =
-    `<div class="matches-list">${fixtures.map(f => matchCard(normalizeMatch(f))).join('')}</div>`;
+
+  // Groupa per liga
+  const byLeague = {};
+  filtered.forEach(f => {
+    const key = f.league?.name || 'Unknown';
+    if (!byLeague[key]) byLeague[key] = { fixtures: [], logo: f.league?.logo, country: f.league?.country };
+    byLeague[key].fixtures.push(f);
+  });
+
+  c.innerHTML = Object.entries(byLeague).map(([league, { fixtures: ls, logo, country }]) => `
+    <div style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:0 2px">
+        ${logo ? `<img src="${logo}" style="width:20px;height:20px;object-fit:contain">` : ''}
+        <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text2)">${league}</span>
+        <span style="font-size:11px;color:var(--text3)">${country || ''}</span>
+      </div>
+      <div class="matches-list">
+        ${ls.map(f => matchCard(normalizeMatch(f))).join('')}
+      </div>
+    </div>`).join('');
 }
 
 function filterLive(type, btn) {
   document.querySelectorAll('#page-live .filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  const filtered = type === 'live' ? _liveData.filter(f => ['1H','HT','2H','ET','P'].includes(f.fixture.status.short))
-    : type === 'upcoming' ? _liveData.filter(f => f.fixture.status.short === 'NS')
-    : _liveData;
-  renderLive(filtered);
-  const dummy = null;
-  document.getElementById('liveContent').innerHTML =
-    `<div class="matches-list">${filtered.map(m => matchCard(m)).join('')}</div>`;
+  _liveFilter = type;
+  if (_liveData.length) {
+    renderLive(_liveData, type);
+  } else {
+    initLive();
+  }
 }
 
 // ═══════════════════════════════════════════
