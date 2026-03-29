@@ -4810,9 +4810,11 @@ async function fastFootballSearch(query) {
   }
 
   // Pattern: most goals/assists in team
-  const teamStatMatch = q.match(/(?:flest|most|top|best|vem|who)\s+(?:goals|assists|passes|cards|tackles).*?(?:i|in|for)\s+(.{3,25})(?:\s|$)/);
+  // Supports: "most goals in Arsenal", "who scored most in Malmö FF", "flest mål Arsenal"
+  const teamStatMatch = q.match(/(?:flest|most|top|best|vem|who|scored|made)\s+(?:goals?|assists?|passes?|cards?|tackles?).*?(?:\s+in|\s+i|\s+for|\s+för)?\s+([A-Za-z][\w\s]{2,24})(?:\s+\d{4})?$/) ||
+    q.match(/(?:goals?|assists?|passes?|cards?|tackles?).*?(?:in|i|for)\s+([A-Za-z][\w\s]{2,24})(?:\s+\d{4})?$/);
   if (teamStatMatch) {
-    const teamName = teamStatMatch[1].trim();
+    const teamName = (teamStatMatch[1] || '').trim().replace(/\d{4}$/, '').trim();
     const team = await findTeamId(teamName);
     if (team) {
       let players = [];
