@@ -2273,9 +2273,10 @@ function skeletonRows(n, cols) {
 }
 
 async function initHome() {
-  // ── Top leagues (statiska, alltid snabba) ──
+
+  // ── 1. Statiska ligor — renderas direkt, noll väntetid ──
   document.getElementById('topLeagues').innerHTML = LEAGUES.slice(0, 12).map(l => `
-    <div class="league-card" onclick="showLeague(${l.id},'${l.name}','${l.flag}')">
+    <div class="league-card" onclick="showLeague(${l.id},'${l.name.replace(/'/g,"\\'")}','${l.flag}')">
       <div class="league-flag">${l.flag}</div>
       <div class="league-info">
         <div class="league-name">${l.name}</div>
@@ -2284,99 +2285,16 @@ async function initHome() {
       ${l.badge ? `<div class="league-badge">${l.badge}</div>` : ''}
     </div>`).join('');
 
-  // ── Live-matcher (API) ──
-  document.getElementById('homeMatches').innerHTML =
-    `<div style="color:var(--text3);font-size:13px;padding:12px 0">Laddar matcher…</div>`;
-  try {
-    const fixtures = await fetchLiveMatches();
-    if (fixtures.length) {
-      document.getElementById('homeMatches').innerHTML =
-        fixtures.slice(0,6).map(f => matchCard(normalizeMatch(f))).join('');
-      // Uppdatera ticker
-      const tickerHTML = fixtures.filter(f => {
-        const s = f.fixture.status.short;
-        return ['1H','HT','2H','ET','P','FT'].includes(s);
-      }).map(f => {
-        const m = normalizeMatch(f);
-        return `<div class="ticker-item">
-          <span>${m.home}</span>
-          <span class="ticker-score">${m.scoreH ?? '–'} – ${m.scoreA ?? '–'}</span>
-          <span>${m.away}</span>
-          <span class="ticker-minute">${m.live ? m.min : 'FT'}</span>
-        </div>`;
-      }).join('');
-      document.getElementById('tickerTrack').innerHTML = tickerHTML + tickerHTML;
-    } else {
-      document.getElementById('homeMatches').innerHTML =
-        `<div style="color:var(--text3);font-size:13px;padding:12px 0">Inga live-matcher just nu.</div>`;
-    }
-  } catch(e) {
-    document.getElementById('homeMatches').innerHTML =
-      `<div style="color:var(--text3);font-size:13px;padding:12px 0">Kunde inte ladda matcher.</div>`;
-  }
-
-  // ── Top Scorers — Premier League (API) ──
-  document.getElementById('topScorers').innerHTML =
-    `<div class="skeleton" style="height:200px;border-radius:8px"></div>`;
-  try {
-    const scorers = await fetchTopScorers(39);
-    document.getElementById('topScorers').innerHTML = scorers.slice(0,6).map((s, i) => `
-      <div class="scorer-row" onclick="showPlayer(${s.player.id})">
-        <div class="scorer-rank ${i<3?'top':''}">${i+1}</div>
-        <div class="scorer-img">
-          ${s.player.photo
-            ? `<img src="${s.player.photo}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`
-            : '⚽'}
-        </div>
-        <div class="scorer-info">
-          <div class="scorer-name">${s.player.name}</div>
-          <div class="scorer-club">${s.statistics[0]?.team?.name || ''}</div>
-        </div>
-        <div class="scorer-goals">${s.statistics[0]?.goals?.total || 0}</div>
-      </div>`).join('');
-  } catch(e) {
-    document.getElementById('topScorers').innerHTML =
-      `<div style="color:var(--text3);font-size:12px">Kunde inte ladda.</div>`;
-  }
-
-  // ── Tabell — Premier League (API) ──
-  document.getElementById('sidebarStandings').innerHTML = `
-    <thead><tr><th>#</th><th>Lag</th><th>S</th><th>P</th></tr></thead>
-    <tbody>${skeletonRows(5,4)}</tbody>`;
-  try {
-    const table = await fetchStandings(39);
-    document.getElementById('sidebarStandings').innerHTML = `
-      <thead><tr><th>#</th><th>Club</th><th>W</th><th>D</th><th>L</th><th>Pts</th><th>Form</th></tr></thead>
-      <tbody>${table.slice(0,8).map(r => {
-        const cl = r.description?.toLowerCase().includes('champions');
-        const el = r.description?.toLowerCase().includes('europa');
-        const rel = r.description?.toLowerCase().includes('relegat');
-        return `<tr onclick="showTeam(${r.team.id})">
-          <td><span class="st-pos ${cl?'st-cl':el?'st-el':rel?'st-rel':''}">${r.rank}</span></td>
-          <td><span class="st-team-name">${r.team.name}</span></td>
-          <td>${r.all.win}</td><td>${r.all.draw}</td><td>${r.all.lose}</td>
-          <td><span class="st-pts">${r.points}</span></td>
-          <td><div class="st-form">${formDots(r.form)}</div></td>
-        </tr>`;
-      }).join('')}
-      </tbody>`;
-  } catch(e) {
-    document.getElementById('sidebarStandings').innerHTML =
-      `<caption style="color:var(--text3);font-size:12px;padding:12px">Kunde inte ladda tabellen.</caption>`;
-  }
-
-  // ── Ticker fallback ──
-  if (!document.getElementById('tickerTrack').innerHTML) {
-    document.getElementById('tickerTrack').innerHTML =
-      `<div class="ticker-item"><span>TransferZoneAI</span><span class="ticker-score">—</span><span>Global Football Intelligence</span></div>`.repeat(4);
-  }
-
-  // ── Most Valuable (statisk tills vi har Transfermarkt-data) ──
-  document.getElementById('mostValuable').innerHTML = [
-    { name:'Mbappé', club:'Real Madrid', val:'€200M', flag:'🇫🇷', id:278 },
-    { name:'Vinicius Jr.', club:'Real Madrid', val:'€180M', flag:'🇧🇷', id:165 },
-    { name:'Haaland', club:'Man City', val:'€180M', flag:'🇳🇴', id:1100 },
-  ].map((p,i) => `
+  // ── 2. Statisk "Most Valuable" — renderas direkt ──
+  const VALUABLE = [
+    { name:'Kylian Mbappé',   club:'Real Madrid',    val:'€200M', flag:'🇫🇷', id:278  },
+    { name:'Vinicius Jr.',    club:'Real Madrid',    val:'€180M', flag:'🇧🇷', id:165  },
+    { name:'Erling Haaland',  club:'Man City',       val:'€180M', flag:'🇳🇴', id:1100 },
+    { name:'Lamine Yamal',    club:'Barcelona',      val:'€150M', flag:'🇪🇸', id:2295 },
+    { name:'Pedri',           club:'Barcelona',      val:'€120M', flag:'🇪🇸', id:2296 },
+    { name:'Jude Bellingham', club:'Real Madrid',    val:'€180M', flag:'🏴󠁧󠁢󠁥󠁮󠁧󁿢', id:1229 },
+  ];
+  document.getElementById('mostValuable').innerHTML = VALUABLE.map((p,i) => `
     <div class="scorer-row" onclick="showPlayer(${p.id})">
       <div class="scorer-rank ${i<3?'top':''}">${i+1}</div>
       <div class="scorer-img">${p.flag}</div>
@@ -2384,30 +2302,194 @@ async function initHome() {
         <div class="scorer-name">${p.name}</div>
         <div class="scorer-club">${p.club}</div>
       </div>
-      <div class="scorer-goals" style="font-size:13px">${p.val}</div>
+      <div class="scorer-goals" style="font-size:13px;color:var(--gold)">${p.val}</div>
     </div>`).join('');
 
-  // ── Recent Transfers (API — Man City som exempel, byt mot globalt) ──
+  // ── 3. Skeleton placeholders medan API laddar ──
+  document.getElementById('homeMatches').innerHTML =
+    [1,2,3].map(() => `<div class="skeleton" style="height:80px;border-radius:10px"></div>`).join('');
+  document.getElementById('topScorers').innerHTML =
+    `<div class="skeleton" style="height:220px;border-radius:8px"></div>`;
+  document.getElementById('sidebarStandings').innerHTML = `
+    <thead><tr><th>#</th><th>Club</th><th>W</th><th>D</th><th>L</th><th>Pts</th></tr></thead>
+    <tbody>${skeletonRows(6, 6)}</tbody>`;
   document.getElementById('recentTransfers').innerHTML =
-    `<div class="skeleton" style="height:200px;border-radius:8px"></div>`;
-  try {
-    const transfers = await fetchTransfers(50); // Man City id=50 i API-Football
-    const rows = transfers.slice(0,5).flatMap(t =>
-      (t.transfers || []).slice(0,1).map(tr => ({
-        player: t.player.name,
-        from: tr.teams.out.name,
-        to: tr.teams.in.name,
-        type: tr.type?.toLowerCase().includes('loan') ? 'loan' : tr.type?.toLowerCase().includes('free') ? 'free' : 'paid',
-        fee: tr.type || '—',
-        date: tr.date?.slice(0,7) || '',
-        flag: '⚽',
-        pos: 'MID',
+    [1,2,3].map(() => `<div class="skeleton" style="height:60px;border-radius:10px;margin-bottom:8px"></div>`).join('');
+
+  // ── 4. Hämta allt parallellt — ett enda Promise.allSettled ──
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [liveRes, todayRes, scorersRes, tableRes, transfersRes] = await Promise.allSettled([
+    apiFetch('fixtures', { live: 'all' }),
+    apiFetch('fixtures', { date: today, league: '39-140-78-135-61-2', season: SEASON }),
+    apiFetch('players/topscorers', { league: 39, season: SEASON }),
+    apiFetch('standings', { league: 39, season: SEASON }),
+    apiFetch('transfers', { team: 50 }), // Man City som senaste transfers
+  ]);
+
+  // ── 5. MATCHER — live + dagens matcher ──
+  const liveFixtures  = liveRes.status  === 'fulfilled' ? (liveRes.value.response  || []) : [];
+  const todayFixtures = todayRes.status === 'fulfilled' ? (todayRes.value.response || []) : [];
+
+  // Slå ihop: live-matcher först, sedan dagens övriga, ta bort dubletter
+  const seenIds = new Set();
+  const allFixtures = [...liveFixtures, ...todayFixtures].filter(f => {
+    if (seenIds.has(f.fixture.id)) return false;
+    seenIds.add(f.fixture.id);
+    return true;
+  });
+
+  if (allFixtures.length) {
+    document.getElementById('homeMatches').innerHTML =
+      `<div class="matches-list">${allFixtures.slice(0, 8).map(f => matchCard(normalizeMatch(f))).join('')}</div>`;
+
+    // Ticker: bara matcher som är live eller avslutade
+    const tickerItems = allFixtures
+      .filter(f => ['1H','HT','2H','ET','P','FT','AET','PEN'].includes(f.fixture.status.short))
+      .map(f => {
+        const m = normalizeMatch(f);
+        return `<div class="ticker-item">
+          <span>${m.home}</span>
+          <span class="ticker-score">${m.scoreH ?? 0} – ${m.scoreA ?? 0}</span>
+          <span>${m.away}</span>
+          <span class="ticker-minute" style="color:${m.live?'var(--green)':'var(--text3)'}">${m.live ? m.min : 'FT'}</span>
+        </div>`;
+      });
+
+    if (tickerItems.length) {
+      const t = tickerItems.join('');
+      document.getElementById('tickerTrack').innerHTML = t + t;
+    }
+  } else {
+    // Ingen match idag — visa senaste resultaten istället
+    try {
+      const recentData = await apiFetch('fixtures', { league: 39, season: SEASON, last: 6 });
+      const recent = recentData.response || [];
+      if (recent.length) {
+        document.getElementById('homeMatches').innerHTML =
+          `<div class="matches-list">${recent.map(f => matchCard(normalizeMatch(f))).join('')}</div>`;
+        const t = recent.map(f => {
+          const m = normalizeMatch(f);
+          return `<div class="ticker-item">
+            <span>${m.home}</span>
+            <span class="ticker-score">${m.scoreH ?? 0} – ${m.scoreA ?? 0}</span>
+            <span>${m.away}</span>
+            <span class="ticker-minute" style="color:var(--text3)">FT</span>
+          </div>`;
+        }).join('');
+        document.getElementById('tickerTrack').innerHTML = t + t;
+      } else {
+        document.getElementById('homeMatches').innerHTML =
+          `<div style="padding:16px;color:var(--text3);font-size:13px;text-align:center">Inga matcher idag — nästa omgång kommer snart.</div>`;
+      }
+    } catch(_) {
+      document.getElementById('homeMatches').innerHTML =
+        `<div style="padding:16px;color:var(--text3);font-size:13px;text-align:center">Inga matcher idag.</div>`;
+    }
+  }
+
+  // Ticker fallback om fortfarande tom
+  if (!document.getElementById('tickerTrack').innerHTML.trim()) {
+    const fb = `<div class="ticker-item"><span>TransferZoneAI</span><span class="ticker-score"> </span><span>Global Football Intelligence</span></div>`.repeat(6);
+    document.getElementById('tickerTrack').innerHTML = fb;
+  }
+
+  // ── 6. TOPSCORERS ──
+  if (scorersRes.status === 'fulfilled') {
+    const scorers = scorersRes.value.response || [];
+    if (scorers.length) {
+      document.getElementById('topScorers').innerHTML = scorers.slice(0, 6).map((s, i) => {
+        // API-Football: s.player.name, s.player.photo, s.statistics[0].team.name, s.statistics[0].goals.total
+        const goals = s.statistics?.[0]?.goals?.total ?? 0;
+        const club  = s.statistics?.[0]?.team?.name  ?? '';
+        const photo = s.player?.photo ?? '';
+        return `<div class="scorer-row" onclick="showPlayer(${s.player.id})">
+          <div class="scorer-rank ${i<3?'top':''}">${i+1}</div>
+          <div class="scorer-img">
+            ${photo ? `<img src="${photo}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid var(--border2)">` : '⚽'}
+          </div>
+          <div class="scorer-info">
+            <div class="scorer-name">${s.player.name}</div>
+            <div class="scorer-club">${club}</div>
+          </div>
+          <div class="scorer-goals">${goals}</div>
+        </div>`;
+      }).join('');
+    } else {
+      document.getElementById('topScorers').innerHTML =
+        `<div style="padding:12px;color:var(--text3);font-size:13px">Säsongen har inte börjat än.</div>`;
+    }
+  } else {
+    document.getElementById('topScorers').innerHTML =
+      `<div style="padding:12px;color:var(--text3);font-size:13px">Kunde inte ladda topscorers.</div>`;
+  }
+
+  // ── 7. TABELL Premier League ──
+  if (tableRes.status === 'fulfilled') {
+    // API-Football standings: response[0].league.standings[0] = array av lag
+    const standing = tableRes.value.response?.[0]?.league?.standings?.[0] ?? [];
+    if (standing.length) {
+      document.getElementById('sidebarStandings').innerHTML = `
+        <thead><tr><th>#</th><th>Club</th><th>W</th><th>D</th><th>L</th><th>Pts</th><th>Form</th></tr></thead>
+        <tbody>${standing.slice(0, 8).map(r => {
+          const desc = (r.description || '').toLowerCase();
+          const cl  = desc.includes('champions league');
+          const el  = desc.includes('europa') || desc.includes('conference');
+          const rel = desc.includes('relegat');
+          return `<tr onclick="showTeam(${r.team.id})" style="cursor:pointer">
+            <td><span class="st-pos ${cl?'st-cl':el?'st-el':rel?'st-rel':''}">${r.rank}</span></td>
+            <td>
+              <div style="display:flex;align-items:center;gap:5px">
+                ${r.team.logo ? `<img src="${r.team.logo}" style="width:16px;height:16px;object-fit:contain;flex-shrink:0">` : ''}
+                <span class="st-team-name">${r.team.name}</span>
+              </div>
+            </td>
+            <td>${r.all?.win  ?? 0}</td>
+            <td>${r.all?.draw ?? 0}</td>
+            <td>${r.all?.lose ?? 0}</td>
+            <td><span class="st-pts">${r.points}</span></td>
+            <td><div class="st-form">${formDots(r.form)}</div></td>
+          </tr>`;
+        }).join('')}
+        </tbody>`;
+    } else {
+      document.getElementById('sidebarStandings').innerHTML =
+        `<caption style="color:var(--text3);font-size:12px;padding:12px;caption-side:bottom">Tabellen är inte tillgänglig ännu.</caption>`;
+    }
+  } else {
+    document.getElementById('sidebarStandings').innerHTML =
+      `<caption style="color:var(--text3);font-size:12px;padding:12px;caption-side:bottom">Kunde inte ladda tabellen.</caption>`;
+  }
+
+  // ── 8. SENASTE TRANSFERS ──
+  if (transfersRes.status === 'fulfilled') {
+    // API-Football transfers: response = [{player:{id,name}, transfers:[{date,type,teams:{in,out}}]}]
+    const raw = transfersRes.value.response || [];
+    const rows = raw
+      .flatMap(entry =>
+        (entry.transfers || []).map(tr => ({
+          player : entry.player?.name ?? '—',
+          playerId: entry.player?.id  ?? 0,
+          from   : tr.teams?.out?.name ?? '—',
+          to     : tr.teams?.in?.name  ?? '—',
+          rawType: (tr.type || '').toLowerCase(),
+          date   : tr.date?.slice(0, 7) ?? '—',
+        }))
+      )
+      .map(r => ({
+        ...r,
+        type : r.rawType.includes('loan') ? 'loan'
+             : r.rawType === 'free'        ? 'free'
+             : 'paid',
+        fee  : r.rawType || '—',
       }))
-    );
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 5);
+
     if (rows.length) {
       document.getElementById('recentTransfers').innerHTML = rows.map(t => `
-        <div class="transfer-card" onclick="showPage('transfers')">
-          <div class="transfer-player-img">${t.flag}</div>
+        <div class="transfer-card" onclick="showPlayer(${t.playerId})">
+          <div class="transfer-player-img">⚽</div>
           <div class="transfer-info">
             <div class="transfer-player-name">${t.player}</div>
             <div class="transfer-clubs">
@@ -2417,26 +2499,32 @@ async function initHome() {
           <div class="transfer-fee ${t.type==='loan'?'loan':t.type==='free'?'free':''}">${t.fee}</div>
         </div>`).join('');
     } else {
-      throw new Error('no data');
+      renderTransfersFallback();
     }
-  } catch(e) {
-    // Fallback till statisk data
-    document.getElementById('recentTransfers').innerHTML = [
-      { player:'Mbappé', from:'PSG', to:'Real Madrid', fee:'Free', type:'free', flag:'🇫🇷' },
-      { player:'Garnacho', from:'Man Utd', to:'Napoli', fee:'€55M', type:'paid', flag:'🇦🇷' },
-      { player:'Tonali', from:'Newcastle', to:'AC Milan', fee:'€68M', type:'paid', flag:'🇮🇹' },
-    ].map(t => `
-      <div class="transfer-card" onclick="showPage('transfers')">
-        <div class="transfer-player-img">${t.flag}</div>
-        <div class="transfer-info">
-          <div class="transfer-player-name">${t.player}</div>
-          <div class="transfer-clubs">
-            <span>${t.from}</span><span class="transfer-arrow">→</span><span>${t.to}</span>
-          </div>
-        </div>
-        <div class="transfer-fee ${t.type==='loan'?'loan':t.type==='free'?'free':''}">${t.fee}</div>
-      </div>`).join('');
+  } else {
+    renderTransfersFallback();
   }
+}
+
+// Statisk fallback för transfers om API misslyckas
+function renderTransfersFallback() {
+  document.getElementById('recentTransfers').innerHTML = [
+    { player:'Kylian Mbappé',  from:'PSG',       to:'Real Madrid', fee:'Free',  type:'free', flag:'🇫🇷' },
+    { player:'Nico Williams',  from:'Ath. Bilbao',to:'Chelsea',     fee:'€62M',  type:'paid', flag:'🇪🇸' },
+    { player:'Sandro Tonali',  from:'Newcastle',  to:'AC Milan',    fee:'€68M',  type:'paid', flag:'🇮🇹' },
+    { player:'Bryan Mbeumo',   from:'Brentford',  to:'Man Utd',     fee:'£62M',  type:'paid', flag:'🇨🇲' },
+    { player:'Xavi Simons',    from:'PSG',        to:'RB Leipzig',  fee:'Loan',  type:'loan', flag:'🇳🇱' },
+  ].map(t => `
+    <div class="transfer-card" onclick="showPage('transfers')">
+      <div class="transfer-player-img">${t.flag}</div>
+      <div class="transfer-info">
+        <div class="transfer-player-name">${t.player}</div>
+        <div class="transfer-clubs">
+          <span>${t.from}</span><span class="transfer-arrow">→</span><span>${t.to}</span>
+        </div>
+      </div>
+      <div class="transfer-fee ${t.type==='loan'?'loan':t.type==='free'?'free':''}">${t.fee}</div>
+    </div>`).join('');
 }
 
 // ═══════════════════════════════════════════
