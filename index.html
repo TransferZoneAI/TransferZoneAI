@@ -2425,36 +2425,31 @@ async function showTeamTab(tab, btn) {
         return;
       }
 
-      // Hämta statistik för alla ligor parallellt
-      const statsResults = await Promise.all(
-        leagues.slice(0, 3).map(l =>
-          apiFetch('teams/statistics', {
-            team: teamId,
-            league: l.league.id,
-            season: l.seasons?.find(s => s.current)?.year ?? new Date().getFullYear() - 1
-          }).catch(() => null)
-        )
-      );
+      // Hitta primär liga — högst rankad (inte cup)
+      const cupKeywords = ['cup','pokal','coupe','copa','coppa','trophy','shield','supercup','fa cup','league cup'];
+      const isCup = (name) => cupKeywords.some(k => (name||'').toLowerCase().includes(k));
 
-      // Summera över alla ligor
-      let totalPlayed = 0, totalWins = 0, totalDraws = 0, totalLoses = 0;
-      let totalGoalsFor = 0, totalGoalsAgainst = 0;
+      const primaryLeague = leagues.find(l => !isCup(l.league.name)) || leagues[0];
+      const season = primaryLeague?.seasons?.find(s => s.current)?.year
+                  ?? new Date().getFullYear() - 1;
+
+      // Hämta bara primär liga
+      const statsResults = [
+        await apiFetch('teams/statistics', {
+          team: teamId,
+          league: primaryLeague.league.id,
+          season
+        }).catch(() => null)
+      ];
+
+      const s0 = statsResults[0]?.response;
+      const totalPlayed       = s0?.fixtures?.played?.total || 0;
+      const totalWins         = s0?.fixtures?.wins?.total   || 0;
+      const totalDraws        = s0?.fixtures?.draws?.total  || 0;
+      const totalLoses        = s0?.fixtures?.loses?.total  || 0;
+      const totalGoalsFor     = s0?.goals?.for?.total?.total     || 0;
+      const totalGoalsAgainst = s0?.goals?.against?.total?.total || 0;
       const leagueRows = [];
-
-      statsResults.forEach((r, i) => {
-        const s = r?.response;
-        if (!s) return;
-        const played = s.fixtures?.played?.total || 0;
-        const wins   = s.fixtures?.wins?.total   || 0;
-        const draws  = s.fixtures?.draws?.total  || 0;
-        const loses  = s.fixtures?.loses?.total  || 0;
-        const gf     = s.goals?.for?.total?.total    || 0;
-        const ga     = s.goals?.against?.total?.total || 0;
-        if (!played) return;
-        totalPlayed += played; totalWins += wins; totalDraws += draws;
-        totalLoses += loses; totalGoalsFor += gf; totalGoalsAgainst += ga;
-        leagueRows.push({ name: leagues[i].league.name, logo: leagues[i].league.logo, played, wins, draws, loses, gf, ga });
-      });
 
       // Hämta även form (senaste matcher) och detaljerad statistik
       const formData = await apiFetch('fixtures', { team: teamId, last: 5 }).catch(() => null);
