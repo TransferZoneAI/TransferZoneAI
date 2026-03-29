@@ -48,6 +48,98 @@ body {
   padding-bottom: 70px;
 }
 
+/* ── FOLLOW BUTTON ── */
+.btn-follow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--gold);
+  border-radius: 20px;
+  padding: 6px 18px;
+  color: var(--gold);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-follow:hover {
+  background: rgba(201,168,76,0.15);
+}
+
+.btn-follow.following {
+  background: rgba(201,168,76,0.15);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.btn-follow.following:hover {
+  background: rgba(239,68,68,0.15);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+/* My Clubs grid */
+.my-clubs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.my-club-card {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.my-club-card:hover { border-color: var(--gold); }
+
+.my-club-unfollow {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text3);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px;
+  transition: color 0.2s;
+}
+
+.my-club-unfollow:hover { color: var(--red); }
+
+.my-club-logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+.my-club-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.my-club-country {
+  font-size: 11px;
+  color: var(--text3);
+}
+
 /* ── BACK BUTTON ── */
 .back-btn {
   display: inline-flex;
@@ -2376,6 +2468,16 @@ async function showTeam(id) {
     // Spara squad och lagnamn globalt för tabs
     window._currentSquad = squad;
     window._currentTeamName = t.name;
+    window._currentTeamData = { id: teamId, name: t.name, logo: t.logo, country: t.country };
+
+    // Lägg till följ-knapp i hero
+    const isFollowing = isFollowingTeam(teamId);
+    const followBtn = document.getElementById('teamFollowBtn');
+    if (followBtn) {
+      followBtn.innerHTML = isFollowing
+        ? `<button class="btn-follow following" onclick="unfollowTeam(${teamId})">★ Following</button>`
+        : `<button class="btn-follow" onclick="followTeam(${teamId})">☆ Follow</button>`;
+    }
     showTeamTab('squad');
   } catch(e) {
     document.getElementById('teamHero').innerHTML =
@@ -4248,6 +4350,76 @@ async function showMatchTab(tab, btn, fixtureId) {
 }
 
 // ═══════════════════════════════════════════
+// MY CLUBS — följ/avfölja lag
+// ═══════════════════════════════════════════
+
+const FOLLOWED_KEY = 'transferzone_followed_teams';
+
+function getFollowedTeams() {
+  try {
+    return JSON.parse(localStorage.getItem(FOLLOWED_KEY) || '[]');
+  } catch { return []; }
+}
+
+function saveFollowedTeams(teams) {
+  localStorage.setItem(FOLLOWED_KEY, JSON.stringify(teams));
+}
+
+function isFollowingTeam(teamId) {
+  return getFollowedTeams().some(t => t.id === teamId);
+}
+
+function followTeam(teamId) {
+  const teams = getFollowedTeams();
+  if (teams.some(t => t.id === teamId)) return;
+  const data = window._currentTeamData;
+  if (!data) return;
+  teams.push({ id: teamId, name: data.name, logo: data.logo, country: data.country });
+  saveFollowedTeams(teams);
+  showToast(`Following ${fixName(data.name)} ★`);
+  // Uppdatera knappen
+  const btn = document.getElementById('teamFollowBtn');
+  if (btn) btn.innerHTML = `<button class="btn-follow following" onclick="unfollowTeam(${teamId})">★ Following</button>`;
+  // Uppdatera My Clubs om öppen
+  if (document.getElementById('page-myclubs')?.classList.contains('active')) renderMyClubs();
+}
+
+function unfollowTeam(teamId) {
+  const teams = getFollowedTeams().filter(t => t.id !== teamId);
+  saveFollowedTeams(teams);
+  showToast('Unfollowed');
+  const btn = document.getElementById('teamFollowBtn');
+  if (btn) btn.innerHTML = `<button class="btn-follow" onclick="followTeam(${teamId})">☆ Follow</button>`;
+  if (document.getElementById('page-myclubs')?.classList.contains('active')) renderMyClubs();
+}
+
+function renderMyClubs() {
+  const teams = getFollowedTeams();
+  const c = document.getElementById('myClubsContent');
+  if (!teams.length) {
+    c.innerHTML = `
+      <div class="my-clubs-empty">
+        <div class="big-icon">⭐</div>
+        <p>Follow your favourite clubs to keep track of them here.</p>
+        <p style="font-size:12px;color:var(--text3)">Open any club page and press <b>☆ Follow</b></p>
+        <button class="btn-primary" style="margin-top:16px" onclick="showPage('leagues')">Browse Leagues</button>
+      </div>`;
+    return;
+  }
+
+  c.innerHTML = `
+    <div class="my-clubs-grid">
+      ${teams.map(t => `
+        <div class="my-club-card" onclick="showTeam(${t.id})">
+          <button class="my-club-unfollow" onclick="event.stopPropagation();unfollowTeam(${t.id})" title="Unfollow">✕</button>
+          ${t.logo ? `<img class="my-club-logo" src="${t.logo}" onerror="this.style.display='none'">` : '<div style="font-size:40px">⚽</div>'}
+          <div class="my-club-name">${fixName(fixEncoding(t.name))}</div>
+          <div class="my-club-country">${t.country || ''}</div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════
 // NAVIGATION HISTORY
 // ═══════════════════════════════════════════
 
@@ -4274,6 +4446,7 @@ function showPage(id) {
   if (id === 'transfers' && !window._transfersInited) { initTransfers(); window._transfersInited = true; }
   if (id === 'toplist' && !window._toplistInited) { showTopList('scorers', document.querySelector('#page-toplist .filter-btn')); window._toplistInited = true; }
   if (id === 'live') { initLive(); window._liveInited = true; }
+  if (id === 'myclubs') { renderMyClubs(); }
 }
 
 function goBack() {
