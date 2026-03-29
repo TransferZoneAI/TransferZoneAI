@@ -2456,26 +2456,106 @@ async function showTeamTab(tab, btn) {
         leagueRows.push({ name: leagues[i].league.name, logo: leagues[i].league.logo, played, wins, draws, loses, gf, ga });
       });
 
+      // Hämta även form (senaste matcher) och detaljerad statistik
+      const formData = await apiFetch('fixtures', { team: teamId, last: 5 }).catch(() => null);
+      const formMatches = formData?.response || [];
+
+      // Bygg form-prickar
+      const formHTML = formMatches.length ? `
+        <div style="margin-bottom:24px">
+          <div class="section-title" style="margin-bottom:12px;font-size:16px">Recent Form</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${formMatches.map(f => {
+              const isHome = f.teams.home.id === teamId;
+              const gf = isHome ? f.goals.home : f.goals.away;
+              const ga = isHome ? f.goals.away : f.goals.home;
+              const result = gf > ga ? 'W' : gf < ga ? 'L' : 'D';
+              const color = result==='W'?'var(--green)':result==='L'?'var(--red)':'var(--gold-dim)';
+              const opp = isHome ? f.teams.away.name : f.teams.home.name;
+              const oppLogo = isHome ? f.teams.away.logo : f.teams.home.logo;
+              return `<div onclick="showMatch(${f.fixture.id})" style="cursor:pointer;text-align:center;min-width:64px">
+                <div style="background:${color};border-radius:8px;padding:8px 10px;margin-bottom:4px">
+                  <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:white">${result}</div>
+                  <div style="font-size:12px;color:rgba(255,255,255,0.9);font-weight:700">${gf}–${ga}</div>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:center;gap:3px;font-size:10px;color:var(--text3)">
+                  ${oppLogo?`<img src="${oppLogo}" style="width:12px;height:12px;object-fit:contain">`:''}
+                  <span style="max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${opp}</span>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>` : '';
+
+      // Detaljerad statistik från API
+      const s0 = statsResults[0]?.response;
+      const statVal = (v) => v != null ? v : '—';
+      const avg = (v, games) => (v && games) ? (v/games).toFixed(1) : '—';
+
+      const played = s0?.fixtures?.played?.total || 0;
+      const cleanSheets = s0?.clean_sheet?.total ?? '—';
+      const failedToScore = s0?.failed_to_score?.total ?? '—';
+      const shotsTotal = s0?.shots?.total ?? '—';
+      const shotsOn = s0?.shots?.on ?? '—';
+      const shotsAccPct = (s0?.shots?.on && s0?.shots?.total) ? Math.round((s0.shots.on/s0.shots.total)*100)+'%' : '—';
+      const cornersTotal = s0?.cards ? '—' : '—'; // corners not in this endpoint
+      const yellowCards = s0?.cards?.yellow?.total ?? (Object.values(s0?.cards?.yellow||{}).reduce((a,v)=>a+(v?.total||0),0) || '—');
+      const redCards = s0?.cards?.red?.total ?? (Object.values(s0?.cards?.red||{}).reduce((a,v)=>a+(v?.total||0),0) || '—');
+      const penScored = s0?.penalty?.scored?.total ?? '—';
+      const penMissed = s0?.penalty?.missed?.total ?? '—';
+      const penPct = s0?.penalty?.scored?.percentage ?? '—';
+      const avgGoalsFor = avg(s0?.goals?.for?.total?.total, played);
+      const avgGoalsAgainst = avg(s0?.goals?.against?.total?.total, played);
+
+      // Forma gula/röda kort från objekt
+      let yCards = 0, rCards = 0;
+      if (s0?.cards?.yellow) Object.values(s0.cards.yellow).forEach(v => yCards += v?.total||0);
+      if (s0?.cards?.red)    Object.values(s0.cards.red).forEach(v => rCards += v?.total||0);
+
       c.innerHTML = `
         <div style="margin-top:20px">
-          <div class="stats-grid">
-            <div class="stat-box"><div class="stat-box-val">${totalPlayed||'—'}</div><div class="stat-box-lbl">Matches</div></div>
-            <div class="stat-box"><div class="stat-box-val">${totalGoalsFor||'—'}</div><div class="stat-box-lbl">Goals For</div></div>
-            <div class="stat-box"><div class="stat-box-val">${totalGoalsAgainst||'—'}</div><div class="stat-box-lbl">Goals Against</div></div>
+          ${formHTML}
+
+          <div class="section-title" style="margin-bottom:12px;font-size:16px">Season Overview</div>
+          <div class="stats-grid" style="margin-bottom:24px">
+            <div class="stat-box"><div class="stat-box-val">${played||'—'}</div><div class="stat-box-lbl">Matches</div></div>
             <div class="stat-box"><div class="stat-box-val">${totalWins||'—'}</div><div class="stat-box-lbl">Wins</div></div>
             <div class="stat-box"><div class="stat-box-val">${totalDraws||'—'}</div><div class="stat-box-lbl">Draws</div></div>
             <div class="stat-box"><div class="stat-box-val">${totalLoses||'—'}</div><div class="stat-box-lbl">Losses</div></div>
+            <div class="stat-box"><div class="stat-box-val">${totalGoalsFor||'—'}</div><div class="stat-box-lbl">Goals For</div></div>
+            <div class="stat-box"><div class="stat-box-val">${totalGoalsAgainst||'—'}</div><div class="stat-box-lbl">Goals Against</div></div>
+            <div class="stat-box"><div class="stat-box-val">${avgGoalsFor}</div><div class="stat-box-lbl">Goals/Game</div></div>
+            <div class="stat-box"><div class="stat-box-val">${avgGoalsAgainst}</div><div class="stat-box-lbl">Conceded/Game</div></div>
+            <div class="stat-box"><div class="stat-box-val">${cleanSheets}</div><div class="stat-box-lbl">Clean Sheets</div></div>
+            <div class="stat-box"><div class="stat-box-val">${failedToScore}</div><div class="stat-box-lbl">Failed to Score</div></div>
           </div>
+
+          <div class="section-title" style="margin-bottom:12px;font-size:16px">Attack & Discipline</div>
+          <div class="stats-grid" style="margin-bottom:24px">
+            <div class="stat-box"><div class="stat-box-val">${shotsTotal}</div><div class="stat-box-lbl">Total Shots</div></div>
+            <div class="stat-box"><div class="stat-box-val">${shotsOn}</div><div class="stat-box-lbl">Shots on Target</div></div>
+            <div class="stat-box"><div class="stat-box-val">${shotsAccPct}</div><div class="stat-box-lbl">Shot Accuracy</div></div>
+            <div class="stat-box"><div class="stat-box-val" style="color:#f0c040">${yCards||'—'}</div><div class="stat-box-lbl">Yellow Cards</div></div>
+            <div class="stat-box"><div class="stat-box-val" style="color:var(--red)">${rCards||'—'}</div><div class="stat-box-lbl">Red Cards</div></div>
+          </div>
+
+          <div class="section-title" style="margin-bottom:12px;font-size:16px">Penalties</div>
+          <div class="stats-grid" style="margin-bottom:24px">
+            <div class="stat-box"><div class="stat-box-val">${penScored}</div><div class="stat-box-lbl">Scored</div></div>
+            <div class="stat-box"><div class="stat-box-val">${penMissed}</div><div class="stat-box-lbl">Missed</div></div>
+            <div class="stat-box"><div class="stat-box-val">${penPct}</div><div class="stat-box-lbl">Success Rate</div></div>
+          </div>
+
           ${leagueRows.length > 1 ? `
-            <div style="margin-top:20px">
+            <div style="margin-top:4px">
               <div class="section-title" style="margin-bottom:12px;font-size:16px">By Competition</div>
               <div class="table-wrap">
                 <table class="career-table">
-                  <thead><tr><th>League</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th></tr></thead>
+                  <thead><tr><th>Competition</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th></tr></thead>
                   <tbody>${leagueRows.map(r => `
                     <tr>
                       <td><div style="display:flex;align-items:center;gap:6px">
-                        ${r.logo ? `<img src="${r.logo}" style="width:16px;height:16px;object-fit:contain">` : ''}
+                        ${r.logo?`<img src="${r.logo}" style="width:16px;height:16px;object-fit:contain">`:''}
                         ${r.name}
                       </div></td>
                       <td>${r.played}</td><td>${r.wins}</td><td>${r.draws}</td>
