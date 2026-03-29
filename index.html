@@ -4859,52 +4859,6 @@ document.getElementById('globalSearch').addEventListener('keydown', e => {
 });
 
 // ═══════════════════════════════════════════
-// PWA INSTALL
-// ═══════════════════════════════════════════
-
-let _deferredPrompt = null;
-
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  _deferredPrompt = e;
-
-  const banner = document.getElementById('installBanner');
-  if (banner) banner.style.display = 'flex';
-});
-
-document.getElementById('installBtn')?.addEventListener('click', async () => {
-  if (!_deferredPrompt) {
-    // iOS — visa instruktioner
-    showToast('Tap Share → "Add to Home Screen" to install');
-    return;
-  }
-  _deferredPrompt.prompt();
-  const { outcome } = await _deferredPrompt.userChoice;
-  if (outcome === 'accepted') {
-    document.getElementById('installBanner').style.display = 'none';
-    showToast('App installed! ✓');
-  }
-  _deferredPrompt = null;
-});
-
-function dismissInstallBanner() {
-  document.getElementById('installBanner').style.display = 'none';
-}
-
-// iOS detection — visa banner direkt om iOS och inte installerad
-const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-const isStandalone = window.navigator.standalone === true;
-if (isIOS && !isStandalone) {
-  const banner = document.getElementById('installBanner');
-  if (banner) {
-    banner.style.display = 'flex';
-    // Uppdatera texten för iOS
-    const span = banner.querySelector('.install-banner-text span');
-    if (span) span.textContent = 'Tap Share → "Add to Home Screen"';
-  }
-}
-
-// ═══════════════════════════════════════════
 // BOOT
 // ═══════════════════════════════════════════
 
