@@ -2389,9 +2389,16 @@ function followTeam(teamId) {
   if (btn) btn.innerHTML = `<button class="btn-follow following" onclick="unfollowTeam(${teamId})">★ Following</button>`;
   if (document.getElementById('page-myclubs')?.classList.contains('active')) renderMyClubs();
   // OneSignal — tagga användaren med laget
-  if (window.OneSignal) {
-    OneSignal.User.addTag('team_' + teamId, 'true');
-    OneSignal.User.addTag('team_' + slugify(name), 'true');
+  function doTag() {
+    if (window.OneSignal && window.OneSignal.User) {
+      OneSignal.User.addTag('team_' + teamId, 'true');
+      OneSignal.User.addTag('team_' + slugify(name), 'true');
+    }
+  }
+  if (window.OneSignalDeferred) {
+    window.OneSignalDeferred.push(function() { doTag(); });
+  } else {
+    doTag();
   }
 }
 
@@ -2403,9 +2410,16 @@ function unfollowTeam(teamId) {
   if (btn) btn.innerHTML = `<button class="btn-follow" onclick="followTeam(${teamId})">☆ Follow</button>`;
   if (document.getElementById('page-myclubs')?.classList.contains('active')) renderMyClubs();
   // OneSignal — ta bort tagg
-  if (window.OneSignal) {
-    OneSignal.User.removeTag('team_' + teamId);
-    if (name) OneSignal.User.removeTag('team_' + slugify(name));
+  function doRemoveTag() {
+    if (window.OneSignal && window.OneSignal.User) {
+      OneSignal.User.removeTag('team_' + teamId);
+      if (name) OneSignal.User.removeTag('team_' + slugify(name));
+    }
+  }
+  if (window.OneSignalDeferred) {
+    window.OneSignalDeferred.push(function() { doRemoveTag(); });
+  } else {
+    doRemoveTag();
   }
 }
 
