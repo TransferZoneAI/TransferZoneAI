@@ -17,7 +17,7 @@
 <meta property="og:title" content="TransferZoneAI — Global Football Intelligence">
 <meta property="og:description" content="Free global football database. Transfer values, player stats, live scores and AI search — covering 900+ leagues worldwide.">
 <meta property="og:url" content="https://transferzoneai.com">
-<meta property="og:image" content="https://transferzoneai.com/icon-512.png">
+<meta property="og:image" content="https://transferzoneai.com/transferzoneai-logo.png">
 <meta property="og:image:width" content="512">
 <meta property="og:image:height" content="512">
 <meta property="og:type" content="website">
@@ -28,7 +28,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="TransferZoneAI — Global Football Intelligence">
 <meta name="twitter:description" content="Free global football database with AI search. Transfer fees, player stats, live scores — 900+ leagues worldwide.">
-<meta name="twitter:image" content="https://transferzoneai.com/icon-512.png">
+<meta name="twitter:image" content="https://transferzoneai.com/transferzoneai-logo.png">
 <meta name="twitter:site" content="@TransferZoneAI">
 
 <!-- Structured Data -->
@@ -50,7 +50,7 @@
     "url": "https://transferzoneai.com",
     "logo": {
       "@type": "ImageObject",
-      "url": "https://transferzoneai.com/icon-512.png"
+      "url": "https://transferzoneai.com/transferzoneai-logo.png"
     }
   }
 }
@@ -58,12 +58,12 @@
 
 <meta name="theme-color" content="#0a0a0f">
 <link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/transferzoneai-logo.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="TransferZoneAI">
 <meta name="mobile-web-app-capable" content="yes">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+<link rel="icon" href="/transferzoneai-logo.png">
 <!-- OneSignal Push Notifications -->
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <script>
@@ -161,7 +161,17 @@ body {
 #installBanner { display: none; align-items: center; justify-content: space-between; gap: 12px; background: linear-gradient(135deg, var(--surface), var(--surface2)); border-bottom: 1px solid var(--gold-dim); padding: 10px 16px; animation: slideDown 0.3s ease; }
 @keyframes slideDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .install-banner-left { display: flex; align-items: center; gap: 10px; }
-.install-banner-icon { width: 36px; height: 36px; background: linear-gradient(135deg, var(--gold-dim), var(--gold)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.install-banner-icon {
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
 .install-banner-text strong { display: block; font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 800; color: var(--text); }
 .install-banner-text span { font-size: 11px; color: var(--text3); }
 .install-banner-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -175,9 +185,34 @@ body {
 header { position: sticky; top: 0; z-index: 100; background: rgba(10,10,15,0.92); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); }
 .header-inner { max-width: 1280px; margin: 0 auto; padding: 0 16px; height: 56px; display: flex; align-items: center; gap: 20px; }
 .logo { display: flex; align-items: center; gap: 8px; text-decoration: none; flex-shrink: 0; }
-.logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, var(--gold), var(--gold-bright)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.logo-icon {
+  width: 38px;
+  height: 38px;
+  background: transparent;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
 .logo-text { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 20px; color: var(--text); letter-spacing: 0.5px; }
 .logo-text span { color: var(--gold); }
+
+.site-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.install-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
 .header-search { flex: 1; max-width: 480px; position: relative; }
 .header-search input { width: 100%; background: var(--surface); border: 1px solid var(--border2); border-radius: 8px; padding: 8px 40px 8px 36px; color: var(--text); font-family: 'Barlow', sans-serif; font-size: 14px; outline: none; transition: border-color 0.2s; }
 .header-search input:focus { border-color: var(--gold); }
@@ -539,7 +574,7 @@ header { position: sticky; top: 0; z-index: 100; background: rgba(10,10,15,0.92)
 
 <div id="installBanner">
   <div class="install-banner-left">
-    <div class="install-banner-icon">⚽</div>
+    <div class="install-banner-icon"><img src="/transferzoneai-logo.png" alt="TransferZoneAI logo" class="install-logo-img"></div>
     <div class="install-banner-text">
       <strong>Download TransferZoneAI</strong>
       <span>Install the app for the best experience</span>
@@ -554,7 +589,7 @@ header { position: sticky; top: 0; z-index: 100; background: rgba(10,10,15,0.92)
 <header>
   <div class="header-inner">
     <a class="logo" href="javascript:void(0)" onclick="showPage('home')">
-      <div class="logo-icon">⚽</div>
+      <div class="logo-icon"><img src="/transferzoneai-logo.png" alt="TransferZoneAI logo" class="site-logo-img"></div>
       <div class="logo-text">Transfer<span>Zone</span>AI</div>
     </a>
     <div class="header-search">
