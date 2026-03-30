@@ -3778,7 +3778,7 @@ async function initHome() {
     apiFetch('fixtures', { league: '39-140-78-135-61', season: SEASON, next: 10 }), // Kommande top 5
     Promise.resolve({ response: [] }), // topscorers removed
     Promise.resolve({ response: [] }), // standings removed
-    apiFetch('transfers/global', { season: SEASON }),  // Transfers från top 6 ligor
+    fetch('/api/transfers-daily').then(r=>r.json()).catch(()=>({response:[]})),  // Transfers Europa + roterande region
   ]);
 
   // ── 5. MATCHER — live + dagens matcher ──
