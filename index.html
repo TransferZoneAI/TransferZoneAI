@@ -2365,11 +2365,11 @@ header {
       <div class="search-results" id="searchResults"></div>
     </div>
     <nav class="header-nav">
-      <a href="#" class="active" onclick="showPage('home')">Home</a>
-      <a href="#" onclick="showPage('leagues')">Leagues</a>
-      <a href="#" onclick="showPage('transfers')">Transfers</a>
-      <a href="#" onclick="showPage('toplist')">Top Lists</a>
-      <a href="#" onclick="showPage('live')">Live</a>
+      <a href="javascript:void(0)" class="active" onclick="showPage('home')">Home</a>
+      <a href="javascript:void(0)" onclick="showPage('leagues')">Leagues</a>
+      <a href="javascript:void(0)" onclick="showPage('transfers')">Transfers</a>
+      <a href="javascript:void(0)" onclick="showPage('toplist')">Top Lists</a>
+      <a href="javascript:void(0)" onclick="showPage('live')">Live</a>
     </nav>
   </div>
 </header>
@@ -2559,19 +2559,19 @@ header {
 
 <!-- BOTTOM NAV -->
 <nav class="bottom-nav">
-  <a href="#" class="active" onclick="showPage('home')" id="bnav-home">
+  <a href="javascript:void(0)" class="active" onclick="showPage('home')" id="bnav-home">
     <span class="nav-icon">🏠</span>Home
   </a>
-  <a href="#" onclick="showPage('leagues')" id="bnav-leagues">
+  <a href="javascript:void(0)" onclick="showPage('leagues')" id="bnav-leagues">
     <span class="nav-icon">🏆</span>Leagues
   </a>
-  <a href="#" onclick="showPage('transfers')" id="bnav-transfers">
+  <a href="javascript:void(0)" onclick="showPage('transfers')" id="bnav-transfers">
     <span class="nav-icon">💸</span>Transfers
   </a>
-  <a href="#" onclick="showPage('live')" id="bnav-live">
+  <a href="javascript:void(0)" onclick="showPage('live')" id="bnav-live">
     <span class="nav-icon">📺</span>Live
   </a>
-  <a href="#" onclick="showPage('myclubs')" id="bnav-myclubs">
+  <a href="javascript:void(0)" onclick="showPage('myclubs')" id="bnav-myclubs">
     <span class="nav-icon">⭐</span>My Clubs
   </a>
 </nav>
@@ -3781,7 +3781,7 @@ async function initHome() {
     apiFetch('fixtures', { league: '39-140-78-135-61', season: SEASON, next: 10 }), // Kommande top 5
     Promise.resolve({ response: [] }), // topscorers removed
     Promise.resolve({ response: [] }), // standings removed
-    fetch('/api/transfers-daily').then(r=>r.json()).catch(()=>({response:[]})),  // Transfers Europa + roterande region
+    fetch('/api/transfers-daily').then(r=>r.json()).then(d => d.results > 0 ? d : fetch('/api/football?endpoint=transfers/global&season=2025').then(r=>r.json())).catch(()=>({response:[]})),  // Transfers Europa + roterande region
   ]);
 
   // ── 5. MATCHER — live + dagens matcher ──
@@ -3944,7 +3944,16 @@ function renderTransfersFallback() {
 
 function showLeague(id, name, flag) {
   setHash('league/' + slugify(name));
-  showPage('leagues');
+  // Navigate to leagues page without overwriting hash
+  const current = document.querySelector('.page.active')?.id?.replace('page-','');
+  if (current && current !== 'leagues') {
+    _navHistory.push(current);
+    if (_navHistory.length > 20) _navHistory.shift();
+  }
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-leagues')?.classList.add('active');
+  window.scrollTo(0,0);
+  updateBackButton('leagues');
   renderLeaguePage(id, name, flag);
 }
 
@@ -5008,11 +5017,12 @@ function showPage(id) {
 
   updateBackButton(id);
 
-  // Update URL hash for main pages
-  const mainPageHashes = { home:'', leagues:'leagues', transfers:'transfers', toplist:'toplists', live:'live', myclubs:'myclubs' };
+  // Update URL hash only for main nav pages (not team/player/league detail pages)
+  const mainPageHashes = { home:'', transfers:'transfers', toplist:'toplists', live:'live', myclubs:'myclubs' };
   if (mainPageHashes[id] !== undefined) {
     history.pushState(null, '', mainPageHashes[id] ? '#/' + mainPageHashes[id] : '#/');
   }
+  // leagues page hash is set by showLeague with specific league slug
 
   if (id === 'leagues' && !window._leaguesInited) { initLeagues('all'); window._leaguesInited = true; }
   if (id === 'transfers' && !window._transfersInited) { initTransfers(); window._transfersInited = true; }
