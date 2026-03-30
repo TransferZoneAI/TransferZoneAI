@@ -5164,12 +5164,15 @@ async function performSearch(q) {
       }));
 
     // Search teams + players via API in parallel
-    const [teamData, playerData] = await Promise.all([
+    // Try two seasons for players to maximize results
+    const yr = new Date().getFullYear();
+    const [teamData, playerData1, playerData2] = await Promise.all([
       apiFetch('teams', { search: q }).catch(() => ({ response: [] })),
-      apiFetch('players', { search: q, season: new Date().getFullYear() - 1 }).catch(() => ({ response: [] })),
+      apiFetch('players', { search: q, season: yr - 1 }).catch(() => ({ response: [] })),
+      apiFetch('players', { search: q, season: yr - 2 }).catch(() => ({ response: [] })),
     ]);
 
-    const teamResults = (teamData.response || []).slice(0, 4).map(t => ({
+    const teamResults = (teamData.response || []).slice(0, 3).map(t => ({
       type: 'Club',
       name: t.team.name,
       sub: t.team.country || '',
@@ -5177,16 +5180,26 @@ async function performSearch(q) {
       action: () => showTeam(t.team.id)
     }));
 
-    const playerResults = (playerData.response || []).slice(0, 4).map(p => ({
-      type: 'Player',
-      name: p.player.name,
-      sub: (p.statistics?.[0]?.team?.name || '') + (p.player.nationality ? ' · ' + p.player.nationality : ''),
-      logo: p.player.photo,
-      action: () => showPlayer(p.player.id)
-    }));
+    // Merge players from both seasons, deduplicate by id
+    const seenPlayers = new Set();
+    const allPlayerData = [...(playerData1.response || []), ...(playerData2.response || [])];
+    const playerResults = allPlayerData
+      .filter(p => {
+        if (seenPlayers.has(p.player.id)) return false;
+        seenPlayers.add(p.player.id);
+        return true;
+      })
+      .slice(0, 5)
+      .map(p => ({
+        type: 'Player',
+        name: p.player.name,
+        sub: (p.statistics?.[0]?.team?.name ? fixName(p.statistics[0].team.name) + ' · ' : '') + (p.player.nationality || ''),
+        logo: p.player.photo,
+        action: () => showPlayer(p.player.id)
+      }));
 
-    // Merge: leagues first, then teams, then players — max 8 total
-    const all = [...leagueMatches, ...teamResults, ...playerResults].slice(0, 8);
+    // Merge: players first (more likely what user wants), then teams, then leagues
+    const all = [...playerResults, ...teamResults, ...leagueMatches].slice(0, 8);
     _searchCache[cacheKey] = all;
     renderSearchResults(all);
 
