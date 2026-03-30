@@ -2791,6 +2791,7 @@ function buildYearPicker(activeSeason, teamId, tab, globalVar) {
 async function showTeam(id) {
   _currentTeamId = id;
   showPage('team');
+  // Hash set after name loads (in squad fetch callback)
 
   // Visa laddnings-skeleton direkt
   document.getElementById('teamHero').innerHTML = `
@@ -2844,6 +2845,7 @@ async function showTeam(id) {
     shareEl.innerHTML = renderShareBar(fixName(t.name));
     document.getElementById('teamTabs').before(shareEl);
     window._currentTeamData = { id, name: t.name, logo: t.logo, country: t.country };
+    setHash('club/' + slugify(fixName(t.name)));
 
     // Lägg till följ-knapp i hero
     const isFollowing = isFollowingTeam(id);
@@ -3331,6 +3333,7 @@ async function showPlayer(id) {
     const p = data.player;
     const s = data.statistics?.[0];
     window._currentPlayerData = data;
+    setHash('player/' + slugify(fixEncoding(p.name)));
 
     // Hämta transfers för att visa aktuell klubb
     const transferData = await apiFetch('transfers', { player: id });
@@ -3940,7 +3943,7 @@ function renderTransfersFallback() {
 // ═══════════════════════════════════════════
 
 function showLeague(id, name, flag) {
-  // Navigera till en ligasida — visar tabell + topscorers
+  setHash('league/' + slugify(name));
   showPage('leagues');
   renderLeaguePage(id, name, flag);
 }
@@ -4637,6 +4640,7 @@ let _currentFixtureId = null;
 
 async function showMatch(fixtureId) {
   _currentFixtureId = fixtureId;
+  setHash('match/' + fixtureId);
   showPage('match');
 
   // Hero skeleton
@@ -5015,36 +5019,6 @@ function showPage(id) {
   if (id === 'toplist' && !window._toplistInited) { showTopList('scorers', document.querySelector('#page-toplist .filter-btn')); window._toplistInited = true; }
   if (id === 'live') { initLive(); window._liveInited = true; }
   if (id === 'myclubs') { renderMyClubs(); }
-}
-
-// Wrap showTeam, showPlayer, showLeague, showMatch to set hash URLs
-const _origShowTeam = showTeam;
-async function showTeam(id) {
-  window._pendingTeamId = id;
-  await _origShowTeam(id);
-  // Set URL after team name is loaded
-  const name = window._currentTeamName || id;
-  setHash('club/' + slugify(name));
-}
-
-const _origShowPlayer = showPlayer;
-async function showPlayer(id) {
-  window._pendingPlayerId = id;
-  await _origShowPlayer(id);
-  const name = window._currentPlayerData?.player?.name || id;
-  setHash('player/' + slugify(name));
-}
-
-const _origShowLeague = showLeague;
-async function showLeague(id, name, flag) {
-  setHash('league/' + slugify(name));
-  await _origShowLeague(id, name, flag);
-}
-
-const _origShowMatch = showMatch;
-async function showMatch(id) {
-  setHash('match/' + id);
-  await _origShowMatch(id);
 }
 
 // Handle back/forward browser buttons
