@@ -18,26 +18,39 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,700&family=Barlow:wght@300;400;500;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap');
+
 :root {
-  --gold: #c9a84c;
-  --gold-bright: #f0c040;
-  --gold-dim: #7a6120;
-  --bg: #0a0a0f;
-  --bg2: #0f0f18;
-  --bg3: #141420;
-  --bg4: #1a1a2a;
-  --surface: #1e1e2e;
-  --surface2: #252538;
-  --border: rgba(201,168,76,0.15);
-  --border2: rgba(255,255,255,0.06);
-  --text: #e8e8f0;
-  --text2: #9898b0;
-  --text3: #5a5a78;
-  --accent: #3b82f6;
-  --green: #22c55e;
-  --red: #ef4444;
-  --radius: 10px;
-  --radius-sm: 6px;
+  /* ── CYBER PALETTE inspired by TransferZoneAI logo ── */
+  --cyan: #00d4ff;
+  --cyan-dim: #0090b3;
+  --cyan-glow: rgba(0,212,255,0.15);
+  --green: #39ff14;
+  --green-dim: #22991e;
+  --green-glow: rgba(57,255,20,0.12);
+  --gold: #00d4ff;
+  --gold-bright: #39ff14;
+  --gold-dim: #0090b3;
+  --accent: #00d4ff;
+  --accent2: #39ff14;
+
+  /* ── BACKGROUNDS ── */
+  --bg: #020408;
+  --bg2: #050c14;
+  --bg3: #081018;
+  --bg4: #0a1520;
+  --surface: #0d1f30;
+  --surface2: #112840;
+  --border: rgba(0,212,255,0.12);
+  --border2: rgba(0,212,255,0.07);
+  --text: #d0eeff;
+  --text2: #6a9ab8;
+  --text3: #2a5068;
+  --accent: #00d4ff;
+  --green: #39ff14;
+  --red: #ff2d55;
+  --radius: 6px;
+  --radius-sm: 4px;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -45,12 +58,39 @@
 html { scroll-behavior: smooth; }
 
 body {
-  font-family: 'Barlow', sans-serif;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 16px;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
   overflow-x: hidden;
   padding-bottom: 70px;
+}
+
+/* ── CYBER GRID BACKGROUND ── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── SCAN LINES ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 3px,
+    rgba(0,212,255,0.012) 3px, rgba(0,212,255,0.012) 4px
+  );
+  pointer-events: none;
+  z-index: 9997;
 }
 
 /* ── FOLLOW BUTTON ── */
@@ -423,15 +463,15 @@ header {
   font-size: 16px;
 }
 
-.logo-text {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 15px;
   font-weight: 800;
-  font-size: 20px;
+  letter-spacing: 3px;
   color: var(--text);
   letter-spacing: 0.5px;
 }
 
-.logo-text span { color: var(--gold); }
+.logo-text span { color: var(--cyan); text-shadow: 0 0 10px var(--cyan); }
 
 .header-search {
   flex: 1;
@@ -557,16 +597,16 @@ header {
 }
 
 .hero h1 {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: clamp(32px, 6vw, 56px);
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(26px, 5vw, 56px);
   font-weight: 900;
   letter-spacing: -1px;
   line-height: 1;
-  color: var(--text);
+  letter-spacing: 4px;
   text-transform: uppercase;
-}
+  text-shadow: 0 0 30px rgba(0,212,255,0.2);
 
-.hero h1 span { color: var(--gold); }
+.hero h1 span { color: var(--green); text-shadow: 0 0 15px var(--green); }
 
 .hero-sub {
   margin-top: 8px;
@@ -748,7 +788,7 @@ header {
 }
 
 .section-title {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Orbitron', sans-serif;
   font-size: 20px;
   font-weight: 800;
   letter-spacing: 0.5px;
@@ -756,7 +796,7 @@ header {
   color: var(--text);
 }
 
-.section-title span { color: var(--gold); }
+.section-title span { color: var(--cyan); text-shadow: 0 0 8px rgba(0,212,255,0.5); }
 
 .section-link {
   font-size: 12px;
@@ -2337,6 +2377,218 @@ header {
   .ai-input-row input { border-radius: 8px; }
 }
 
+
+/* ═══════════════════════════════════════════
+   CYBER EFFECTS
+   ═══════════════════════════════════════════ */
+
+/* Neon borders on cards */
+.league-card,
+.match-card,
+.transfer-card,
+.stat-box,
+.scorer-row,
+.sidebar-card,
+.my-club-card,
+.transfer-card {
+  border-color: var(--border) !important;
+  transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+
+.league-card:hover,
+.match-card:hover,
+.transfer-card:hover,
+.my-club-card:hover {
+  border-color: rgba(0,212,255,0.3) !important;
+  box-shadow: 0 0 15px rgba(0,212,255,0.08), inset 0 0 15px rgba(0,212,255,0.03) !important;
+}
+
+/* Cyber tab active state */
+.tab-btn.active {
+  color: var(--cyan) !important;
+  border-bottom-color: var(--cyan) !important;
+  text-shadow: 0 0 8px rgba(0,212,255,0.5);
+}
+
+.filter-btn.active {
+  background: rgba(0,212,255,0.1) !important;
+  border-color: var(--cyan) !important;
+  color: var(--cyan) !important;
+  box-shadow: 0 0 10px rgba(0,212,255,0.2);
+}
+
+/* Live dot pulse cyan */
+.live-dot {
+  background: var(--cyan) !important;
+  box-shadow: 0 0 6px var(--cyan);
+}
+
+/* Stat box vals */
+.stat-box-val {
+  color: var(--cyan) !important;
+  font-family: 'Share Tech Mono', monospace !important;
+}
+
+/* Scorer rank gold→cyan */
+.scorer-rank.top {
+  color: var(--cyan) !important;
+  text-shadow: 0 0 8px rgba(0,212,255,0.5);
+}
+
+/* Hero section cyber glow */
+.hero {
+  position: relative;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -100px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 600px;
+  height: 300px;
+  background: radial-gradient(ellipse at center, rgba(0,212,255,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Cyber logo */
+.logo img {
+  filter: drop-shadow(0 0 8px rgba(0,212,255,0.4));
+}
+
+/* Header nav active */
+.header-nav a.active {
+  color: var(--cyan) !important;
+  text-shadow: 0 0 8px rgba(0,212,255,0.4);
+}
+
+.header-nav a:hover {
+  color: var(--cyan) !important;
+}
+
+/* Search bar */
+.header-search input:focus {
+  border-color: var(--cyan) !important;
+  box-shadow: 0 0 0 2px rgba(0,212,255,0.1), 0 0 20px rgba(0,212,255,0.05) !important;
+}
+
+/* Follow button */
+.btn-follow {
+  border-color: var(--cyan) !important;
+  color: var(--cyan) !important;
+}
+
+.btn-follow:hover {
+  background: rgba(0,212,255,0.1) !important;
+  box-shadow: 0 0 15px rgba(0,212,255,0.2) !important;
+}
+
+.btn-follow.following {
+  background: rgba(0,212,255,0.1) !important;
+}
+
+/* Back button */
+.back-btn {
+  border-color: var(--border) !important;
+  color: var(--text2) !important;
+}
+
+.back-btn:hover {
+  border-color: var(--cyan) !important;
+  color: var(--cyan) !important;
+  box-shadow: 0 0 10px rgba(0,212,255,0.15) !important;
+}
+
+/* Points in standings */
+.st-pts {
+  color: var(--cyan) !important;
+  font-family: 'Share Tech Mono', monospace !important;
+}
+
+/* Transfer fee colors */
+.t-fee { font-family: 'Share Tech Mono', monospace !important; }
+
+/* Match score */
+.match-score-display {
+  font-family: 'Share Tech Mono', monospace !important;
+  color: var(--cyan) !important;
+}
+
+.match-score-display.upcoming { color: var(--text3) !important; }
+
+/* Live status */
+.match-status.live {
+  color: var(--green) !important;
+  text-shadow: 0 0 6px var(--green);
+}
+
+/* Section title */
+.section-title {
+  font-family: 'Orbitron', sans-serif !important;
+  letter-spacing: 2px;
+}
+
+/* Bottom nav */
+.bottom-nav {
+  background: rgba(2,4,8,0.98) !important;
+  border-top: 1px solid var(--border) !important;
+  box-shadow: 0 -1px 0 rgba(0,212,255,0.08) !important;
+}
+
+.bottom-nav a.active {
+  color: var(--cyan) !important;
+}
+
+/* Install banner */
+.install-banner-icon {
+  background: linear-gradient(135deg, rgba(0,212,255,0.2), rgba(57,255,20,0.2)) !important;
+  border: 1px solid var(--cyan) !important;
+}
+
+.install-btn {
+  background: linear-gradient(135deg, var(--cyan), var(--green)) !important;
+  color: #020408 !important;
+  font-family: 'Orbitron', sans-serif !important;
+}
+
+/* Hero stats */
+.hero-stat .val {
+  font-family: 'Share Tech Mono', monospace !important;
+  color: var(--cyan) !important;
+}
+
+/* Glitch animation on logo text */
+@keyframes cyber-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; text-shadow: 0 0 20px var(--cyan), 0 0 40px rgba(0,212,255,0.5); }
+}
+
+.logo-text span {
+  animation: cyber-pulse 3s ease-in-out infinite;
+}
+
+/* Cyber scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--cyan-dim); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+
+/* Install banner text */
+.install-banner-text strong {
+  font-family: 'Orbitron', sans-serif !important;
+  font-size: 13px !important;
+}
+
+/* Page header bar */
+#globalBackBar {
+  border-bottom: 1px solid var(--border) !important;
+  box-shadow: 0 1px 0 rgba(0,212,255,0.05) !important;
+}
+
+/* Share buttons */
+.share-btn.twitter { border-color: var(--cyan) !important; color: var(--cyan) !important; }
+.share-btn.twitter:hover { background: rgba(0,212,255,0.1) !important; }
 </style>
 </head>
 <body>
@@ -2360,7 +2612,7 @@ header {
 <header>
   <div class="header-inner">
     <a class="logo" href="#" onclick="showPage('home')">
-      <div class="logo-icon">⚽</div>
+      <img src="/icon-192.png" style="width:32px;height:32px;border-radius:8px;filter:drop-shadow(0 0 8px rgba(0,212,255,0.5))">
       <div class="logo-text">Transfer<span>Zone</span>AI</div>
     </a>
     <div class="header-search">
