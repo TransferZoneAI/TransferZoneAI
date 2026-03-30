@@ -3079,7 +3079,14 @@ async function showTeamTab(tab, btn) {
             date:     tr.date ?? '—',
           }))
         )
-        .filter(r => r.date !== '—')
+        .filter(r => {
+          if (!r.date || r.date === '—') return false;
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(r.date)) return false;
+          const d = new Date(r.date);
+          if (isNaN(d.getTime())) return false;
+          if (d.getFullYear() < 2000) return false;
+          return true;
+        })
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
       if (!rows.length) {
@@ -3515,7 +3522,7 @@ async function showPlayerTab(tab, btn, playerData) {
           <thead><tr><th>Date</th><th>From</th><th>To</th><th>Fee</th></tr></thead>
           <tbody>${sorted.map(t => `
             <tr>
-              <td style="color:var(--text3);font-size:12px">${t.date?.slice(0,7)||'—'}</td>
+              <td style="color:var(--text3);font-size:12px">${t.date?.slice(0,10)||'—'}</td>
               <td>
                 <div style="display:flex;align-items:center;gap:6px">
                   ${t.teams?.out?.logo ? `<img src="${t.teams.out.logo}" style="width:18px;height:18px;object-fit:contain">` : ''}
@@ -3703,7 +3710,7 @@ function renderTeamTransferTable(rows) {
             </div>
           </td>
           <td><span class="t-fee ${r.feeType==='loan'?'loan-fee':r.feeType==='free'?'free-fee':''}">${r.fee}</span></td>
-          <td style="color:var(--text3);font-size:12px">${r.date?.slice(0,7)}</td>
+          <td style="color:var(--text3);font-size:12px">${r.date?.slice(0,10)}</td>
         </tr>`).join('')}
       </tbody>
     </table>
@@ -4107,7 +4114,7 @@ async function renderLeaguePage(id, name, flag) {
                   <span>${t.to}</span>
                 </div></td>
                 <td><span class="t-fee ${t.feeType==='loan'?'loan-fee':t.feeType==='free'?'free-fee':''}">${t.fee}</span></td>
-                <td style="color:var(--text3);font-size:12px">${t.date.slice(0,7)}</td>
+                <td style="color:var(--text3);font-size:12px">${t.date.slice(0,10)}</td>
               </tr>`).join('')}
             </tbody>
           </table>
