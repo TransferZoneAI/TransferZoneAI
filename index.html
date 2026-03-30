@@ -2839,12 +2839,13 @@ async function showTeam(id) {
     // Spara squad och lagnamn globalt för tabs
     window._currentSquad = squad;
     window._currentTeamName = t.name;
-    // Add share bar under hero
-    const shareEl = document.createElement('div');
-    shareEl.style.cssText = 'padding:0 16px;max-width:1280px;margin:0 auto';
+    // Add share bar — remove old first
+    document.querySelectorAll(".team-share-bar").forEach(function(el){el.remove();});
+    const shareEl = document.createElement("div");
+    shareEl.className = "team-share-bar";
+    shareEl.style.cssText = "padding:0 16px;max-width:1280px;margin:0 auto";
     shareEl.innerHTML = renderShareBar(fixName(t.name));
-    document.getElementById('teamTabs').before(shareEl);
-    window._currentTeamData = { id, name: t.name, logo: t.logo, country: t.country };
+    document.getElementById("teamTabs").before(shareEl);
     setHash('club/' + slugify(fixName(t.name)));
 
     // Lägg till följ-knapp i hero
@@ -3392,7 +3393,9 @@ async function showPlayer(id) {
       </div>`;
 
     // Share bar
+    document.querySelectorAll(".player-share-bar").forEach(function(el){el.remove();});
     const playerShareEl = document.createElement('div');
+    playerShareEl.className = "player-share-bar";
     playerShareEl.style.cssText = 'padding:0 16px;max-width:1280px;margin:0 auto';
     playerShareEl.innerHTML = renderShareBar(fixEncoding(p.name));
     document.getElementById('playerTabs').before(playerShareEl);
