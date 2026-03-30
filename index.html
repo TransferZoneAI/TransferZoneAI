@@ -9,6 +9,8 @@
 <meta name="robots" content="index, follow">
 <meta name="author" content="TransferZoneAI">
 <link rel="canonical" href="https://transferzoneai.com">
+<meta property="og:url" content="https://transferzoneai.com" data-dynamic-og-url="true">
+<meta name="twitter:url" content="https://transferzoneai.com">
 <meta name="google-site-verification" content="n_MtaOzkUWt4U03wr2C6OdCNeGzUtoxz_lL9bWD1Hto">
 
 <!-- Open Graph -->
@@ -753,6 +755,126 @@ function flagImg(code, size=24) {
   return '<img src="https://flagcdn.com/' + size + 'x' + Math.round(size*0.75) + '/' + code.toLowerCase() + '.png" style="width:' + size + 'px;border-radius:2px;vertical-align:middle" onerror="this.style.display=\'none\'">';
 }
 
+const SITE_URL = "https://transferzoneai.com";
+
+function ensureMeta(selector, attr, value) {
+  let el = document.querySelector(selector);
+  if (!el) {
+    el = document.createElement('meta');
+    const m = selector.match(/meta\[(name|property)="([^"]+)"\]/);
+    if (m) el.setAttribute(m[1], m[2]);
+    document.head.appendChild(el);
+  }
+  el.setAttribute(attr, value);
+}
+
+function ensureCanonical(url) {
+  let link = document.querySelector('link[rel="canonical"]');
+  if (!link) {
+    link = document.createElement('link');
+    link.setAttribute('rel', 'canonical');
+    document.head.appendChild(link);
+  }
+  link.setAttribute('href', url);
+}
+
+function updateStructuredData(name, description, url) {
+  const ld = document.querySelector('script[type="application/ld+json"]');
+  if (!ld) return;
+  try {
+    const data = JSON.parse(ld.textContent);
+    data.name = name || 'TransferZoneAI';
+    data.url = url || SITE_URL;
+    data.description = description || data.description;
+    if (data.publisher) data.publisher.url = SITE_URL;
+    if (data.potentialAction) data.potentialAction.target = SITE_URL + '/search?q={search_term_string}';
+    ld.textContent = JSON.stringify(data);
+  } catch (e) {}
+}
+
+function applySeo(meta) {
+  const title = meta.title || 'TransferZoneAI — Global Football Intelligence';
+  const description = meta.description || 'Free global football database with AI-powered search. Transfer values, stats, live scores and leagues worldwide — all free.';
+  const path = meta.path || '/';
+  const url = path === '/' ? SITE_URL : SITE_URL + path;
+  document.title = title;
+  ensureMeta('meta[name="description"]', 'content', description);
+  ensureMeta('meta[property="og:title"]', 'content', title);
+  ensureMeta('meta[property="og:description"]', 'content', description);
+  ensureMeta('meta[property="og:url"]', 'content', url);
+  ensureMeta('meta[name="twitter:title"]', 'content', title);
+  ensureMeta('meta[name="twitter:description"]', 'content', description);
+  ensureMeta('meta[name="twitter:url"]', 'content', url);
+  ensureCanonical(url);
+  updateStructuredData(meta.schemaName || 'TransferZoneAI', description, url);
+}
+
+function applyHomeSeo() {
+  applySeo({
+    title: 'TransferZoneAI — Football Transfers, Stats, Live Scores & AI Search',
+    description: 'Free football database with player stats, club pages, league tables, transfers, live scores and AI-powered search across global football.',
+    path: '/'
+  });
+}
+
+function unslugify(slug) {
+  return decodeURIComponent((slug || '').replace(/[_-]+/g, ' ')).trim();
+}
+
+function normalizeSlug(str) {
+  return slugify((str || '').replace(/&/g, ' and '));
+}
+
+async function resolveAndShowRoute(pathname) {
+  const clean = (pathname || '/').replace(/\/+$/, '') || '/';
+  if (clean === '/' || clean === '') {
+    showPage('home', { skipHistory: true });
+    return;
+  }
+  const parts = clean.split('/').filter(Boolean);
+  const [kind, ...rest] = parts;
+  const slug = rest.join('/');
+  const q = unslugify(slug);
+
+  if (kind === 'league') {
+    const league = LEAGUES.find(l => normalizeSlug(l.name) === normalizeSlug(q)) || LEAGUES.find(l => normalizeSlug(l.name).includes(normalizeSlug(q)));
+    if (league) {
+      showLeague(league.id, league.name, league.code, { skipHistory: true });
+      return;
+    }
+  }
+
+  if (kind === 'club' && q) {
+    try {
+      const data = await apiFetch('teams', { search: q });
+      const team = (data.response || []).find(t => normalizeSlug(t.team?.name) === normalizeSlug(q)) || (data.response || [])[0];
+      if (team?.team?.id) {
+        showTeam(team.team.id, { skipHistory: true });
+        return;
+      }
+    } catch (e) {}
+  }
+
+  if (kind === 'player' && q) {
+    try {
+      const data = await apiFetch('players/profiles', { search: q });
+      const player = (data.response || []).find(p => normalizeSlug((p.player || p).name) === normalizeSlug(q)) || (data.response || [])[0];
+      const pl = player?.player || player;
+      if (pl?.id) {
+        showPlayer(pl.id, { skipHistory: true });
+        return;
+      }
+    } catch (e) {}
+  }
+
+  if (kind === 'match' && rest[0]) {
+    showMatch(rest[0], { skipHistory: true });
+    return;
+  }
+
+  showPage('home', { skipHistory: true });
+}
+
 const LEAGUES = [
   { id:39,  name:"Premier League",    country:"England",      code:"gb-eng", badge:"TOP 5", region:"europe" },
   { id:140, name:"La Liga",           country:"Spain",        code:"es",     badge:"TOP 5", region:"europe" },
@@ -983,7 +1105,7 @@ function matchCard(m) {
 // SHOW TEAM
 // ═══════════════════════════════════════════
 
-async function showTeam(id) {
+async function showTeam(id, opts = {}) {
   _currentTeamId = id;
   showPage('team');
 
@@ -1042,7 +1164,13 @@ async function showTeam(id) {
     shareEl.innerHTML = renderShareBar(fixName(t.name));
     document.getElementById('teamTabs').before(shareEl);
 
-    setHash('club/' + slugify(fixName(t.name)));
+    if (!opts.skipHistory) setHash('club/' + slugify(fixName(t.name)));
+    applySeo({
+      title: `${fixName(fixEncoding(t.name))} Squad, Transfers, Fixtures & Stats | TransferZoneAI`,
+      description: `View ${fixName(fixEncoding(t.name))} squad, fixtures, transfers, stadium details and club statistics on TransferZoneAI.`,
+      path: `/club/${slugify(fixName(t.name))}`,
+      schemaName: fixName(fixEncoding(t.name))
+    });
 
     const isFollowing = isFollowingTeam(id);
     const followBtn = document.getElementById('teamFollowBtn');
@@ -1394,7 +1522,7 @@ function filterTeamTransfers(type, btn, teamId) {
 
 let _currentPlayerId = null;
 
-async function showPlayer(id) {
+async function showPlayer(id, opts = {}) {
   _currentPlayerId = id;
   showPage('player');
 
@@ -1421,7 +1549,13 @@ async function showPlayer(id) {
     const p = data.player;
     const s = data.statistics?.[0];
     window._currentPlayerData = data;
-    setHash('player/' + slugify(fixEncoding(p.name)));
+    if (!opts.skipHistory) setHash('player/' + slugify(fixEncoding(p.name)));
+    applySeo({
+      title: `${fixEncoding(p.name)} Stats, Transfer History & Profile | TransferZoneAI`,
+      description: `View ${fixEncoding(p.name)} stats, transfer history, profile, position, age and current club on TransferZoneAI.`,
+      path: `/player/${slugify(fixEncoding(p.name))}`,
+      schemaName: fixEncoding(p.name)
+    });
 
     const transferData = await apiFetch('transfers', { player: id });
     const allTransfers = transferData.response?.[0]?.transfers || [];
@@ -1734,8 +1868,14 @@ function renderTransfersFallback() {
 // LEAGUES PAGE
 // ═══════════════════════════════════════════
 
-function showLeague(id, name, flag) {
-  setHash('league/' + slugify(name));
+function showLeague(id, name, flag, opts = {}) {
+  if (!opts.skipHistory) setHash('league/' + slugify(name));
+  applySeo({
+    title: `${name} Table, Top Scorers, Transfers & Stats | TransferZoneAI`,
+    description: `View ${name} standings, top scorers, transfers, fixtures and club stats on TransferZoneAI.`,
+    path: `/league/${slugify(name)}`,
+    schemaName: name
+  });
   const current = document.querySelector('.page.active')?.id?.replace('page-','');
   if (current && current !== 'leagues') {
     _navHistory.push(current);
@@ -2202,9 +2342,9 @@ function filterLive(type, btn) {
 
 let _currentFixtureId = null;
 
-async function showMatch(fixtureId) {
+async function showMatch(fixtureId, opts = {}) {
   _currentFixtureId = fixtureId;
-  setHash('match/' + fixtureId);
+  if (!opts.skipHistory) setHash('match/' + fixtureId);
   showPage('match');
 
   document.getElementById('matchHero').innerHTML = `<div class="match-hero-wrap"><div class="match-hero-inner"><div class="skeleton" style="height:140px;border-radius:10px"></div></div></div>`;
@@ -2262,6 +2402,12 @@ async function showMatch(fixtureId) {
     window._currentFixture = f;
 
     const matchTitle = f.teams.home.name + ' vs ' + f.teams.away.name;
+    applySeo({
+      title: `${matchTitle} Live Score, Lineups & Stats | TransferZoneAI`,
+      description: `Follow ${matchTitle} with live score, match events, lineups, statistics and league info on TransferZoneAI.`,
+      path: `/match/${fixtureId}`,
+      schemaName: matchTitle
+    });
     document.getElementById('matchContent').insertAdjacentHTML('beforebegin',
       '<div style="padding:4px 16px 0;max-width:1280px;margin:0 auto">' + renderShareBar(matchTitle) + '</div>');
 
@@ -2480,9 +2626,9 @@ function slugify(str) {
     .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 }
 
-function setHash(hash) { history.pushState(null, '', '#/' + hash); }
+function setHash(hash) { history.pushState(null, '', '/' + hash.replace(/^\/+/, '')); }
 
-function showPage(id) {
+function showPage(id, opts = {}) {
   const current = document.querySelector('.page.active')?.id?.replace('page-','');
   if (current && current !== id) { _navHistory.push(current); if (_navHistory.length > 20) _navHistory.shift(); }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -2491,8 +2637,14 @@ function showPage(id) {
   document.getElementById('bnav-'+id)?.classList.add('active');
   window.scrollTo(0,0);
   updateBackButton(id);
-  const mainPageHashes = { home:'', transfers:'transfers', toplist:'toplists', live:'live', myclubs:'myclubs' };
-  if (mainPageHashes[id] !== undefined) history.pushState(null, '', mainPageHashes[id] ? '#/' + mainPageHashes[id] : '#/');
+  const mainPagePaths = { home:'/', leagues:'/leagues', transfers:'/transfers', toplist:'/toplists', live:'/live', myclubs:'/myclubs' };
+  if (!opts.skipHistory && mainPagePaths[id] !== undefined) history.pushState(null, '', mainPagePaths[id]);
+  if (id === 'home') applyHomeSeo();
+  if (id === 'leagues') applySeo({ title: 'Football Leagues, Tables & Top Scorers | TransferZoneAI', description: 'Browse football leagues, standings, top scorers and club data from around the world on TransferZoneAI.', path: '/leagues' });
+  if (id === 'transfers') applySeo({ title: 'Football Transfers, Loans & Free Agents | TransferZoneAI', description: 'Track football transfers, loan deals and free agents across clubs and leagues worldwide on TransferZoneAI.', path: '/transfers' });
+  if (id === 'toplist') applySeo({ title: 'Top Scorers, Assists & Football Rankings | TransferZoneAI', description: 'Explore top scorers, assists and football rankings on TransferZoneAI.', path: '/toplists' });
+  if (id === 'live') applySeo({ title: 'Live Football Scores, Results & Fixtures | TransferZoneAI', description: 'Follow live football scores, results and upcoming fixtures across global football on TransferZoneAI.', path: '/live' });
+  if (id === 'myclubs') applySeo({ title: 'My Clubs | TransferZoneAI', description: 'Follow your favourite football clubs and keep track of them in one place on TransferZoneAI.', path: '/myclubs' });
   if (id === 'leagues' && !window._leaguesInited) { initLeagues('all'); window._leaguesInited = true; }
   if (id === 'transfers' && !window._transfersInited) { initTransfers(); window._transfersInited = true; }
   if (id === 'toplist' && !window._toplistInited) { showTopList('scorers', document.querySelector('#page-toplist .filter-btn')); window._toplistInited = true; }
@@ -2500,7 +2652,7 @@ function showPage(id) {
   if (id === 'myclubs') { renderMyClubs(); }
 }
 
-window.addEventListener('popstate', () => { const hash = location.hash.replace('#/', ''); if (!hash || hash === '/') showPage('home'); });
+window.addEventListener('popstate', () => { resolveAndShowRoute(location.pathname); });
 
 function goBack() {
   if (_navHistory.length === 0) { showPage('home'); return; }
@@ -2646,9 +2798,25 @@ function focusAI() { document.getElementById('aiSearchInput').focus(); }
 // ═══════════════════════════════════════════
 
 initHome();
+applyHomeSeo();
+resolveAndShowRoute(location.pathname);
 initOneSignalSubscriber();
 </script>
 
 <script defer src="/_vercel/insights/script.js"></script>
+<noscript>
+  <div style="padding:24px;max-width:960px;margin:0 auto;font-family:Arial,sans-serif">
+    <h2>Football pages</h2>
+    <p>Browse key leagues directly:</p>
+    <ul>
+      <li><a href="/league/premier_league">Premier League</a></li>
+      <li><a href="/league/la_liga">La Liga</a></li>
+      <li><a href="/league/bundesliga">Bundesliga</a></li>
+      <li><a href="/league/serie_a">Serie A</a></li>
+      <li><a href="/league/ligue_1">Ligue 1</a></li>
+      <li><a href="/league/allsvenskan">Allsvenskan</a></li>
+    </ul>
+  </div>
+</noscript>
 </body>
 </html>
