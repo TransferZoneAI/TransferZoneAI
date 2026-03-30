@@ -140,6 +140,96 @@ body {
   color: var(--text3);
 }
 
+/* ── GLOBAL SEARCH DROPDOWN ── */
+.search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  z-index: 9999;
+  display: none;
+  overflow: hidden;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.search-results.visible { display: block; }
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--border2);
+}
+
+.search-result-item:last-child { border-bottom: none; }
+.search-result-item:hover { background: var(--surface2); }
+
+.sr-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  font-size: 16px;
+}
+
+.sr-icon img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.sr-text { flex: 1; min-width: 0; }
+
+.sr-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sr-sub {
+  font-size: 11px;
+  color: var(--text3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sr-type {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text3);
+  background: var(--bg3);
+  border-radius: 4px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+}
+
+.sr-loading {
+  padding: 16px;
+  text-align: center;
+  color: var(--text3);
+  font-size: 13px;
+}
+
 /* ── BACK BUTTON ── */
 .back-btn {
   display: inline-flex;
@@ -2494,7 +2584,6 @@ async function apiFetch(endpoint, params = {}) {
 // Flaggor via flagcdn.com (ISO 3166-1 alpha-2 landskoder)
 function flagImg(code, size=24) {
   if (!code) return '<span style="font-size:20px">🌍</span>';
-  return `<img src="https://flagcdn.com/w40/${code.toLowerCase()}.png" width="${size}" height="${Math.round(size*0.67)}" style="border-radius:2px;object-fit:cover" onerror="this.style.display='none'">`;
 }
 
 const LEAGUES = [
@@ -5002,51 +5091,126 @@ function focusAI() {
 // GLOBAL SEARCH
 // ═══════════════════════════════════════════
 
-// Sökindex — ligor är statiska, spelare/lag laddas dynamiskt via API
-const searchIndex = [
-  ...LEAGUES.map(l => ({ type:'League', name:l.name, sub:l.country, icon:l.flag, action:()=>showLeague(l.id, l.name, l.flag) })),
-];
+// ── GLOBAL SEARCH ──
+let _searchTimeout = null;
+let _searchCache = {};
+
+function closeSearch() {
+  document.getElementById('searchResults').classList.remove('visible');
+}
+
+function openSearchResult(action) {
+  closeSearch();
+  document.getElementById('globalSearch').value = '';
+  action();
+}
+
+function renderSearchResults(groups) {
+  const results = document.getElementById('searchResults');
+  if (!groups.length) {
+    results.innerHTML = '<div class="sr-loading">No results found</div>';
+    results.classList.add('visible');
+    return;
+  }
+  results.innerHTML = groups.map((item, i) => {
+    const icon = item.logo
+      ? ('<img src="' + item.logo + '">')
+      : (item.iconText || '⚽');
+    return '<div class="search-result-item" onclick="window._sr' + i + '()">' +
+      '<div class="sr-icon">' + icon + '</div>' +
+      '<div class="sr-text">' +
+        '<div class="sr-name">' + fixName(fixEncoding(item.name)) + '</div>' +
+        '<div class="sr-sub">' + (item.sub || '') + '</div>' +
+      '</div>' +
+      '<div class="sr-type">' + item.type + '</div>' +
+    '</div>';
+  }).join('');
+  groups.forEach((item, i) => {
+    window['_sr' + i] = () => openSearchResult(item.action);
+  });
+  results.classList.add('visible');
+}
+
+async function performSearch(q) {
+  if (!q || q.length < 2) {
+    document.getElementById('searchResults').classList.remove('visible');
+    return;
+  }
+
+  const cacheKey = q.toLowerCase();
+  if (_searchCache[cacheKey]) {
+    renderSearchResults(_searchCache[cacheKey]);
+    return;
+  }
+
+  // Show loading
+  const results = document.getElementById('searchResults');
+  results.innerHTML = '<div class="sr-loading"><div class="ai-thinking-dots"><span></span><span></span><span></span></div></div>';
+  results.classList.add('visible');
+
+  try {
+    // Search leagues locally first (instant)
+    const leagueMatches = LEAGUES
+      .filter(l => l.name.toLowerCase().includes(q.toLowerCase()))
+      .slice(0, 3)
+      .map(l => ({
+        type: 'League',
+        name: l.name,
+        sub: l.country,
+        logo: '',
+        iconText: l.flag || '🏆',
+        action: () => showLeague(l.id, l.name, l.flag)
+      }));
+
+    // Search teams + players via API in parallel
+    const [teamData, playerData] = await Promise.all([
+      apiFetch('teams', { search: q }).catch(() => ({ response: [] })),
+      apiFetch('players', { search: q, season: new Date().getFullYear() - 1 }).catch(() => ({ response: [] })),
+    ]);
+
+    const teamResults = (teamData.response || []).slice(0, 4).map(t => ({
+      type: 'Club',
+      name: t.team.name,
+      sub: t.team.country || '',
+      logo: t.team.logo,
+      action: () => showTeam(t.team.id)
+    }));
+
+    const playerResults = (playerData.response || []).slice(0, 4).map(p => ({
+      type: 'Player',
+      name: p.player.name,
+      sub: (p.statistics?.[0]?.team?.name || '') + (p.player.nationality ? ' · ' + p.player.nationality : ''),
+      logo: p.player.photo,
+      action: () => showPlayer(p.player.id)
+    }));
+
+    // Merge: leagues first, then teams, then players — max 8 total
+    const all = [...leagueMatches, ...teamResults, ...playerResults].slice(0, 8);
+    _searchCache[cacheKey] = all;
+    renderSearchResults(all);
+
+  } catch(e) {
+    results.innerHTML = '<div class="sr-loading">Search failed</div>';
+  }
+}
 
 document.getElementById('globalSearch').addEventListener('input', function() {
-  const q = this.value.toLowerCase().trim();
-  const results = document.getElementById('searchResults');
-  if (!q) { results.classList.remove('visible'); return; }
-
-  const matches = searchIndex.filter(item => item.name.toLowerCase().includes(q)).slice(0,5);
-  if (!matches.length) { results.classList.remove('visible'); return; }
-
-  results.innerHTML = matches.map((m,i) => `
-    <div class="search-result-item" onclick="window._srAction_${i}()">
-      <div class="sr-icon">${m.icon}</div>
-      <div class="sr-text">
-        <div class="sr-name">${fixEncoding(m.name)}</div>
-        <div class="sr-sub">${m.sub}</div>
-      </div>
-      <div class="sr-type">${m.type}</div>
-    </div>`).join('');
-
-  matches.forEach((m,i) => window[`_srAction_${i}`] = () => {
-    m.action();
-    results.classList.remove('visible');
-    document.getElementById('globalSearch').value = '';
-  });
-
-  results.classList.add('visible');
-});
-
-document.addEventListener('click', e => {
-  if (!e.target.closest('.header-search')) {
-    document.getElementById('searchResults').classList.remove('visible');
-  }
+  const q = this.value.trim();
+  clearTimeout(_searchTimeout);
+  if (!q) { closeSearch(); return; }
+  // Debounce 300ms
+  _searchTimeout = setTimeout(() => performSearch(q), 300);
 });
 
 document.getElementById('globalSearch').addEventListener('keydown', e => {
-  if (e.key === 'Enter') {
-    const q = e.target.value;
-    document.getElementById('aiSearchInput').value = q;
-    showPage('home');
-    sendAIQuery();
+  if (e.key === 'Escape') {
+    closeSearch();
+    document.getElementById('globalSearch').value = '';
   }
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.header-search')) closeSearch();
 });
 
 // ═══════════════════════════════════════════
