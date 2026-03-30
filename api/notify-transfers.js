@@ -1,12 +1,14 @@
 // api/notify-transfers.js
 // Körs varje natt kl 03:30 — hittar dagens transfers och skickar notiser
-// till användare som följer berörda lag via OneSignal-taggar
+// Hämtar subscribers från Redis istället för OneSignal-taggar
 
 export const config = { runtime: 'edge' };
 
 const ONESIGNAL_APP_ID  = process.env.ONESIGNAL_APP_ID;
 const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
 const APISPORTS_KEY     = process.env.APISPORTS_KEY;
+const KV_URL            = process.env.KV_REST_API_URL;
+const KV_TOKEN          = process.env.KV_REST_API_TOKEN;
 
 async function fetchJSON(url, key) {
   const res = await fetch(url, { headers: { 'x-apisports-key': key } });
@@ -14,8 +16,18 @@ async function fetchJSON(url, key) {
   return JSON.parse(new TextDecoder('utf-8').decode(buf));
 }
 
-async function sendPush({ filters, title, message, url }) {
-  if (!ONESIGNAL_APP_ID || !ONESIGNAL_API_KEY) return;
+async function getSubscribersForTeam(teamId) {
+  const res = await fetch(`${KV_URL}/pipeline`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify([['SMEMBERS', `team:${teamId}:subscribers`]]),
+  });
+  const data = await res.json();
+  return data[0]?.result || [];
+}
+
+async function sendPushToSubscribers(subscriberIds, title, message, url) {
+  if (!subscriberIds.length) return;
   await fetch('https://onesignal.com/api/v1/notifications', {
     method: 'POST',
     headers: {
@@ -24,7 +36,7 @@ async function sendPush({ filters, title, message, url }) {
     },
     body: JSON.stringify({
       app_id: ONESIGNAL_APP_ID,
-      filters,
+      include_subscription_ids: subscriberIds,
       headings: { en: title },
       contents: { en: message },
       url,
@@ -33,23 +45,17 @@ async function sendPush({ filters, title, message, url }) {
 }
 
 export default async function handler(req) {
-  const today = new Date().toISOString().slice(0, 10);
-
-  // Hämta dagens transfers från ett urval av ligor
+  const today   = new Date().toISOString().slice(0, 10);
   const leagues = [39, 140, 78, 135, 61, 2, 3, 94, 88, 113, 253, 307, 71, 128, 332];
   const season  = new Date().getFullYear();
 
   const results = await Promise.allSettled(
     leagues.map(id =>
-      fetchJSON(
-        `https://v3.football.api-sports.io/transfers?league=${id}&season=${season}`,
-        APISPORTS_KEY
-      )
+      fetchJSON(`https://v3.football.api-sports.io/transfers?league=${id}&season=${season}`, APISPORTS_KEY)
     )
   );
 
   const todayTransfers = [];
-
   for (const r of results) {
     if (r.status !== 'fulfilled') continue;
     for (const entry of r.value.response || []) {
@@ -57,7 +63,6 @@ export default async function handler(req) {
         if (!tr.date || !tr.date.startsWith(today)) continue;
         todayTransfers.push({
           player:   entry.player?.name || 'Unknown',
-          playerId: entry.player?.id   || 0,
           fromId:   tr.teams?.out?.id  || 0,
           fromName: tr.teams?.out?.name || '—',
           toId:     tr.teams?.in?.id   || 0,
@@ -68,11 +73,10 @@ export default async function handler(req) {
     }
   }
 
-  // Skicka en notis per unik transfer till fans av inblandade lag
   const sent = new Set();
 
   for (const t of todayTransfers) {
-    const key = `${t.playerId}_${t.toId}`;
+    const key = `${t.player}_${t.toId}`;
     if (sent.has(key)) continue;
     sent.add(key);
 
@@ -81,25 +85,16 @@ export default async function handler(req) {
       ? 'on a free transfer' : 'in a confirmed transfer';
 
     const msg = `${t.player} joins ${t.toName} from ${t.fromName} ${feeLabel}`;
+    const url = `https://transferzoneai.com/#/transfers`;
 
-    // Notis till fans av det köpande laget
     if (t.toId) {
-      await sendPush({
-        filters: [{ field: 'tag', key: `team_${t.toId}`, relation: '=', value: 'true' }],
-        title: `⚽ Transfer: ${t.toName}`,
-        message: msg,
-        url: `https://transferzoneai.com/#/club/${t.toName.toLowerCase().replace(/\s+/g,'_')}`,
-      });
+      const subs = await getSubscribersForTeam(t.toId);
+      if (subs.length) await sendPushToSubscribers(subs, `⚽ Transfer: ${t.toName}`, msg, url);
     }
 
-    // Notis till fans av det säljande laget
     if (t.fromId && t.fromId !== t.toId) {
-      await sendPush({
-        filters: [{ field: 'tag', key: `team_${t.fromId}`, relation: '=', value: 'true' }],
-        title: `⚽ Transfer: ${t.fromName}`,
-        message: msg,
-        url: `https://transferzoneai.com/#/club/${t.fromName.toLowerCase().replace(/\s+/g,'_')}`,
-      });
+      const subs = await getSubscribersForTeam(t.fromId);
+      if (subs.length) await sendPushToSubscribers(subs, `⚽ Transfer: ${t.fromName}`, msg, url);
     }
   }
 
