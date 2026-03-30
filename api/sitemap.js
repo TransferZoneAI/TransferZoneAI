@@ -58,13 +58,13 @@ const CLUBS = [
   'psg'
 ];
 
-// Lag-ID:n att hämta trupper från
+// Lag-ID:n
 const TOP_TEAMS = [
-  33, 40, 42, 47, 50,       // Premier League
-  529, 530, 532, 541, 548,  // La Liga
-  157, 165, 168, 173, 161,  // Bundesliga
-  489, 492, 496, 488, 487,  // Serie A
-  85, 81, 80, 84, 91        // Ligue 1
+  33, 40, 42, 47, 50,
+  529, 530, 532, 541, 548,
+  157, 165, 168, 173, 161,
+  489, 492, 496, 488, 487,
+  85, 81, 80, 84, 91
 ];
 
 export default async function handler() {
@@ -94,7 +94,7 @@ export default async function handler() {
     urls.push(urlTag(`${BASE_URL}/club/${club}`, '0.7', 'daily'));
   }
 
-  // Auto players från topplagens trupper
+  // Players
   const seenPlayers = new Set();
 
   const squadResponses = await Promise.all(
@@ -114,7 +114,6 @@ export default async function handler() {
       const slug = slugify(name);
       if (!slug) continue;
 
-      // Unik per namn-slug för att undvika dubletter i sitemap
       if (seenPlayers.has(slug)) continue;
       seenPlayers.add(slug);
 
