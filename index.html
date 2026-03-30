@@ -230,6 +230,38 @@ body {
   font-size: 13px;
 }
 
+/* ── SOCIAL SHARE ── */
+.share-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  flex-wrap: wrap;
+}
+
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  border: 1px solid var(--border2);
+  background: var(--surface);
+  color: var(--text2);
+  transition: all 0.2s;
+}
+
+.share-btn:hover { border-color: var(--gold); color: var(--gold); }
+.share-btn.twitter { border-color: #1da1f2; color: #1da1f2; }
+.share-btn.twitter:hover { background: rgba(29,161,242,0.1); }
+.share-btn.facebook { border-color: #1877f2; color: #1877f2; }
+.share-btn.facebook:hover { background: rgba(24,119,242,0.1); }
+
 /* ── BACK BUTTON ── */
 .back-btn {
   display: inline-flex;
@@ -2374,23 +2406,9 @@ header {
   </div>
 
   <!-- AI SEARCH -->
-  <div class="ai-search-wrap">
-    <div class="ai-search-box">
-      <div class="ai-search-label"><div class="ai-dot"></div> AI Football Search</div>
-      <div class="ai-input-row">
-        <input type="text" id="aiSearchInput" placeholder="Who has the most assists in the Premier League this season?">
-        <button class="ai-send-btn" onclick="sendAIQuery()">Ask AI ✦</button>
-      </div>
-      <div class="ai-suggestions">
-        <div class="ai-chip" onclick="setAIQuery(this.textContent)">Top scorers in La Liga 2024/25</div>
-        <div class="ai-chip" onclick="setAIQuery(this.textContent)">Most expensive transfer this summer</div>
-        <div class="ai-chip" onclick="setAIQuery(this.textContent)">Haaland stats this season</div>
-        <div class="ai-chip" onclick="setAIQuery(this.textContent)">Best young players under 21</div>
-        <div class="ai-chip" onclick="setAIQuery(this.textContent)">Bundesliga table right now</div>
-      </div>
-      <div class="ai-response" id="aiResponse"></div>
-    </div>
-  </div>
+  <!-- AI search removed -->
+  <input type="hidden" id="aiSearchInput">
+  <div id="aiResponse" style="display:none"></div>
 
   <!-- MAIN GRID -->
   <div class="main-grid">
@@ -2820,6 +2838,11 @@ async function showTeam(id) {
     // Spara squad och lagnamn globalt för tabs
     window._currentSquad = squad;
     window._currentTeamName = t.name;
+    // Add share bar under hero
+    const shareEl = document.createElement('div');
+    shareEl.style.cssText = 'padding:0 16px;max-width:1280px;margin:0 auto';
+    shareEl.innerHTML = renderShareBar(fixName(t.name));
+    document.getElementById('teamTabs').before(shareEl);
     window._currentTeamData = { id, name: t.name, logo: t.logo, country: t.country };
 
     // Lägg till följ-knapp i hero
@@ -3036,6 +3059,7 @@ async function showTeamTab(tab, btn) {
     c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
     try {
       const data = await fetchTransfers(teamId);
+      const filterYear = window._teamTransferYear || 'all';
 
       // Platta ut alla transfers, sortera senaste först
       const rows = data
@@ -3061,6 +3085,14 @@ async function showTeamTab(tab, btn) {
         return;
       }
 
+      // År-filter
+      const thisYr = new Date().getFullYear();
+      const yearFilterHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">' +
+        ['All', thisYr, thisYr-1, thisYr-2].map(y =>
+          '<button class="filter-btn ' + (filterYear == y || (y==='All' && filterYear==='all') ? 'active' : '') +
+          '<button class="filter-btn ' + (filterYear == y || (y==="All" && filterYear==="all") ? "active" : "") + '" data-yr="' + (y==="All"?"all":y) + '" onclick="window._teamTransferYear=this.dataset.yr;showTeamTab(String.fromCharCode(116,114,97,110,115,102,101,114,115),null,' + teamId + ')" style="padding:4px 12px;font-size:12px">' + y + '</button>'
+        ).join('') + '</div>';
+
       // Filterknapp: All / In / Out
       const filterHTML = `
         <div class="toplist-filters" style="margin-bottom:12px">
@@ -3069,10 +3101,15 @@ async function showTeamTab(tab, btn) {
           <button class="filter-btn" onclick="filterTeamTransfers('out', this, ${teamId})">Departures</button>
         </div>`;
 
-      window._teamTransfers = rows;
+      // Filtrera på år om valt
+      const filteredByYear = filterYear === 'all' ? rows
+        : rows.filter(r => r.date && r.date.startsWith(String(filterYear)));
+
+      window._teamTransfers = filteredByYear;
+      window._teamTransferRows = rows; // spara alla för år-filtrering
       window._teamId = teamId;
 
-      c.innerHTML = filterHTML + renderTeamTransferTable(rows);
+      c.innerHTML = yearFilterHTML + filterHTML + renderTeamTransferTable(filteredByYear);
     } catch(e) {
       c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda transfers.</div>`;
     }
@@ -3343,6 +3380,12 @@ async function showPlayer(id) {
           </div>
         </div>
       </div>`;
+
+    // Share bar
+    const playerShareEl = document.createElement('div');
+    playerShareEl.style.cssText = 'padding:0 16px;max-width:1280px;margin:0 auto';
+    playerShareEl.innerHTML = renderShareBar(fixEncoding(p.name));
+    document.getElementById('playerTabs').before(playerShareEl);
 
     showPlayerTab('overview', null, data);
   } catch(e) {
@@ -3838,35 +3881,31 @@ async function initHome() {
 
   // ── 8. SENASTE TRANSFERS ──
   if (transfersRes.status === 'fulfilled') {
-    // Global transfers — redan plattad och sorterad från football.js
     const raw = transfersRes.value.response || [];
-    const rows = raw
-      .map(t => ({
-        player  : t.player,
-        playerId: t.playerId,
-        from    : t.from,
-        to      : t.to,
-        rawType : (t.type || '').toLowerCase(),
-        date    : t.date,
-        type: (t.type||'').toLowerCase().includes('loan') ? 'loan'
-            : (t.type||'').toLowerCase() === 'free'       ? 'free'
-            : 'paid',
-        fee : formatFee(t.type),
-      }))
-      .slice(0, 6);
-
+    const rows = raw.slice(0, 8);
     if (rows.length) {
-      document.getElementById('recentTransfers').innerHTML = rows.map(t => `
-        <div class="transfer-card" onclick="showPlayer(${t.playerId})">
-          <div class="transfer-player-img">⚽</div>
-          <div class="transfer-info">
-            <div class="transfer-player-name">${fixEncoding(t.player)}</div>
-            <div class="transfer-clubs">
-              <span>${fixName(t.from)}</span><span class="transfer-arrow">→</span><span>${fixName(t.to)}</span>
-            </div>
-          </div>
-          <div class="transfer-fee ${t.type==='loan'?'loan':t.type==='free'?'free':''}">${t.fee}</div>
-        </div>`).join('');
+      document.getElementById('recentTransfers').innerHTML = rows.map(function(t) {
+        const feeType = (t.type||'').toLowerCase().includes('loan') ? 'loan'
+                      : (t.type||'').toLowerCase() === 'free' ? 'free' : 'paid';
+        const fee = formatFee(t.type);
+        return '<div class="transfer-card" onclick="showPlayer(' + t.playerId + ')" style="cursor:pointer">' +
+          '<div class="transfer-player-img">' +
+            (t.photo ? '<img src="' + t.photo + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover">' : '⚽') +
+          '</div>' +
+          '<div class="transfer-info">' +
+            '<div class="transfer-player-name">' + fixEncoding(t.player) + '</div>' +
+            '<div class="transfer-clubs" style="display:flex;align-items:center;gap:4px">' +
+              (t.fromLogo ? '<img src="' + t.fromLogo + '" style="width:14px;height:14px;object-fit:contain">' : '') +
+              '<span>' + fixName(t.from) + '</span>' +
+              '<span class="transfer-arrow">→</span>' +
+              (t.toLogo ? '<img src="' + t.toLogo + '" style="width:14px;height:14px;object-fit:contain">' : '') +
+              '<span>' + fixName(t.to) + '</span>' +
+            '</div>' +
+            '<div style="font-size:11px;color:var(--text3)">' + (t.date ? t.date.slice(0,10) : '') + '</div>' +
+          '</div>' +
+          '<div class="transfer-fee ' + (feeType==='loan'?'loan':feeType==='free'?'free':'') + '">' + fee + '</div>' +
+        '</div>';
+      }).join('');
     } else {
       renderTransfersFallback();
     }
@@ -4013,7 +4052,57 @@ async function renderLeaguePage(id, name, flag) {
         ${topCard('Red Cards',    '🔴', reds,       p => p.statistics[0]?.cards?.red||0)}
       </div>`;
 
-    c.innerHTML = backBtn + standingsHTML + topListsHTML;
+    // Transfers 3 år tillbaka för liga
+    const leagueTransferYear = window._leagueTransferYear || activeSeason;
+    const [t1, t2, t3] = await Promise.all([
+      apiFetch('transfers', { league: id, season: leagueTransferYear }).catch(()=>({response:[]})),
+      leagueTransferYear === activeSeason ? apiFetch('transfers', { league: id, season: activeSeason-1 }).catch(()=>({response:[]})) : Promise.resolve({response:[]}),
+      leagueTransferYear === activeSeason ? apiFetch('transfers', { league: id, season: activeSeason-2 }).catch(()=>({response:[]})) : Promise.resolve({response:[]}),
+    ]);
+
+    const allLeagueTransfers = [...(t1.response||[]), ...(t2.response||[]), ...(t3.response||[])]
+      .flatMap(entry => (entry.transfers||[]).map(tr => ({
+        player: fixEncoding(entry.player?.name||''),
+        playerId: entry.player?.id||0,
+        photo: entry.player?.photo||'',
+        from: fixName(tr.teams?.out?.name||''),
+        to: fixName(tr.teams?.in?.name||''),
+        fromLogo: tr.teams?.out?.logo||'',
+        toLogo: tr.teams?.in?.logo||'',
+        fee: formatFee(tr.type),
+        feeType: (tr.type||'').toLowerCase().includes('loan')?'loan':(tr.type||'').toLowerCase()==='free'?'free':'paid',
+        date: tr.date||'',
+      })))
+      .filter(t => t.date)
+      .sort((a,b) => new Date(b.date)-new Date(a.date));
+
+    const leagueTransfersHTML = allLeagueTransfers.length ? `
+      <div style="margin-top:24px">
+        <div class="section-title" style="margin-bottom:12px">Transfers</div>
+        <div class="table-wrap">
+          <table class="transfers-table">
+            <thead><tr><th>Player</th><th>Movement</th><th>Fee</th><th>Date</th></tr></thead>
+            <tbody>${allLeagueTransfers.slice(0,30).map(t => `
+              <tr onclick="showPlayer(${t.playerId})" style="cursor:pointer">
+                <td><div class="t-player">
+                  ${t.photo?`<img src="${t.photo}" style="width:28px;height:28px;border-radius:50%;object-fit:cover">`:'<div class="t-player-img">⚽</div>'}
+                  <div class="t-player-name">${t.player}</div>
+                </div></td>
+                <td><div class="t-clubs">
+                  ${t.fromLogo?`<img src="${t.fromLogo}" style="width:14px;height:14px;object-fit:contain">`:''}
+                  <span>${t.from}</span><span class="t-sep">→</span>
+                  ${t.toLogo?`<img src="${t.toLogo}" style="width:14px;height:14px;object-fit:contain">`:''}
+                  <span>${t.to}</span>
+                </div></td>
+                <td><span class="t-fee ${t.feeType==='loan'?'loan-fee':t.feeType==='free'?'free-fee':''}">${t.fee}</span></td>
+                <td style="color:var(--text3);font-size:12px">${t.date.slice(0,7)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>` : '';
+
+    c.innerHTML = backBtn + '<div style="padding:4px 0 8px">' + renderShareBar(name) + '</div>' + standingsHTML + topListsHTML + leagueTransfersHTML;
   } catch(e) {
     c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda ligadata.</div>`;
   }
@@ -4628,6 +4717,11 @@ async function showMatch(fixtureId) {
     // Store fixture for tab use
     window._currentFixture = f;
 
+    // Share bar
+    const matchTitle = f.teams.home.name + ' vs ' + f.teams.away.name;
+    document.getElementById('matchContent').insertAdjacentHTML('beforebegin',
+      '<div style="padding:4px 16px 0;max-width:1280px;margin:0 auto">' + renderShareBar(matchTitle) + '</div>');
+
     // Visa events som default bara om matchen är live eller avslutad
     // Annars visa lineups
     if (isNS) {
@@ -4884,12 +4978,21 @@ function renderMyClubs() {
 
 const _navHistory = [];
 
+function slugify(str) {
+  return (str || '').toLowerCase()
+    .replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/å/g, 'a')
+    .replace(/é/g, 'e').replace(/ü/g, 'u').replace(/ø/g, 'o')
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+}
+
+function setHash(hash) {
+  history.pushState(null, '', '#/' + hash);
+}
+
 function showPage(id) {
-  // Push current page to history before navigating
   const current = document.querySelector('.page.active')?.id?.replace('page-','');
   if (current && current !== id) {
     _navHistory.push(current);
-    // Max 20 steps
     if (_navHistory.length > 20) _navHistory.shift();
   }
 
@@ -4901,12 +5004,54 @@ function showPage(id) {
 
   updateBackButton(id);
 
+  // Update URL hash for main pages
+  const mainPageHashes = { home:'', leagues:'leagues', transfers:'transfers', toplist:'toplists', live:'live', myclubs:'myclubs' };
+  if (mainPageHashes[id] !== undefined) {
+    history.pushState(null, '', mainPageHashes[id] ? '#/' + mainPageHashes[id] : '#/');
+  }
+
   if (id === 'leagues' && !window._leaguesInited) { initLeagues('all'); window._leaguesInited = true; }
   if (id === 'transfers' && !window._transfersInited) { initTransfers(); window._transfersInited = true; }
   if (id === 'toplist' && !window._toplistInited) { showTopList('scorers', document.querySelector('#page-toplist .filter-btn')); window._toplistInited = true; }
   if (id === 'live') { initLive(); window._liveInited = true; }
   if (id === 'myclubs') { renderMyClubs(); }
 }
+
+// Wrap showTeam, showPlayer, showLeague, showMatch to set hash URLs
+const _origShowTeam = showTeam;
+async function showTeam(id) {
+  window._pendingTeamId = id;
+  await _origShowTeam(id);
+  // Set URL after team name is loaded
+  const name = window._currentTeamName || id;
+  setHash('club/' + slugify(name));
+}
+
+const _origShowPlayer = showPlayer;
+async function showPlayer(id) {
+  window._pendingPlayerId = id;
+  await _origShowPlayer(id);
+  const name = window._currentPlayerData?.player?.name || id;
+  setHash('player/' + slugify(name));
+}
+
+const _origShowLeague = showLeague;
+async function showLeague(id, name, flag) {
+  setHash('league/' + slugify(name));
+  await _origShowLeague(id, name, flag);
+}
+
+const _origShowMatch = showMatch;
+async function showMatch(id) {
+  setHash('match/' + id);
+  await _origShowMatch(id);
+}
+
+// Handle back/forward browser buttons
+window.addEventListener('popstate', () => {
+  const hash = location.hash.replace('#/', '');
+  if (!hash || hash === '/') { showPage('home'); }
+});
 
 function goBack() {
   if (_navHistory.length === 0) {
@@ -4979,6 +5124,31 @@ if (isIOS && !isStandalone) {
     const span = banner.querySelector('.install-banner-text span');
     if (span) span.textContent = 'Tap Share → "Add to Home Screen"';
   }
+}
+
+// ═══════════════════════════════════════════
+// SOCIAL SHARE
+// ═══════════════════════════════════════════
+
+function shareTwitter(title) {
+  const url = encodeURIComponent(location.href);
+  const tx = encodeURIComponent('Check out ' + title + ' on TransferZoneAI!');
+  window.open('https://twitter.com/intent/tweet?text=' + tx + '&url=' + url, '_blank');
+}
+function shareFacebook() {
+  window.open('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(location.href), '_blank');
+}
+function shareCopy() {
+  navigator.clipboard.writeText(location.href).then(function(){ showToast('Link copied!'); });
+}
+function renderShareBar(title) {
+  const t = (title||'').replace(/'/g, '');
+  return '<div class="share-bar">' +
+    '<span style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Share:</span>' +
+    '<button class="share-btn twitter" onclick="shareTwitter(\'' + t + '\')">&#120143; Tweet</button>' +
+    '<button class="share-btn facebook" onclick="shareFacebook()">Facebook</button>' +
+    '<button class="share-btn" onclick="shareCopy()">&#128279; Copy Link</button>' +
+    '</div>';
 }
 
 // ═══════════════════════════════════════════
@@ -5311,6 +5481,11 @@ document.getElementById('globalSearch').addEventListener('keydown', e => {
 document.addEventListener('click', e => {
   if (!e.target.closest('.header-search')) closeSearch();
 });
+
+// ═══════════════════════════════════════════
+// SOCIAL SHARE
+// ═══════════════════════════════════════════
+
 
 // ═══════════════════════════════════════════
 // BOOT
