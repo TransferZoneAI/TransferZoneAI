@@ -3305,22 +3305,41 @@ async function showPlayer(id) {
     const currentTeamId = latestTransfer?.teams?.in?.id || s?.team?.id || 0;
     window._currentPlayerTransfers = allTransfers;
 
+    // Hämta tillgängliga säsonger för spelaren
+    const seasonsData = await apiFetch('players/seasons', { player: id }).catch(() => ({ response: [] }));
+    const availableSeasons = (seasonsData.response || []).slice().reverse(); // nyaste först
+    const currentSeason = window._playerYear || availableSeasons[0] || new Date().getFullYear() - 1;
+
+    // Bygg dropdown
+    const seasonDropdown = availableSeasons.length > 1 ? `
+      <select id="playerSeasonSelect" onchange="changePlayerSeason(${id}, this.value)"
+        style="background:var(--surface);border:1px solid var(--border2);border-radius:8px;
+               padding:5px 10px;color:var(--text);font-family:'Barlow Condensed',sans-serif;
+               font-size:14px;font-weight:700;cursor:pointer">
+        ${availableSeasons.map(y => `<option value="${y}" ${y === currentSeason ? 'selected' : ''}>${y}/${String(y+1).slice(2)}</option>`).join('')}
+      </select>` : '';
+
     document.getElementById('playerHero').innerHTML = `
       <div class="player-hero-inner">
         <div class="player-avatar-large">
           ${p.photo ? `<img src="${p.photo}" style="width:90px;height:90px;border-radius:14px;object-fit:cover">` : '⚽'}
         </div>
-        <div class="player-meta">
-          <div style="font-size:12px;color:var(--text3);margin-bottom:4px">
-            <a href="#" onclick="showTeam(${currentTeamId})" style="color:var(--gold);text-decoration:none">${fixName(currentTeam)}</a>
-            · ${p.nationality||''}
-          </div>
-          <h1>${fixEncoding(p.name)}</h1>
-          <div class="player-tags">
-            ${s?.games?.position ? `<div class="player-tag pos-tag">${s.games.position}</div>` : ''}
-            ${p.age ? `<div class="player-tag">🎂 ${p.age}</div>` : ''}
-            ${p.height ? `<div class="player-tag">📏 ${p.height}</div>` : ''}
-            ${p.weight ? `<div class="player-tag">⚖️ ${p.weight}</div>` : ''}
+        <div class="player-meta" style="flex:1">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+            <div>
+              <div style="font-size:12px;color:var(--text3);margin-bottom:4px">
+                <a href="#" onclick="showTeam(${currentTeamId})" style="color:var(--gold);text-decoration:none">${fixName(currentTeam)}</a>
+                · ${p.nationality||''}
+              </div>
+              <h1>${fixEncoding(p.name)}</h1>
+              <div class="player-tags">
+                ${s?.games?.position ? `<div class="player-tag pos-tag">${s.games.position}</div>` : ''}
+                ${p.age ? `<div class="player-tag">🎂 ${p.age}</div>` : ''}
+                ${p.height ? `<div class="player-tag">📏 ${p.height}</div>` : ''}
+                ${p.weight ? `<div class="player-tag">⚖️ ${p.weight}</div>` : ''}
+              </div>
+            </div>
+            ${seasonDropdown}
           </div>
         </div>
       </div>`;
@@ -3332,6 +3351,17 @@ async function showPlayer(id) {
   }
 }
 
+async function changePlayerSeason(playerId, year) {
+  window._playerYear = parseInt(year);
+  window._playerStatFilter = 'all'; // reset filter
+  const data = await apiFetch('players', { id: playerId, season: year });
+  const playerObj = data.response?.[0];
+  if (playerObj) {
+    window._currentPlayerData = playerObj;
+    showPlayerTab('overview', null, playerObj);
+  }
+}
+
 async function showPlayerTab(tab, btn, playerData) {
   const currentYear = new Date().getFullYear();
   playerData = playerData || window._currentPlayerData;
@@ -3340,24 +3370,88 @@ async function showPlayerTab(tab, btn, playerData) {
   const c = document.getElementById('playerContent');
   if (!playerData) return;
 
-  const s = playerData.statistics?.[0];
+  const allStats = playerData.statistics || [];
+  const s = allStats[0]; // för rating och säsong-referens
 
   if (tab === 'overview') {
-    // Visa senaste säsongen med faktisk data
-    const seasonYear = s?.league?.season ?? playerData.statistics?.[0]?.league?.season ?? currentYear - 1;
-    const seasonLabel = `${seasonYear}/${String(seasonYear+1).slice(2)}`;
-    c.innerHTML = `
-      <div style="margin-top:20px">
-        <div class="section-title" style="margin-bottom:12px">Season <span>${seasonLabel}</span></div>
-        <div class="stats-grid">
-          <div class="stat-box"><div class="stat-box-val">${s?.games?.appearences||0}</div><div class="stat-box-lbl">Appearances</div></div>
-          <div class="stat-box"><div class="stat-box-val">${s?.goals?.total||0}</div><div class="stat-box-lbl">Goals</div></div>
-          <div class="stat-box"><div class="stat-box-val">${s?.goals?.assists||0}</div><div class="stat-box-lbl">Assists</div></div>
-          <div class="stat-box"><div class="stat-box-val">${s?.shots?.on||0}</div><div class="stat-box-lbl">Shots on Target</div></div>
-          <div class="stat-box"><div class="stat-box-val">${s?.passes?.key||0}</div><div class="stat-box-lbl">Key Passes</div></div>
-          <div class="stat-box"><div class="stat-box-val">${s?.games?.rating ? parseFloat(s.games.rating).toFixed(1) : '—'}</div><div class="stat-box-lbl">Avg Rating</div></div>
-        </div>
-      </div>`;
+    const seasonYear = s?.league?.season ?? currentYear - 1;
+    const summerCountries = ['Sweden','Norway','Denmark','Finland','USA','Australia'];
+    const isSummer = summerCountries.some(co => (s?.league?.country||'').includes(co));
+    const seasonLabel = isSummer ? String(seasonYear) : seasonYear + '/' + String(seasonYear+1).slice(2);
+
+    // Kategorisera tävlingar
+    const leagueStats = allStats.filter(st => !/(cup|coupe|copa|coppa|pokal|trophy|friendly|friendlies|nations|u\d{2})/i.test(st.league?.name||''));
+    const cupStats    = allStats.filter(st => /(cup|coupe|copa|coppa|pokal|trophy)/i.test(st.league?.name||''));
+    const intlStats   = allStats.filter(st => /(national|u\d{2}|friendly|friendlies|nations league)/i.test(st.league?.name||''));
+
+    const compFilters = [{ key:'all', label:'All', stats: allStats }];
+    if (leagueStats.length && leagueStats.length < allStats.length) compFilters.push({ key:'league', label:'League', stats: leagueStats });
+    if (cupStats.length)  compFilters.push({ key:'cup',  label:'Cup',           stats: cupStats });
+    if (intlStats.length) compFilters.push({ key:'intl', label:'National Team', stats: intlStats });
+
+    const activeFilter = window._playerStatFilter || 'all';
+    const activeStats  = compFilters.find(f => f.key === activeFilter)?.stats || allStats;
+
+    const sum = (fn) => activeStats.reduce((acc, st) => acc + (fn(st) || 0), 0);
+    const totalApps    = sum(st => st.games?.appearences);
+    const totalGoals   = sum(st => st.goals?.total);
+    const totalAssists = sum(st => st.goals?.assists);
+    const totalShots   = sum(st => st.shots?.on);
+    const totalKeyPass = sum(st => st.passes?.key);
+    const totalYellow  = sum(st => st.cards?.yellow);
+    const totalRed     = sum(st => st.cards?.red);
+    const totalTackles = sum(st => st.tackles?.total);
+    const totalDribbles= sum(st => st.dribbles?.success);
+
+    const ratingEntries = activeStats.filter(st => st.games?.rating);
+    const avgRating = ratingEntries.length
+      ? (ratingEntries.reduce((acc, st) => acc + parseFloat(st.games.rating) * (st.games.appearences||1), 0) /
+         ratingEntries.reduce((acc, st) => acc + (st.games.appearences||1), 0)).toFixed(2)
+      : '—';
+
+    const filterBtns = compFilters.length > 1 ? compFilters.map(f => {
+      const active = activeFilter === f.key ? ' active' : '';
+      return '<button class="filter-btn' + active + '" data-filter="' + f.key + '" onclick="window._playerStatFilter=this.dataset.filter;showPlayerTab(String.fromCharCode(111,118,101,114,118,105,101,119),null)">' + f.label + '</button>';
+    }).join('') : '';
+
+    const competitionRows = activeStats.map(st =>
+      '<tr>' +
+        '<td><div style="display:flex;align-items:center;gap:6px">' +
+          (st.league?.logo ? '<img src="' + st.league.logo + '" style="width:16px;height:16px;object-fit:contain">' : '') +
+          (st.league?.name||'—') +
+        '</div></td>' +
+        '<td>' + fixName(st.team?.name||'—') + '</td>' +
+        '<td>' + (st.games?.appearences||0) + '</td>' +
+        '<td>' + (st.goals?.total||0) + '</td>' +
+        '<td>' + (st.goals?.assists||0) + '</td>' +
+      '</tr>'
+    ).join('');
+
+    c.innerHTML =
+      '<div style="margin-top:20px">' +
+        (filterBtns ? '<div class="toplist-filters" style="margin-bottom:16px">' + filterBtns + '</div>' : '') +
+        '<div class="section-title" style="margin-bottom:12px">Season <span>' + seasonLabel + '</span></div>' +
+        '<div class="stats-grid">' +
+          '<div class="stat-box"><div class="stat-box-val">' + totalApps + '</div><div class="stat-box-lbl">Appearances</div></div>' +
+          '<div class="stat-box"><div class="stat-box-val">' + totalGoals + '</div><div class="stat-box-lbl">Goals</div></div>' +
+          '<div class="stat-box"><div class="stat-box-val">' + totalAssists + '</div><div class="stat-box-lbl">Assists</div></div>' +
+          '<div class="stat-box"><div class="stat-box-val">' + totalShots + '</div><div class="stat-box-lbl">Shots on Target</div></div>' +
+          '<div class="stat-box"><div class="stat-box-val">' + totalKeyPass + '</div><div class="stat-box-lbl">Key Passes</div></div>' +
+          '<div class="stat-box"><div class="stat-box-val">' + avgRating + '</div><div class="stat-box-lbl">Avg Rating</div></div>' +
+          '<div class="stat-box"><div class="stat-box-val">' + totalTackles + '</div><div class="stat-box-lbl">Tackles</div></div>' +
+          '<div class="stat-box"><div class="stat-box-val">' + totalDribbles + '</div><div class="stat-box-lbl">Dribbles</div></div>' +
+          '<div class="stat-box"><div class="stat-box-val" style="color:#f0c040">' + totalYellow + '</div><div class="stat-box-lbl">Yellow Cards</div></div>' +
+          '<div class="stat-box"><div class="stat-box-val" style="color:var(--red)">' + totalRed + '</div><div class="stat-box-lbl">Red Cards</div></div>' +
+        '</div>' +
+        (activeStats.length > 1 ?
+          '<div style="margin-top:20px">' +
+            '<div class="section-title" style="margin-bottom:10px;font-size:15px">By Competition</div>' +
+            '<div class="table-wrap"><table class="career-table">' +
+              '<thead><tr><th>Competition</th><th>Club</th><th>Apps</th><th>Goals</th><th>Assists</th></tr></thead>' +
+              '<tbody>' + competitionRows + '</tbody>' +
+            '</table></div>' +
+          '</div>' : '') +
+      '</div>';
   }
 
   if (tab === 'transfers') {
