@@ -70,8 +70,9 @@ export default async function handler(req) {
     allResponses = allResponses.concat(results);
   }
 
+  // Cutoff: senaste 2 åren
   const cutoff = new Date(today);
-  cutoff.setMonth(today.getMonth() - 6); // senaste 6 månaderna
+  cutoff.setFullYear(today.getFullYear() - 2);
 
   const all = allResponses
     .flatMap(r => r.response || [])
@@ -88,7 +89,17 @@ export default async function handler(req) {
         date:     tr.date ?? '',
       }))
     )
-    .filter(t => t.date && t.player && new Date(t.date) >= cutoff)
+    .filter(t => {
+      if (!t.date || !t.player) return false;
+      // Validera datumformat YYYY-MM-DD
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(t.date)) return false;
+      const d = new Date(t.date);
+      if (isNaN(d.getTime())) return false;
+      // Rimlighetskoll: inte i framtiden, inte äldre än 2 år
+      if (d > today) return false;
+      if (d < cutoff) return false;
+      return true;
+    })
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 
   const seen = new Set();
