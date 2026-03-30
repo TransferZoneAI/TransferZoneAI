@@ -10,10 +10,6 @@
     {
       "path": "/api/notify-transfers",
       "schedule": "30 3 * * *"
-    },
-    {
-      "path": "/api/notify-prematch",
-      "schedule": "0 * * * *"
     }
   ]
 }
