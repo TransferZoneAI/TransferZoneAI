@@ -2584,6 +2584,7 @@ async function apiFetch(endpoint, params = {}) {
 // Flaggor via flagcdn.com (ISO 3166-1 alpha-2 landskoder)
 function flagImg(code, size=24) {
   if (!code) return '<span style="font-size:20px">🌍</span>';
+  return '<img src="https://flagcdn.com/' + size + 'x' + Math.round(size*0.75) + '/' + code.toLowerCase() + '.png" style="width:' + size + 'px;border-radius:2px;vertical-align:middle" onerror="this.style.display=\'none\'">';
 }
 
 const LEAGUES = [
