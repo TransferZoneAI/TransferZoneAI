@@ -6,96 +6,72 @@ async function fetchJSON(url, key) {
   return JSON.parse(new TextDecoder('utf-8').decode(buf));
 }
 
-// Map country -> continent
-const CONTINENT = {
-  europe: [
-    'England','Spain','Germany','Italy','France','Portugal','Netherlands','Belgium',
-    'Turkey','Russia','Greece','Switzerland','Austria','Poland','Czech Republic',
-    'Croatia','Serbia','Ukraine','Sweden','Norway','Denmark','Finland','Scotland',
-    'Romania','Hungary','Slovakia','Slovenia','Bulgaria','Bosnia','Albania',
-    'North Macedonia','Montenegro','Belarus','Azerbaijan','Armenia','Georgia',
-    'Kazakhstan','Cyprus','Malta','Luxembourg','Iceland','Ireland','Wales',
-    'Lithuania','Latvia','Estonia','Moldova','Kosovo','Andorra','Liechtenstein',
-    'San Marino','Gibraltar','Faroe Islands',
-  ],
-  asia: [
-    'Saudi Arabia','Japan','South Korea','China','India','Iran','Qatar','UAE',
-    'Thailand','Vietnam','Malaysia','Indonesia','Philippines','Singapore',
-    'Australia','New Zealand','Uzbekistan','Tajikistan','Kyrgyzstan',
-    'Afghanistan','Pakistan','Bangladesh','Sri Lanka','Nepal','Maldives',
-    'Myanmar','Cambodia','Laos','Brunei','East Timor','Mongolia',
-    'North Korea','Taiwan','Hong Kong','Macau','Palestine','Jordan',
-    'Lebanon','Syria','Iraq','Yemen','Oman','Bahrain','Kuwait','Israel',
-  ],
-  africa: [
-    'Egypt','South Africa','Morocco','Nigeria','Tunisia','Algeria','Ghana',
-    'Cameroon','Senegal','Ivory Coast','Kenya','Ethiopia','Tanzania','Uganda',
-    'Rwanda','Zimbabwe','Zambia','Mozambique','Angola','Congo','DR Congo',
-    'Sudan','Libya','Mali','Burkina Faso','Niger','Benin','Togo','Guinea',
-    'Sierra Leone','Liberia','Gambia','Mauritania','Cape Verde','Comoros',
-    'Madagascar','Mauritius','Reunion','Djibouti','Somalia','Eritrea',
-    'Botswana','Namibia','Lesotho','Swaziland','Malawi',
-  ],
-  south_america: [
-    'Brazil','Argentina','Colombia','Chile','Ecuador','Uruguay','Peru',
-    'Bolivia','Paraguay','Venezuela','Guyana','Suriname','French Guiana',
-  ],
-  north_america: [
-    'United States','Mexico','Canada','Costa Rica','Panama','Honduras',
-    'Guatemala','El Salvador','Nicaragua','Jamaica','Cuba','Haiti',
-    'Dominican Republic','Trinidad and Tobago','Barbados','Grenada',
-    'Saint Lucia','Antigua and Barbuda','Belize',
-  ],
+// Handplockade ligor som faktiskt har transfer-data — bred täckning
+const EUROPE_LEAGUES = [
+  39, 40, 41,       // England: PL, Championship, League One
+  140, 141,         // Spanien: La Liga, Segunda
+  78, 79,           // Tyskland: Bundesliga, 2. Bundesliga
+  135, 136,         // Italien: Serie A, Serie B
+  61, 62,           // Frankrike: Ligue 1, Ligue 2
+  94, 95,           // Portugal: Primeira Liga, Segunda
+  88, 89,           // Belgien: Pro League
+  144, 145,         // Nederländerna: Eredivisie, Eerste Div
+  113, 114,         // Sverige: Allsvenskan, Superettan
+  103, 104,         // Norge: Eliteserien, 1. div
+  119, 120,         // Danmark: Superligaen
+  203, 204,         // Turkiet: Süper Lig
+  235,              // Ryssland: Premier League
+  179,              // Skottland: Premiership
+  197,              // Grekland: Super League
+  207,              // Schweiz: Super League
+  218,              // Österrike: Bundesliga
+  333,              // Polen: Ekstraklasa
+  345,              // Tjeckien: Czech Liga
+  357,              // Kroatien: HNL
+  291,              // Serbien: Super liga
+  244,              // Ukraina: Premier League
+  106,              // Finland: Veikkausliiga
+  271,              // Rumänien: Liga 1
+  169,              // Ungern: NB I
+];
+
+const ROTATING_REGIONS = {
+  asia: [98, 292, 169, 17, 323, 307],           // J-League, K-League, Saudi, China, India, Qatar
+  africa: [233, 288, 200, 263, 265, 299],        // Egypt, S.Africa, Morocco, Nigeria, Tunisia, Algeria
+  south_america: [71, 72, 128, 239, 240, 242],   // Brazil, Arg, Colombia, Chile, Ecuador
+  north_america: [253, 262, 321],                // MLS, Liga MX, Canada
 };
 
-const REGION_ORDER = ['europe','asia','africa','south_america','north_america'];
+const REGION_NAMES = Object.keys(ROTATING_REGIONS);
 
 export default async function handler(req) {
   const key = process.env.APISPORTS_KEY;
   if (!key) return new Response(JSON.stringify({ error: 'No API key' }), { status: 500 });
 
   const today = new Date();
-  const season = today.getFullYear() - (today.getMonth() < 6 ? 1 : 0);
+  const dayIndex = today.getDate() % REGION_NAMES.length;
+  const rotatingRegion = REGION_NAMES[dayIndex];
+  const rotatingLeagues = ROTATING_REGIONS[rotatingRegion];
 
-  // Hämta ALLA aktiva ligor från API:et
-  const leaguesData = await fetchJSON(
-    `https://v3.football.api-sports.io/leagues?current=true&season=${season}`,
-    key
-  ).catch(() => ({ response: [] }));
+  const allLeagues = [...new Set([...EUROPE_LEAGUES, ...rotatingLeagues])];
 
-  const allLeagues = leaguesData.response || [];
+  // Hämta utan säsongsfilter — API returnerar senaste data automatiskt
+  // Fungerar oavsett säsong, behöver aldrig uppdateras
+  const fetchLeague = (lid) =>
+    fetchJSON(`https://v3.football.api-sports.io/transfers?league=${lid}`, key)
+      .catch(() => ({ response: [] }));
 
-  // Gruppera per kontinent baserat på landsnamn
-  const byContinent = {};
-  for (const [cont, countries] of Object.entries(CONTINENT)) {
-    byContinent[cont] = allLeagues
-      .filter(l => countries.includes(l.country?.name))
-      .map(l => l.league.id);
-  }
-
-  // Europa alltid + roterande kontinent
-  const dayIndex = today.getDate() % (REGION_ORDER.length - 1); // 0-3
-  const rotatingRegion = REGION_ORDER[dayIndex + 1]; // asia, africa, south_america, north_america
-
-  const europeIds = byContinent['europe'] || [];
-  const rotatingIds = byContinent[rotatingRegion] || [];
-  const leagueIds = [...new Set([...europeIds, ...rotatingIds])];
-
-  console.log(`Fetching ${leagueIds.length} leagues (Europe: ${europeIds.length} + ${rotatingRegion}: ${rotatingIds.length})`);
-
-  // Hämta transfers i batchar om 10
-  const batchSize = 10;
+  const batchSize = 15;
   let allResponses = [];
-  for (let i = 0; i < leagueIds.length; i += batchSize) {
-    const batch = leagueIds.slice(i, i + batchSize);
-    const results = await Promise.all(
-      batch.map(lid =>
-        fetchJSON(`https://v3.football.api-sports.io/transfers?league=${lid}&season=${season}`, key)
-          .catch(() => ({ response: [] }))
-      )
-    );
+
+  for (let i = 0; i < allLeagues.length; i += batchSize) {
+    const batch = allLeagues.slice(i, i + batchSize);
+    const results = await Promise.all(batch.map(lid => fetchLeague(lid)));
     allResponses = allResponses.concat(results);
   }
+
+  const cutoff = new Date(today);
+  cutoff.setMonth(today.getMonth() - 6); // senaste 6 månaderna
 
   const all = allResponses
     .flatMap(r => r.response || [])
@@ -112,7 +88,7 @@ export default async function handler(req) {
         date:     tr.date ?? '',
       }))
     )
-    .filter(t => t.date && t.player)
+    .filter(t => t.date && t.player && new Date(t.date) >= cutoff)
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 
   const seen = new Set();
@@ -126,13 +102,7 @@ export default async function handler(req) {
   return new Response(JSON.stringify({
     response: unique,
     results: unique.length,
-    meta: {
-      europe: europeIds.length,
-      rotating: rotatingRegion,
-      rotatingCount: rotatingIds.length,
-      total: leagueIds.length,
-      season
-    }
+    meta: { region: rotatingRegion, leagues: allLeagues.length }
   }), {
     status: 200,
     headers: {
