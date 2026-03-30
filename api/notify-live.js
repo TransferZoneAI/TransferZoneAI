@@ -1,7 +1,7 @@
 // api/notify-live.js
 // Körs var 60:e sekund via cron-job.org
 // Pollar live-matcher och skickar notiser för:
-// - Kampstart, Mål, Röda kort, Halvtid, Fulltime
+// Kampstart, Mål, Röda kort, Halvtid, Fulltime
 
 export const config = { runtime: 'edge' };
 
@@ -11,31 +11,42 @@ const APISPORTS_KEY     = process.env.APISPORTS_KEY;
 const KV_URL            = process.env.KV_REST_API_URL;
 const KV_TOKEN          = process.env.KV_REST_API_TOKEN;
 
-// ── KV-store för att hålla koll på vad vi redan notifierat ──
-async function kvGet(key) {
-  if (!KV_URL || !KV_TOKEN) return null;
-  const res = await fetch(`${KV_URL}/get/${key}`, {
-    headers: { Authorization: `Bearer ${KV_TOKEN}` }
-  });
-  const data = await res.json();
-  return data.result || null;
-}
-
-async function kvSet(key, value, exSeconds = 86400) {
-  if (!KV_URL || !KV_TOKEN) return;
-  await fetch(`${KV_URL}/set/${key}/${encodeURIComponent(value)}?ex=${exSeconds}`, {
-    headers: { Authorization: `Bearer ${KV_TOKEN}` }
-  });
-}
-
 async function fetchJSON(url, key) {
   const res = await fetch(url, { headers: { 'x-apisports-key': key } });
   const buf = await res.arrayBuffer();
   return JSON.parse(new TextDecoder('utf-8').decode(buf));
 }
 
-async function sendPush({ filters, title, message, url }) {
-  if (!ONESIGNAL_APP_ID || !ONESIGNAL_API_KEY) return;
+async function kvGet(key) {
+  const res = await fetch(`${KV_URL}/pipeline`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify([['GET', key]]),
+  });
+  const data = await res.json();
+  return data[0]?.result || null;
+}
+
+async function kvSet(key, value, exSeconds = 86400) {
+  await fetch(`${KV_URL}/pipeline`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify([['SET', key, value, 'EX', exSeconds]]),
+  });
+}
+
+async function getSubscribersForTeam(teamId) {
+  const res = await fetch(`${KV_URL}/pipeline`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify([['SMEMBERS', `team:${teamId}:subscribers`]]),
+  });
+  const data = await res.json();
+  return data[0]?.result || [];
+}
+
+async function sendPushToSubscribers(subscriberIds, title, message, url) {
+  if (!subscriberIds.length) return;
   await fetch('https://onesignal.com/api/v1/notifications', {
     method: 'POST',
     headers: {
@@ -44,7 +55,7 @@ async function sendPush({ filters, title, message, url }) {
     },
     body: JSON.stringify({
       app_id: ONESIGNAL_APP_ID,
-      filters,
+      include_subscription_ids: subscriberIds,
       headings: { en: title },
       contents: { en: message },
       url,
@@ -53,24 +64,23 @@ async function sendPush({ filters, title, message, url }) {
   });
 }
 
-async function notifyBothTeams(homeId, awayId, fixtureId, title, message) {
-  const url = `https://transferzoneai.com/#/match/${fixtureId}`;
-  const teams = [homeId, awayId].filter(Boolean);
-  for (const teamId of teams) {
-    await sendPush({
-      filters: [{ field: 'tag', key: `team_${teamId}`, relation: '=', value: 'true' }],
-      title, message, url,
-    });
+async function notifyTeams(homeId, awayId, fixtureId, title, message) {
+  const [homeSubs, awaySubs] = await Promise.all([
+    getSubscribersForTeam(homeId),
+    getSubscribersForTeam(awayId),
+  ]);
+  const allSubs = [...new Set([...homeSubs, ...awaySubs])];
+  if (allSubs.length) {
+    await sendPushToSubscribers(
+      allSubs, title, message,
+      `https://transferzoneai.com/#/match/${fixtureId}`
+    );
   }
+  return allSubs.length;
 }
 
 export default async function handler(req) {
-  // Hämta alla live-matcher
-  const data = await fetchJSON(
-    'https://v3.football.api-sports.io/fixtures?live=all',
-    APISPORTS_KEY
-  );
-
+  const data     = await fetchJSON('https://v3.football.api-sports.io/fixtures?live=all', APISPORTS_KEY);
   const fixtures = data.response || [];
   const notifications = [];
 
@@ -88,93 +98,83 @@ export default async function handler(req) {
 
     if (!fixtureId) continue;
 
-    // ── KAMPSTART (1H börjar, elapsed 1-3) ──
+    // ── KAMPSTART ──
     if (status === '1H' && elapsed <= 3) {
-      const startKey = `notif_start_${fixtureId}`;
-      const alreadySent = await kvGet(startKey);
-      if (!alreadySent) {
-        await notifyBothTeams(homeId, awayId, fixtureId,
+      const key = `notif_start_${fixtureId}`;
+      if (!await kvGet(key)) {
+        await notifyTeams(homeId, awayId, fixtureId,
           `🟢 KICK OFF — ${home} vs ${away}`,
           `${league} has started! Follow live on TransferZoneAI`
         );
-        await kvSet(startKey, '1', 86400);
+        await kvSet(key, '1', 86400);
         notifications.push({ type: 'kickoff', home, away });
       }
     }
 
     // ── HALVTID ──
     if (status === 'HT') {
-      const htKey = `notif_ht_${fixtureId}`;
-      const alreadySent = await kvGet(htKey);
-      if (!alreadySent) {
-        await notifyBothTeams(homeId, awayId, fixtureId,
+      const key = `notif_ht_${fixtureId}`;
+      if (!await kvGet(key)) {
+        await notifyTeams(homeId, awayId, fixtureId,
           `⏸ HALF TIME — ${home} ${scoreH}–${scoreA} ${away}`,
           `${league} — Half time score`
         );
-        await kvSet(htKey, '1', 86400);
+        await kvSet(key, '1', 86400);
         notifications.push({ type: 'halftime', home, away, scoreH, scoreA });
       }
     }
 
     // ── FULLTIME ──
     if (['FT','AET','PEN'].includes(status)) {
-      const ftKey = `notif_ft_${fixtureId}`;
-      const alreadySent = await kvGet(ftKey);
-      if (!alreadySent) {
-        const resultLabel = scoreH > scoreA
-          ? `${home} win!` : scoreA > scoreH
-          ? `${away} win!` : 'Draw!';
-        await notifyBothTeams(homeId, awayId, fixtureId,
+      const key = `notif_ft_${fixtureId}`;
+      if (!await kvGet(key)) {
+        const resultLabel = scoreH > scoreA ? `${home} win!`
+          : scoreA > scoreH ? `${away} win!` : 'Draw!';
+        await notifyTeams(homeId, awayId, fixtureId,
           `🏁 FULL TIME — ${home} ${scoreH}–${scoreA} ${away}`,
           `${resultLabel} — ${league}`
         );
-        await kvSet(ftKey, '1', 86400);
+        await kvSet(key, '1', 86400);
         notifications.push({ type: 'fulltime', home, away, scoreH, scoreA });
       }
     }
 
-    // ── MÅL & RÖDA KORT — kolla events ──
+    // ── MÅL & RÖDA KORT ──
     if (['1H','2H','ET'].includes(status)) {
       const eventsData = await fetchJSON(
         `https://v3.football.api-sports.io/fixtures/events?fixture=${fixtureId}`,
         APISPORTS_KEY
       ).catch(() => ({ response: [] }));
 
-      const events = eventsData.response || [];
+      for (const e of eventsData.response || []) {
+        const eventKey   = `notif_event_${fixtureId}_${e.time?.elapsed}_${e.type}_${e.player?.id}`;
+        if (await kvGet(eventKey)) continue;
 
-      for (const e of events) {
-        const eventId  = `${fixtureId}_${e.time?.elapsed}_${e.type}_${e.player?.id}`;
-        const notifKey = `notif_event_${eventId}`;
-        const alreadySent = await kvGet(notifKey);
-        if (alreadySent) continue;
-
-        const isHomeTeam = e.team?.id === homeId;
-        const scorerTeam = isHomeTeam ? home : away;
+        const isHome     = e.team?.id === homeId;
+        const scorerTeam = isHome ? home : away;
         const playerName = e.player?.name || 'Unknown';
         const minute     = e.time?.elapsed || 0;
 
         // MÅL
         if (e.type === 'Goal' && e.detail !== 'Missed Penalty') {
-          const newScoreH = isHomeTeam ? scoreH : scoreH;
           const isOwnGoal = e.detail === 'Own Goal';
           const isPenalty = e.detail === 'Penalty';
-          const goalEmoji = isOwnGoal ? '🔴' : isPenalty ? '⚽🎯' : '⚽';
-
-          await notifyBothTeams(homeId, awayId, fixtureId,
-            `${goalEmoji} GOAL! ${home} ${scoreH}–${scoreA} ${away}`,
+          const emoji     = isOwnGoal ? '🔴' : isPenalty ? '⚽🎯' : '⚽';
+          await notifyTeams(homeId, awayId, fixtureId,
+            `${emoji} GOAL! ${home} ${scoreH}–${scoreA} ${away}`,
             `${minute}' ${playerName} scores for ${scorerTeam}${isOwnGoal ? ' (OG)' : ''} — ${league}`
           );
-          await kvSet(notifKey, '1', 86400);
+          await kvSet(eventKey, '1', 86400);
           notifications.push({ type: 'goal', playerName, scorerTeam, minute });
         }
 
         // RÖTT KORT
         if (e.type === 'Card' && e.detail === 'Red Card') {
-          await notifyBothTeams(homeId, awayId, fixtureId,
+          await notifyTeams(homeId, awayId, fixtureId,
             `🔴 RED CARD — ${home} vs ${away}`,
             `${minute}' ${playerName} (${scorerTeam}) receives a red card — ${league}`
           );
-          await kvSet(notifKey, '1', 86400);
+          await kvSet(eventKey, '1', 86400);
           notifications.push({ type: 'redcard', playerName, scorerTeam, minute });
         }
       }
