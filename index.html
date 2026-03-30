@@ -3738,23 +3738,25 @@ function filterTeamTransfers(type, btn, teamId) {
 }
 
 function formatFee(raw) {
-  if (!raw || raw === '—') return '—';
-  const l = raw.toLowerCase();
-  if (l === 'free' || l === 'free agent') return 'Free';
+  if (!raw || raw === '—' || raw === 'N/A' || raw === 'n/a') return '—';
+  const l = (raw || '').toLowerCase().trim();
+  if (l === 'free' || l === 'free agent' || l === 'free transfer') return 'Free';
   if (l.includes('loan')) return 'Loan';
-  // Konvertera "7400000" eller "7.4M" till "€7.4M"
-  const num = parseFloat(raw.replace(/[^0-9.]/g, ''));
+  // Ignorera generiska typetiketter utan belopp
+  if (l === 'transfer' || l === 'permanent' || l === 'swap') return '—';
+  // Konvertera nummer till €-format
+  const num = parseFloat(String(raw).replace(/[^0-9.]/g, ''));
   if (!isNaN(num) && num > 0) {
-    if (num >= 1000000) return `€${(num/1000000).toFixed(1)}M`;
-    if (num >= 1000)    return `€${(num/1000).toFixed(0)}K`;
-    return `€${num}`;
+    if (num >= 1000000) return '€' + (num/1000000).toFixed(1) + 'M';
+    if (num >= 1000)    return '€' + (num/1000).toFixed(0) + 'K';
+    return '€' + num;
   }
-  // Redan formaterat t.ex "7.4M €" → "€7.4M"
-  const match = raw.match(/([\d.]+)\s*M/i);
-  if (match) return `€${match[1]}M`;
-  const matchK = raw.match(/([\d.]+)\s*K/i);
-  if (matchK) return `€${matchK[1]}K`;
-  return raw;
+  // Redan formaterat t.ex "7.4M €" eller "€7.4M"
+  const match = String(raw).match(/([\d.]+)\s*M/i);
+  if (match) return '€' + match[1] + 'M';
+  const matchK = String(raw).match(/([\d.]+)\s*K/i);
+  if (matchK) return '€' + matchK[1] + 'K';
+  return '—';
 }
 
 async function initHome() {
@@ -3926,23 +3928,32 @@ async function initHome() {
 
 // Statisk fallback för transfers om API misslyckas
 function renderTransfersFallback() {
-  document.getElementById('recentTransfers').innerHTML = [
-    { player:'Kylian Mbappé',  from:'PSG',       to:'Real Madrid', fee:'Free',  type:'free', flag:'🇫🇷' },
-    { player:'Nico Williams',  from:'Ath. Bilbao',to:'Chelsea',     fee:'€62M',  type:'paid', flag:'🇪🇸' },
-    { player:'Sandro Tonali',  from:'Newcastle',  to:'AC Milan',    fee:'€68M',  type:'paid', flag:'🇮🇹' },
-    { player:'Bryan Mbeumo',   from:'Brentford',  to:'Man Utd',     fee:'£62M',  type:'paid', flag:'🇨🇲' },
-    { player:'Xavi Simons',    from:'PSG',        to:'RB Leipzig',  fee:'Loan',  type:'loan', flag:'🇳🇱' },
-  ].map(t => `
-    <div class="transfer-card" onclick="showPage('transfers')">
-      <div class="transfer-player-img">${t.flag}</div>
-      <div class="transfer-info">
-        <div class="transfer-player-name">${fixEncoding(t.player)}</div>
-        <div class="transfer-clubs">
-          <span>${fixName(t.from)}</span><span class="transfer-arrow">→</span><span>${fixName(t.to)}</span>
-        </div>
-      </div>
-      <div class="transfer-fee ${t.type==='loan'?'loan':t.type==='free'?'free':''}">${t.fee}</div>
-    </div>`).join('');
+  document.getElementById('recentTransfers').innerHTML =
+    '<div style="padding:20px;color:var(--text3);text-align:center;font-size:13px">Loading latest transfers...</div>';
+  fetch('/api/transfers-daily')
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      const rows = data.response || [];
+      if (!rows.length) return;
+      document.getElementById('recentTransfers').innerHTML = rows.slice(0,8).map(function(t) {
+        const feeType = (t.type||'').toLowerCase().includes('loan')?'loan':(t.type||'').toLowerCase()==='free'?'free':'paid';
+        const fee = formatFee(t.type);
+        return '<div class="transfer-card" onclick="showPlayer('+t.playerId+')" style="cursor:pointer">' +
+          '<div class="transfer-player-img">' + (t.photo?'<img src="'+t.photo+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover">':'⚽') + '</div>' +
+          '<div class="transfer-info">' +
+            '<div class="transfer-player-name">'+fixEncoding(t.player)+'</div>' +
+            '<div class="transfer-clubs" style="display:flex;align-items:center;gap:4px">' +
+              (t.fromLogo?'<img src="'+t.fromLogo+'" style="width:14px;height:14px;object-fit:contain">':'') +
+              '<span>'+fixName(t.from)+'</span><span class="transfer-arrow">→</span>' +
+              (t.toLogo?'<img src="'+t.toLogo+'" style="width:14px;height:14px;object-fit:contain">':'') +
+              '<span>'+fixName(t.to)+'</span>' +
+            '</div>' +
+            '<div style="font-size:11px;color:var(--text3)">'+(t.date?t.date.slice(0,10):'')+'</div>' +
+          '</div>' +
+          '<div class="transfer-fee '+(feeType==='loan'?'loan':feeType==='free'?'free':'')+'">'+fee+'</div>' +
+        '</div>';
+      }).join('');
+    }).catch(function(){});
 }
 
 // ═══════════════════════════════════════════
