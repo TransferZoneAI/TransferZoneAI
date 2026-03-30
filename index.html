@@ -2367,6 +2367,52 @@ async function showMatchTab(tab, btn, fixtureId) {
 }
 
 // ═══════════════════════════════════════════
+// REDIS — spara följda lag
+// ═══════════════════════════════════════════
+
+// Hämta OneSignal subscriber ID och spara i localStorage
+function initOneSignalSubscriber() {
+  if (!window.OneSignalDeferred) return;
+  window.OneSignalDeferred.push(async function(OneSignal) {
+    try {
+      const id = await OneSignal.User.PushSubscription.id;
+      if (id) {
+        localStorage.setItem('tz_subscriber_id', id);
+        // Synka befintliga följda lag till Redis
+        syncFollowedTeamsToRedis();
+      }
+    } catch(e) {}
+  });
+}
+
+async function syncFollowedTeamsToRedis() {
+  const subscriberId = localStorage.getItem('tz_subscriber_id');
+  if (!subscriberId) return;
+  const teams = getFollowedTeams();
+  if (!teams.length) return;
+  const teamIds = teams.map(t => t.id);
+  try {
+    await fetch('/api/follow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscriberId, teamIds, action: 'sync' }),
+    });
+  } catch(e) {}
+}
+
+async function saveTeamFollowToRedis(teamId, isFollow) {
+  const subscriberId = localStorage.getItem('tz_subscriber_id');
+  if (!subscriberId) return;
+  try {
+    await fetch('/api/follow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscriberId, teamIds: [teamId], action: isFollow ? 'follow' : 'unfollow' }),
+    });
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════
 // MY CLUBS
 // ═══════════════════════════════════════════
 
@@ -2388,18 +2434,8 @@ function followTeam(teamId) {
   const btn = document.getElementById('teamFollowBtn');
   if (btn) btn.innerHTML = `<button class="btn-follow following" onclick="unfollowTeam(${teamId})">★ Following</button>`;
   if (document.getElementById('page-myclubs')?.classList.contains('active')) renderMyClubs();
-  // OneSignal — tagga användaren med laget
-  function doTag() {
-    if (window.OneSignal && window.OneSignal.User) {
-      OneSignal.User.addTag('team_' + teamId, 'true');
-      OneSignal.User.addTag('team_' + slugify(name), 'true');
-    }
-  }
-  if (window.OneSignalDeferred) {
-    window.OneSignalDeferred.push(function() { doTag(); });
-  } else {
-    doTag();
-  }
+  // Redis — spara följt lag
+  saveTeamFollowToRedis(teamId, true);
 }
 
 function unfollowTeam(teamId) {
@@ -2409,18 +2445,8 @@ function unfollowTeam(teamId) {
   const btn = document.getElementById('teamFollowBtn');
   if (btn) btn.innerHTML = `<button class="btn-follow" onclick="followTeam(${teamId})">☆ Follow</button>`;
   if (document.getElementById('page-myclubs')?.classList.contains('active')) renderMyClubs();
-  // OneSignal — ta bort tagg
-  function doRemoveTag() {
-    if (window.OneSignal && window.OneSignal.User) {
-      OneSignal.User.removeTag('team_' + teamId);
-      if (name) OneSignal.User.removeTag('team_' + slugify(name));
-    }
-  }
-  if (window.OneSignalDeferred) {
-    window.OneSignalDeferred.push(function() { doRemoveTag(); });
-  } else {
-    doRemoveTag();
-  }
+  // Redis — ta bort följt lag
+  saveTeamFollowToRedis(teamId, false);
 }
 
 function renderMyClubs() {
@@ -2620,6 +2646,7 @@ function focusAI() { document.getElementById('aiSearchInput').focus(); }
 // ═══════════════════════════════════════════
 
 initHome();
+initOneSignalSubscriber();
 </script>
 
 <script defer src="/_vercel/insights/script.js"></script>
