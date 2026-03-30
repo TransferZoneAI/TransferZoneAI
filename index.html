@@ -62,6 +62,17 @@
 <meta name="apple-mobile-web-app-title" content="TransferZoneAI">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+<!-- OneSignal Push Notifications -->
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function(OneSignal) {
+    await OneSignal.init({
+      appId: "cac65308-4024-4269-8714-5eebf85185c9",
+    });
+  });
+</script>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,700&family=Barlow:wght@300;400;500;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
@@ -2365,7 +2376,6 @@ function getFollowedTeams() { try { return JSON.parse(localStorage.getItem(FOLLO
 function saveFollowedTeams(teams) { localStorage.setItem(FOLLOWED_KEY, JSON.stringify(teams)); }
 function isFollowingTeam(teamId) { return getFollowedTeams().some(t => t.id === teamId); }
 
-// FIX: use _currentTeamName/Logo/Country set in showTeam() instead of _currentTeamData
 function followTeam(teamId) {
   const teams = getFollowedTeams();
   if (teams.some(t => t.id === teamId)) return;
@@ -2378,14 +2388,25 @@ function followTeam(teamId) {
   const btn = document.getElementById('teamFollowBtn');
   if (btn) btn.innerHTML = `<button class="btn-follow following" onclick="unfollowTeam(${teamId})">★ Following</button>`;
   if (document.getElementById('page-myclubs')?.classList.contains('active')) renderMyClubs();
+  // OneSignal — tagga användaren med laget
+  if (window.OneSignal) {
+    OneSignal.User.addTag('team_' + teamId, 'true');
+    OneSignal.User.addTag('team_' + slugify(name), 'true');
+  }
 }
 
 function unfollowTeam(teamId) {
+  const name = getFollowedTeams().find(t => t.id === teamId)?.name || '';
   saveFollowedTeams(getFollowedTeams().filter(t => t.id !== teamId));
   showToast('Unfollowed');
   const btn = document.getElementById('teamFollowBtn');
   if (btn) btn.innerHTML = `<button class="btn-follow" onclick="followTeam(${teamId})">☆ Follow</button>`;
   if (document.getElementById('page-myclubs')?.classList.contains('active')) renderMyClubs();
+  // OneSignal — ta bort tagg
+  if (window.OneSignal) {
+    OneSignal.User.removeTag('team_' + teamId);
+    if (name) OneSignal.User.removeTag('team_' + slugify(name));
+  }
 }
 
 function renderMyClubs() {
