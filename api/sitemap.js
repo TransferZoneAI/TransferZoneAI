@@ -2,60 +2,36 @@ export const config = { runtime: 'edge' };
 
 const BASE_URL = 'https://transferzoneai.com';
 
-// Top ligor (lägg till fler sen)
-const LEAGUES = [
-  { name: 'Premier League', slug: 'premier-league' },
-  { name: 'La Liga', slug: 'la-liga' },
-  { name: 'Bundesliga', slug: 'bundesliga' },
-  { name: 'Serie A', slug: 'serie-a' },
-  { name: 'Ligue 1', slug: 'ligue-1' }
-];
+export default function handler() {
+  const urls = [
+    `${BASE_URL}/`,
+    `${BASE_URL}/live`,
+    `${BASE_URL}/transfers`,
+    `${BASE_URL}/toplists`,
+    `${BASE_URL}/myclubs`,
+    `${BASE_URL}/league/premier-league`,
+    `${BASE_URL}/league/la-liga`,
+    `${BASE_URL}/league/bundesliga`,
+    `${BASE_URL}/league/serie-a`,
+    `${BASE_URL}/league/ligue-1`,
+    `${BASE_URL}/club/arsenal`,
+    `${BASE_URL}/club/manchester-city`,
+    `${BASE_URL}/club/real-madrid`,
+    `${BASE_URL}/club/barcelona`,
+    `${BASE_URL}/club/bayern-munich`,
+    `${BASE_URL}/club/psg`
+  ];
 
-// Top klubbar (lägg till fler sen)
-const CLUBS = [
-  { name: 'Arsenal', slug: 'arsenal' },
-  { name: 'Manchester City', slug: 'manchester-city' },
-  { name: 'Real Madrid', slug: 'real-madrid' },
-  { name: 'Barcelona', slug: 'barcelona' },
-  { name: 'Bayern Munich', slug: 'bayern-munich' },
-  { name: 'PSG', slug: 'psg' }
-];
-
-function url(loc, priority = 0.5, changefreq = 'weekly') {
-  return `
-  <url>
-    <loc>${loc}</loc>
-    <priority>${priority}</priority>
-    <changefreq>${changefreq}</changefreq>
-  </url>`;
-}
-
-export default async function handler() {
-  let urls = '';
-
-  // 🔹 Core pages
-  urls += url(`${BASE_URL}/`, 1.0, 'daily');
-  urls += url(`${BASE_URL}/live`, 0.9, 'hourly');
-  urls += url(`${BASE_URL}/transfers`, 0.8, 'daily');
-  urls += url(`${BASE_URL}/toplists`, 0.7, 'weekly');
-  urls += url(`${BASE_URL}/myclubs`, 0.4, 'monthly');
-
-  // 🔹 Leagues
-  for (const league of LEAGUES) {
-    urls += url(`${BASE_URL}/league/${league.slug}`, 0.8, 'daily');
-  }
-
-  // 🔹 Clubs
-  for (const club of CLUBS) {
-    urls += url(`${BASE_URL}/club/${club.slug}`, 0.7, 'daily');
-  }
-
-  const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls}
+${urls.map(url => `
+  <url>
+    <loc>${url}</loc>
+  </url>
+`).join('')}
 </urlset>`;
 
-  return new Response(sitemap, {
+  return new Response(xml, {
     headers: {
       'Content-Type': 'application/xml'
     }
