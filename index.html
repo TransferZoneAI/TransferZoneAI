@@ -1511,60 +1511,64 @@ function mergePlayersForDisplayedSeason(players, seasonYear, leagueLike) {
 }
 
 
+const _fixturePlayersCache = {};
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+async function fetchFixturePlayersCached(fixtureId) {
+  const key = String(fixtureId);
+  if (_fixturePlayersCache[key]) return _fixturePlayersCache[key];
+  const data = await apiFetch('fixtures/players', { fixture: fixtureId }).catch(() => ({ response: [] }));
+  _fixturePlayersCache[key] = data;
+  return data;
+}
+
 async function fetchFixturePlayersForSeason(teamId, seasonYear, leagueLike) {
   const fixtures = await fetchFixturesMultiSeason(teamId, seasonYear, leagueLike);
   const relevantFixtures = (fixtures || [])
     .filter(f => (f.teams?.home?.id === teamId || f.teams?.away?.id === teamId))
     .filter(f => fixtureBelongsToDisplayedSeason(f, seasonYear, leagueLike))
-    .filter(f => ['FT', 'AET', 'PEN'].includes(f.fixture?.status?.short));
-
-  const chunks = [];
-  for (let i = 0; i < relevantFixtures.length; i += 8) chunks.push(relevantFixtures.slice(i, i + 8));
+    .filter(f => ['FT', 'AET', 'PEN'].includes(f.fixture?.status?.short))
+    .sort((a, b) => new Date(a.fixture?.date || 0) - new Date(b.fixture?.date || 0));
 
   const aggregated = new Map();
 
-  for (const chunk of chunks) {
-    const results = await Promise.all(
-      chunk.map(f => apiFetch('fixtures/players', { fixture: f.fixture.id }).catch(() => ({ response: [] })))
-    );
+  for (const fixture of relevantFixtures) {
+    const response = (await fetchFixturePlayersCached(fixture.fixture.id))?.response || [];
+    const teamBlock = response.find(t => t.team?.id === teamId);
+    const players = teamBlock?.players || [];
 
-    for (let idx = 0; idx < chunk.length; idx++) {
-      const fixture = chunk[idx];
-      const response = results[idx]?.response || [];
-      const teamBlock = response.find(t => t.team?.id === teamId);
-      const players = teamBlock?.players || [];
+    for (const row of players) {
+      const player = row.player || {};
+      const stats = row.statistics || [];
+      if (!player.id) continue;
 
-      for (const row of players) {
-        const player = row.player || {};
-        const stats = row.statistics || [];
-        if (!player.id) continue;
-
-        if (!aggregated.has(player.id)) {
-          aggregated.set(player.id, {
-            player: {
-              id: player.id,
-              name: player.name || '—',
-              photo: player.photo || ''
-            },
-            statistics: [{
-              games: { appearences: 0, position: '' },
-              goals: { total: 0, assists: 0 },
-              tackles: { total: 0 },
-              cards: { yellow: 0 },
-            }]
-          });
-        }
-
-        const target = aggregated.get(player.id).statistics[0];
-        const s = Array.isArray(stats) ? stats[0] || {} : stats || {};
-        target.games.appearences += 1;
-        if (!target.games.position && s.games?.position) target.games.position = s.games.position;
-        target.goals.total += Number(s.goals?.total || 0);
-        target.goals.assists += Number(s.goals?.assists || 0);
-        target.tackles.total += Number(s.tackles?.total || 0);
-        target.cards.yellow += Number(s.cards?.yellow || 0);
+      if (!aggregated.has(player.id)) {
+        aggregated.set(player.id, {
+          player: {
+            id: player.id,
+            name: player.name || '—',
+            photo: player.photo || ''
+          },
+          statistics: [{
+            games: { appearences: 0, position: '' },
+            goals: { total: 0, assists: 0 },
+            tackles: { total: 0 },
+            cards: { yellow: 0 },
+          }]
+        });
       }
+
+      const target = aggregated.get(player.id).statistics[0];
+      const s = Array.isArray(stats) ? stats[0] || {} : stats || {};
+      target.games.appearences += 1;
+      if (!target.games.position && s.games?.position) target.games.position = s.games.position;
+      target.goals.total += Number(s.goals?.total || 0);
+      target.goals.assists += Number(s.goals?.assists || 0);
+      target.tackles.total += Number(s.tackles?.total || 0);
+      target.cards.yellow += Number(s.cards?.yellow || 0);
     }
+
+    await sleep(120);
   }
 
   return Array.from(aggregated.values());
