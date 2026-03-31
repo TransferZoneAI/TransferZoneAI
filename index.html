@@ -1510,6 +1510,66 @@ function mergePlayersForDisplayedSeason(players, seasonYear, leagueLike) {
   return Array.from(merged.values());
 }
 
+
+async function fetchFixturePlayersForSeason(teamId, seasonYear, leagueLike) {
+  const fixtures = await fetchFixturesMultiSeason(teamId, seasonYear, leagueLike);
+  const relevantFixtures = (fixtures || [])
+    .filter(f => (f.teams?.home?.id === teamId || f.teams?.away?.id === teamId))
+    .filter(f => fixtureBelongsToDisplayedSeason(f, seasonYear, leagueLike))
+    .filter(f => ['FT', 'AET', 'PEN'].includes(f.fixture?.status?.short));
+
+  const chunks = [];
+  for (let i = 0; i < relevantFixtures.length; i += 8) chunks.push(relevantFixtures.slice(i, i + 8));
+
+  const aggregated = new Map();
+
+  for (const chunk of chunks) {
+    const results = await Promise.all(
+      chunk.map(f => apiFetch('fixtures/players', { fixture: f.fixture.id }).catch(() => ({ response: [] })))
+    );
+
+    for (let idx = 0; idx < chunk.length; idx++) {
+      const fixture = chunk[idx];
+      const response = results[idx]?.response || [];
+      const teamBlock = response.find(t => t.team?.id === teamId);
+      const players = teamBlock?.players || [];
+
+      for (const row of players) {
+        const player = row.player || {};
+        const stats = row.statistics || [];
+        if (!player.id) continue;
+
+        if (!aggregated.has(player.id)) {
+          aggregated.set(player.id, {
+            player: {
+              id: player.id,
+              name: player.name || '—',
+              photo: player.photo || ''
+            },
+            statistics: [{
+              games: { appearences: 0, position: '' },
+              goals: { total: 0, assists: 0 },
+              tackles: { total: 0 },
+              cards: { yellow: 0 },
+            }]
+          });
+        }
+
+        const target = aggregated.get(player.id).statistics[0];
+        const s = Array.isArray(stats) ? stats[0] || {} : stats || {};
+        target.games.appearences += 1;
+        if (!target.games.position && s.games?.position) target.games.position = s.games.position;
+        target.goals.total += Number(s.goals?.total || 0);
+        target.goals.assists += Number(s.goals?.assists || 0);
+        target.tackles.total += Number(s.tackles?.total || 0);
+        target.cards.yellow += Number(s.cards?.yellow || 0);
+      }
+    }
+  }
+
+  return Array.from(aggregated.values());
+}
+
 // ═══════════════════════════════════════════
 // SHOW TEAM
 // ═══════════════════════════════════════════
@@ -1920,20 +1980,25 @@ async function showTeamTab(tab, btn) {
       const primaryLeagueCurrent = choosePrimaryLeague(leaguesCurrent);
       const primaryLeague = leaguesAll.find(l => l.league?.id === primaryLeagueCurrent?.league?.id) || choosePrimaryLeague(leaguesAll) || primaryLeagueCurrent;
       window._currentTeamPrimaryLeague = primaryLeague;
+
       const seasonYears = getSeasonYearsFromLeague(primaryLeague, 7);
       const season = seasonYears.includes(selectedYear) ? selectedYear : (seasonYears[0] || new Date().getFullYear() - 1);
-
-      let allPlayers = await fetchPlayersMultiSeason(teamId, season, primaryLeague);
-      allPlayers = mergePlayersForDisplayedSeason(allPlayers, season, primaryLeague);
-
-      if (!allPlayers.length) { c.innerHTML = `<div style="padding:32px 20px;color:var(--text3);text-align:center"><div style="font-size:32px;margin-bottom:8px">📊</div><div>No player statistics available yet.</div></div>`; return; }
       const yearPickerHTML = buildYearPicker(season, teamId, 'toplayers', '_topPlayersYear', primaryLeague);
+
+      const allPlayers = await fetchFixturePlayersForSeason(teamId, season, primaryLeague);
+
+      if (!allPlayers.length) {
+        c.innerHTML = yearPickerHTML + `<div style="padding:32px 20px;color:var(--text3);text-align:center"><div style="font-size:32px;margin-bottom:8px">📊</div><div>No player statistics available yet.</div></div>`;
+        return;
+      }
+
       const sumStat = (p, fn) => (p.statistics||[]).reduce((acc,s) => acc + (fn(s)||0), 0);
-      const byGoals   = [...allPlayers].sort((a,b) => sumStat(b,s=>s.goals?.total)   - sumStat(a,s=>s.goals?.total)).filter(p => sumStat(p,s=>s.goals?.total) > 0);
+      const byGoals   = [...allPlayers].sort((a,b) => sumStat(b,s=>s.goals?.total) - sumStat(a,s=>s.goals?.total)).filter(p => sumStat(p,s=>s.goals?.total) > 0);
       const byAssists = [...allPlayers].sort((a,b) => sumStat(b,s=>s.goals?.assists) - sumStat(a,s=>s.goals?.assists)).filter(p => sumStat(p,s=>s.goals?.assists) > 0);
       const byApps    = [...allPlayers].sort((a,b) => sumStat(b,s=>s.games?.appearences) - sumStat(a,s=>s.games?.appearences)).filter(p => sumStat(p,s=>s.games?.appearences) > 0);
       const byTackles = [...allPlayers].sort((a,b) => sumStat(b,s=>s.tackles?.total) - sumStat(a,s=>s.tackles?.total)).filter(p => sumStat(p,s=>s.tackles?.total) > 0);
-      const byYellow  = [...allPlayers].sort((a,b) => sumStat(b,s=>s.cards?.yellow)  - sumStat(a,s=>s.cards?.yellow)).filter(p => sumStat(p,s=>s.cards?.yellow) > 0);
+      const byYellow  = [...allPlayers].sort((a,b) => sumStat(b,s=>s.cards?.yellow) - sumStat(a,s=>s.cards?.yellow)).filter(p => sumStat(p,s=>s.cards?.yellow) > 0);
+
       const pRow = (p, i, val) => `
         <div class="scorer-row" onclick="showPlayer(${p.player.id})" style="cursor:pointer">
           <div class="scorer-rank ${i<3?'top':''}">${i+1}</div>
@@ -1944,11 +2009,13 @@ async function showTeamTab(tab, btn) {
           </div>
           <div class="scorer-goals">${val}</div>
         </div>`;
+
       const card = (title, emoji, players, valFn) => !players.length ? '' : `
         <div class="sidebar-card">
           <div class="sidebar-title">${emoji} ${title}</div>
           ${players.slice(0,8).map((p,i) => pRow(p, i, valFn(p))).join('')}
         </div>`;
+
       c.innerHTML = '<div style="margin-top:20px">' + yearPickerHTML +
         '<div style="color:var(--text3);font-size:12px;margin-bottom:16px">Season ' + formatSeasonLabel(season, primaryLeague) + '</div>' +
         '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">' +
