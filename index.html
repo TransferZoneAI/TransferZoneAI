@@ -1431,6 +1431,7 @@ function aggregateTeamSeason(fixtures, teamId, seasonYear, leagueLike) {
   }
 
   return out;
+}
 
 function getFixtureSeasonCandidates(seasonYear, leagueLike) {
   const y = Number(seasonYear);
@@ -1459,6 +1460,54 @@ async function fetchTeamFixturesForDisplayedSeason(teamId, seasonYear, leagueLik
   return fixtures;
 }
 
+function getPlayerSeasonCandidates(seasonYear, leagueLike) {
+  const y = Number(seasonYear);
+  if (!Number.isFinite(y)) return [];
+  if (isSingleYearCompetition(leagueLike)) {
+    return [y - 1, y, y + 1];
+  }
+  return [y, y + 1];
+}
+
+async function fetchPlayersMultiSeason(teamId, seasonYear, leagueLike) {
+  const candidates = [...new Set(getPlayerSeasonCandidates(seasonYear, leagueLike))];
+  const results = [];
+  for (const s of candidates) {
+    const first = await apiFetch('players', { team: teamId, season: s, page: 1 }).catch(() => ({ response: [], paging: { total: 1 } }));
+    const rows = [...(first.response || [])];
+    const totalPages = Math.min(first?.paging?.total || 1, 3);
+    if (totalPages > 1) {
+      const extra = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_, i) =>
+          apiFetch('players', { team: teamId, season: s, page: i + 2 }).catch(() => ({ response: [] }))
+        )
+      );
+      extra.forEach(p => rows.push(...(p.response || [])));
+    }
+    results.push(...rows);
+  }
+  return results;
+}
+
+function mergePlayersForDisplayedSeason(players, seasonYear, leagueLike) {
+  const merged = new Map();
+
+  for (const entry of (players || [])) {
+    const player = entry?.player;
+    if (!player?.id) continue;
+    const stats = (entry.statistics || []).filter(st => fixtureBelongsToDisplayedSeason({ fixture: { date: st?.league?.season ? new Date(Date.UTC(Number(st.league.season), 6, 1)).toISOString() : '' } }, seasonYear, leagueLike) || true);
+
+    if (!merged.has(player.id)) {
+      merged.set(player.id, {
+        player: { ...player },
+        statistics: []
+      });
+    }
+    const target = merged.get(player.id);
+    target.statistics.push(...stats);
+  }
+
+  return Array.from(merged.values());
 }
 
 // ═══════════════════════════════════════════
@@ -1873,30 +1922,12 @@ async function showTeamTab(tab, btn) {
       window._currentTeamPrimaryLeague = primaryLeague;
       const seasonYears = getSeasonYearsFromLeague(primaryLeague, 7);
       const season = seasonYears.includes(selectedYear) ? selectedYear : (seasonYears[0] || new Date().getFullYear() - 1);
-      const leagueId = primaryLeague?.league?.id;
-      if (!leagueId) throw new Error('no league');
-      let activeSeason = season;
-      let allPlayers = [];
-      const yearsToTry = getSeasonYearsFromLeague(primaryLeague, 7).filter((v,i,a)=>a.indexOf(v)===i);
-      for (const yr of yearsToTry) {
-        try {
-          const test = await apiFetch('players', { team: teamId, season: yr, page: 1 });
-          if ((test.response||[]).length > 0) {
-            activeSeason = yr;
-            allPlayers = test.response;
-            const totalPages = Math.min(test.paging?.total||1, 3);
-            if (totalPages > 1) {
-              const extra = await Promise.all(Array.from({length: totalPages-1}, (_,i) =>
-                apiFetch('players', { team: teamId, season: yr, page: i+2 }).catch(()=>({response:[]}))
-              ));
-              extra.forEach(p => allPlayers.push(...(p.response||[])));
-            }
-            break;
-          }
-        } catch(_) { continue; }
-      }
+
+      let allPlayers = await fetchPlayersMultiSeason(teamId, season, primaryLeague);
+      allPlayers = mergePlayersForDisplayedSeason(allPlayers, season, primaryLeague);
+
       if (!allPlayers.length) { c.innerHTML = `<div style="padding:32px 20px;color:var(--text3);text-align:center"><div style="font-size:32px;margin-bottom:8px">📊</div><div>No player statistics available yet.</div></div>`; return; }
-      const yearPickerHTML = buildYearPicker(activeSeason, teamId, 'toplayers', '_topPlayersYear', primaryLeague);
+      const yearPickerHTML = buildYearPicker(season, teamId, 'toplayers', '_topPlayersYear', primaryLeague);
       const sumStat = (p, fn) => (p.statistics||[]).reduce((acc,s) => acc + (fn(s)||0), 0);
       const byGoals   = [...allPlayers].sort((a,b) => sumStat(b,s=>s.goals?.total)   - sumStat(a,s=>s.goals?.total)).filter(p => sumStat(p,s=>s.goals?.total) > 0);
       const byAssists = [...allPlayers].sort((a,b) => sumStat(b,s=>s.goals?.assists) - sumStat(a,s=>s.goals?.assists)).filter(p => sumStat(p,s=>s.goals?.assists) > 0);
@@ -1919,7 +1950,7 @@ async function showTeamTab(tab, btn) {
           ${players.slice(0,8).map((p,i) => pRow(p, i, valFn(p))).join('')}
         </div>`;
       c.innerHTML = '<div style="margin-top:20px">' + yearPickerHTML +
-        '<div style="color:var(--text3);font-size:12px;margin-bottom:16px">Season ' + formatSeasonLabel(activeSeason, primaryLeague) + '</div>' +
+        '<div style="color:var(--text3);font-size:12px;margin-bottom:16px">Season ' + formatSeasonLabel(season, primaryLeague) + '</div>' +
         '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">' +
         card('Goals', 'Goals', byGoals, p => sumStat(p, s => s.goals?.total)) +
         card('Assists', 'Assists', byAssists, p => sumStat(p, s => s.goals?.assists)) +
