@@ -1575,21 +1575,8 @@ if (tab === 'stats') {
   c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
 
   try {
-    const leagueData = await apiFetch('leagues', { team: teamId, current: 'true' });
-    const leagues = leagueData.response || [];
-    if (!leagues.length) {
-      c.innerHTML = `<div style="padding:20px;color:var(--text3)">Ingen aktiv liga hittades.</div>`;
-      return;
-    }
-
-    const cupKeywords = ['cup','pokal','coupe','copa','coppa','trophy','shield','supercup'];
-    const primaryLeague = leagues.find(l =>
-      !cupKeywords.some(k => (l.league.name || '').toLowerCase().includes(k))
-    ) || leagues[0];
-
-    const defaultSeason = primaryLeague?.seasons?.find(s => s.current)?.year ?? new Date().getFullYear() - 1;
-    const season = statsYear || defaultSeason;
     const thisYear = new Date().getFullYear();
+    const season = statsYear || thisYear;
 
     const yearBtns = Array.from({ length: 7 }, (_, i) => thisYear - i).map(y =>
       '<button onclick="window._statsYear=' + y + ';showTeamTab(\'stats\',null)" ' +
@@ -1599,10 +1586,9 @@ if (tab === 'stats') {
     const yearPickerHTML =
       '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">' + yearBtns + '</div>';
 
-    // Hämta alla matcher i vald liga + säsong
+    // Hämta ALLA matcher för laget denna säsong
     const fixturesData = await apiFetch('fixtures', {
       team: teamId,
-      league: primaryLeague.league.id,
       season: season
     }).catch(() => ({ response: [] }));
 
@@ -1614,10 +1600,16 @@ if (tab === 'stats') {
     }
 
     const finishedStatuses = ['FT', 'AET', 'PEN'];
-    const finished = fixtures.filter(f => finishedStatuses.includes(f.fixture?.status?.short));
+    const finished = fixtures
+      .filter(f => finishedStatuses.includes(f.fixture?.status?.short))
+      .sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date));
 
-    const played = finished.length;
+    if (!finished.length) {
+      c.innerHTML = yearPickerHTML + `<div style="padding:20px;color:var(--text3)">Inga avslutade matcher hittades för ${season}.</div>`;
+      return;
+    }
 
+    let played = 0;
     let totalWins = 0;
     let totalDraws = 0;
     let totalLoses = 0;
@@ -1630,6 +1622,7 @@ if (tab === 'stats') {
       const gf = isHome ? (f.goals.home ?? 0) : (f.goals.away ?? 0);
       const ga = isHome ? (f.goals.away ?? 0) : (f.goals.home ?? 0);
 
+      played++;
       totalGoalsFor += gf;
       totalGoalsAgainst += ga;
 
@@ -1640,11 +1633,8 @@ if (tab === 'stats') {
       else totalLoses++;
     }
 
-    // Recent form
-    const formMatches = [...finished]
-      .sort((a, b) => new Date(b.fixture.date) - new Date(a.fixture.date))
-      .slice(0, 5)
-      .reverse();
+    // Recent form = sista 5 avslutade matcherna under vald säsong
+    const formMatches = [...finished].slice(-5);
 
     const formHTML = formMatches.length ? `
       <div style="margin-bottom:24px">
@@ -1679,10 +1669,7 @@ if (tab === 'stats') {
       ${yearPickerHTML}
       ${formHTML}
 
-      <div class="section-title" style="margin-bottom:12px;font-size:16px">
-        Season Overview — ${season}
-      </div>
-
+      <div class="section-title" style="margin-bottom:12px;font-size:16px">Season Overview — ${season}</div>
       <div class="stats-grid" style="margin-bottom:24px">
         <div class="stat-box"><div class="stat-box-val">${played}</div><div class="stat-box-lbl">Matches</div></div>
         <div class="stat-box"><div class="stat-box-val">${totalWins}</div><div class="stat-box-lbl">Wins</div></div>
