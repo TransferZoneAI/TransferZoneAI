@@ -1570,99 +1570,135 @@ async function showTeamTab(tab, btn) {
       </div>` + Object.entries(groups).map(([g, ps]) => section(g, ps)).join('');
   }
 
-  if (tab === 'stats') {
-    const statsYear = window._statsYear || null;
-    c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
-    try {
-      const leagueData = await apiFetch('leagues', { team: teamId, current: 'true' });
-      const leagues = leagueData.response || [];
-      if (!leagues.length) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Ingen aktiv liga hittades.</div>`; return; }
-      const cupKeywords = ['cup','pokal','coupe','copa','coppa','trophy','shield','supercup'];
-      const primaryLeague = leagues.find(l => !cupKeywords.some(k => (l.league.name||'').toLowerCase().includes(k))) || leagues[0];
-      const defaultSeason = primaryLeague?.seasons?.find(s => s.current)?.year ?? new Date().getFullYear() - 1;
-      const season = statsYear || defaultSeason;
-      const thisYear = new Date().getFullYear();
-      const yearBtns = Array.from({length: 7}, (_, i) => thisYear - i).map(y =>
-        '<button onclick="window._statsYear=' + y + ';showTeamTab(\'stats\',null,' + teamId + ')" ' +
-        'class="filter-btn ' + (season === y ? 'active' : '') + '" style="padding:4px 12px;font-size:12px">' + y + '</button>'
-      ).join('');
-      const yearPickerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">' + yearBtns + '</div>';
-      const s0 = (await apiFetch('teams/statistics', { team: teamId, league: primaryLeague.league.id, season }).catch(() => null))?.response;
-      const formData = await apiFetch('fixtures', { team: teamId, last: 5 }).catch(() => null);
-      const formMatches = formData?.response || [];
-      const formHTML = formMatches.length ? `
-        <div style="margin-bottom:24px">
-          <div class="section-title" style="margin-bottom:12px;font-size:16px">Recent Form</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            ${formMatches.map(f => {
-              const isHome = f.teams.home.id === teamId;
-              const gf = isHome ? f.goals.home : f.goals.away;
-              const ga = isHome ? f.goals.away : f.goals.home;
-              const result = gf > ga ? 'W' : gf < ga ? 'L' : 'D';
-              const color = result==='W'?'var(--green)':result==='L'?'var(--red)':'var(--gold-dim)';
-              const opp = isHome ? f.teams.away.name : f.teams.home.name;
-              const oppLogo = isHome ? f.teams.away.logo : f.teams.home.logo;
-              return `<div onclick="showMatch(${f.fixture.id})" style="cursor:pointer;text-align:center;min-width:64px">
-                <div style="background:${color};border-radius:8px;padding:8px 10px;margin-bottom:4px">
-                  <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:white">${result}</div>
-                  <div style="font-size:12px;color:rgba(255,255,255,0.9);font-weight:700">${gf}–${ga}</div>
-                </div>
-                <div style="display:flex;align-items:center;justify-content:center;gap:3px;font-size:10px;color:var(--text3)">
-                  ${oppLogo?`<img src="${oppLogo}" style="width:12px;height:12px;object-fit:contain">`:''}
-                  <span style="max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${opp}</span>
-                </div>
-              </div>`;
-            }).join('')}
-          </div>
-        </div>` : '';
-      const played = s0?.fixtures?.played?.total || 0;
-      const totalWins = s0?.fixtures?.wins?.total || 0;
-      const totalDraws = s0?.fixtures?.draws?.total || 0;
-      const totalLoses = s0?.fixtures?.loses?.total || 0;
-      const totalGoalsFor = s0?.goals?.for?.total?.total || 0;
-      const totalGoalsAgainst = s0?.goals?.against?.total?.total || 0;
-      const cleanSheets = s0?.clean_sheet?.total ?? '—';
-      const shotsTotal = s0?.shots?.total ?? '—';
-      const shotsOn = s0?.shots?.on ?? '—';
-      const shotsAccPct = (s0?.shots?.on && s0?.shots?.total) ? Math.round((s0.shots.on/s0.shots.total)*100)+'%' : '—';
-      let yCards = 0, rCards = 0;
-      if (s0?.cards?.yellow) Object.values(s0.cards.yellow).forEach(v => yCards += v?.total||0);
-      if (s0?.cards?.red)    Object.values(s0.cards.red).forEach(v => rCards += v?.total||0);
-      const penScored = s0?.penalty?.scored?.total ?? '—';
-      const penMissed = s0?.penalty?.missed?.total ?? '—';
-      const penPct = s0?.penalty?.scored?.percentage ?? '—';
-      const avg = (v, g) => (v && g) ? (v/g).toFixed(1) : '—';
-      c.innerHTML = `<div style="margin-top:20px">
-        ${yearPickerHTML}${formHTML}
-        <div class="section-title" style="margin-bottom:12px;font-size:16px">Season Overview — ${season}</div>
-        <div class="stats-grid" style="margin-bottom:24px">
-          <div class="stat-box"><div class="stat-box-val">${played||'—'}</div><div class="stat-box-lbl">Matches</div></div>
-          <div class="stat-box"><div class="stat-box-val">${totalWins||'—'}</div><div class="stat-box-lbl">Wins</div></div>
-          <div class="stat-box"><div class="stat-box-val">${totalDraws||'—'}</div><div class="stat-box-lbl">Draws</div></div>
-          <div class="stat-box"><div class="stat-box-val">${totalLoses||'—'}</div><div class="stat-box-lbl">Losses</div></div>
-          <div class="stat-box"><div class="stat-box-val">${totalGoalsFor||'—'}</div><div class="stat-box-lbl">Goals For</div></div>
-          <div class="stat-box"><div class="stat-box-val">${totalGoalsAgainst||'—'}</div><div class="stat-box-lbl">Goals Against</div></div>
-          <div class="stat-box"><div class="stat-box-val">${avg(totalGoalsFor,played)}</div><div class="stat-box-lbl">Goals/Game</div></div>
-          <div class="stat-box"><div class="stat-box-val">${avg(totalGoalsAgainst,played)}</div><div class="stat-box-lbl">Conceded/Game</div></div>
-          <div class="stat-box"><div class="stat-box-val">${cleanSheets}</div><div class="stat-box-lbl">Clean Sheets</div></div>
+if (tab === 'stats') {
+  const statsYear = window._statsYear || null;
+  c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
+
+  try {
+    const leagueData = await apiFetch('leagues', { team: teamId, current: 'true' });
+    const leagues = leagueData.response || [];
+    if (!leagues.length) {
+      c.innerHTML = `<div style="padding:20px;color:var(--text3)">Ingen aktiv liga hittades.</div>`;
+      return;
+    }
+
+    const cupKeywords = ['cup','pokal','coupe','copa','coppa','trophy','shield','supercup'];
+    const primaryLeague = leagues.find(l =>
+      !cupKeywords.some(k => (l.league.name || '').toLowerCase().includes(k))
+    ) || leagues[0];
+
+    const defaultSeason = primaryLeague?.seasons?.find(s => s.current)?.year ?? new Date().getFullYear() - 1;
+    const season = statsYear || defaultSeason;
+    const thisYear = new Date().getFullYear();
+
+    const yearBtns = Array.from({ length: 7 }, (_, i) => thisYear - i).map(y =>
+      '<button onclick="window._statsYear=' + y + ';showTeamTab(\'stats\',null)" ' +
+      'class="filter-btn ' + (season === y ? 'active' : '') + '" style="padding:4px 12px;font-size:12px">' + y + '</button>'
+    ).join('');
+
+    const yearPickerHTML =
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">' + yearBtns + '</div>';
+
+    // Hämta alla matcher i vald liga + säsong
+    const fixturesData = await apiFetch('fixtures', {
+      team: teamId,
+      league: primaryLeague.league.id,
+      season: season
+    }).catch(() => ({ response: [] }));
+
+    const fixtures = fixturesData.response || [];
+
+    if (!fixtures.length) {
+      c.innerHTML = yearPickerHTML + `<div style="padding:20px;color:var(--text3)">Ingen statistik hittades för ${season}.</div>`;
+      return;
+    }
+
+    const finishedStatuses = ['FT', 'AET', 'PEN'];
+    const finished = fixtures.filter(f => finishedStatuses.includes(f.fixture?.status?.short));
+
+    const played = finished.length;
+
+    let totalWins = 0;
+    let totalDraws = 0;
+    let totalLoses = 0;
+    let totalGoalsFor = 0;
+    let totalGoalsAgainst = 0;
+    let cleanSheets = 0;
+
+    for (const f of finished) {
+      const isHome = f.teams.home.id === teamId;
+      const gf = isHome ? (f.goals.home ?? 0) : (f.goals.away ?? 0);
+      const ga = isHome ? (f.goals.away ?? 0) : (f.goals.home ?? 0);
+
+      totalGoalsFor += gf;
+      totalGoalsAgainst += ga;
+
+      if (ga === 0) cleanSheets++;
+
+      if (gf > ga) totalWins++;
+      else if (gf === ga) totalDraws++;
+      else totalLoses++;
+    }
+
+    // Recent form
+    const formMatches = [...finished]
+      .sort((a, b) => new Date(b.fixture.date) - new Date(a.fixture.date))
+      .slice(0, 5)
+      .reverse();
+
+    const formHTML = formMatches.length ? `
+      <div style="margin-bottom:24px">
+        <div class="section-title" style="margin-bottom:12px;font-size:16px">Recent Form</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${formMatches.map(f => {
+            const isHome = f.teams.home.id === teamId;
+            const gf = isHome ? (f.goals.home ?? 0) : (f.goals.away ?? 0);
+            const ga = isHome ? (f.goals.away ?? 0) : (f.goals.home ?? 0);
+            const result = gf > ga ? 'W' : gf < ga ? 'L' : 'D';
+            const color = result === 'W' ? 'var(--green)' : result === 'L' ? 'var(--red)' : 'var(--gold-dim)';
+            const opp = isHome ? f.teams.away.name : f.teams.home.name;
+            const oppLogo = isHome ? f.teams.away.logo : f.teams.home.logo;
+
+            return `<div onclick="showMatch(${f.fixture.id})" style="cursor:pointer;text-align:center;min-width:64px">
+              <div style="background:${color};border-radius:8px;padding:8px 10px;margin-bottom:4px">
+                <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:white">${result}</div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.9);font-weight:700">${gf}–${ga}</div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:center;gap:3px;font-size:10px;color:var(--text3)">
+                ${oppLogo ? `<img src="${oppLogo}" style="width:12px;height:12px;object-fit:contain">` : ''}
+                <span style="max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${opp}</span>
+              </div>
+            </div>`;
+          }).join('')}
         </div>
-        <div class="section-title" style="margin-bottom:12px;font-size:16px">Attack & Discipline</div>
-        <div class="stats-grid" style="margin-bottom:24px">
-          <div class="stat-box"><div class="stat-box-val">${shotsTotal}</div><div class="stat-box-lbl">Total Shots</div></div>
-          <div class="stat-box"><div class="stat-box-val">${shotsOn}</div><div class="stat-box-lbl">Shots on Target</div></div>
-          <div class="stat-box"><div class="stat-box-val">${shotsAccPct}</div><div class="stat-box-lbl">Shot Accuracy</div></div>
-          <div class="stat-box"><div class="stat-box-val" style="color:#f0c040">${yCards||'—'}</div><div class="stat-box-lbl">Yellow Cards</div></div>
-          <div class="stat-box"><div class="stat-box-val" style="color:var(--red)">${rCards||'—'}</div><div class="stat-box-lbl">Red Cards</div></div>
-        </div>
-        <div class="section-title" style="margin-bottom:12px;font-size:16px">Penalties</div>
-        <div class="stats-grid">
-          <div class="stat-box"><div class="stat-box-val">${penScored}</div><div class="stat-box-lbl">Scored</div></div>
-          <div class="stat-box"><div class="stat-box-val">${penMissed}</div><div class="stat-box-lbl">Missed</div></div>
-          <div class="stat-box"><div class="stat-box-val">${penPct}</div><div class="stat-box-lbl">Success Rate</div></div>
-        </div>
-      </div>`;
-    } catch(e) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda statistik.</div>`; }
+      </div>` : '';
+
+    const avg = (v, g) => (g > 0 ? (v / g).toFixed(1) : '—');
+
+    c.innerHTML = `<div style="margin-top:20px">
+      ${yearPickerHTML}
+      ${formHTML}
+
+      <div class="section-title" style="margin-bottom:12px;font-size:16px">
+        Season Overview — ${season}
+      </div>
+
+      <div class="stats-grid" style="margin-bottom:24px">
+        <div class="stat-box"><div class="stat-box-val">${played}</div><div class="stat-box-lbl">Matches</div></div>
+        <div class="stat-box"><div class="stat-box-val">${totalWins}</div><div class="stat-box-lbl">Wins</div></div>
+        <div class="stat-box"><div class="stat-box-val">${totalDraws}</div><div class="stat-box-lbl">Draws</div></div>
+        <div class="stat-box"><div class="stat-box-val">${totalLoses}</div><div class="stat-box-lbl">Losses</div></div>
+        <div class="stat-box"><div class="stat-box-val">${totalGoalsFor}</div><div class="stat-box-lbl">Goals For</div></div>
+        <div class="stat-box"><div class="stat-box-val">${totalGoalsAgainst}</div><div class="stat-box-lbl">Goals Against</div></div>
+        <div class="stat-box"><div class="stat-box-val">${avg(totalGoalsFor, played)}</div><div class="stat-box-lbl">Goals/Game</div></div>
+        <div class="stat-box"><div class="stat-box-val">${avg(totalGoalsAgainst, played)}</div><div class="stat-box-lbl">Conceded/Game</div></div>
+        <div class="stat-box"><div class="stat-box-val">${cleanSheets}</div><div class="stat-box-lbl">Clean Sheets</div></div>
+      </div>
+    </div>`;
+  } catch (e) {
+    c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda statistik.</div>`;
   }
+}
 
   if (tab === 'transfers') {
     c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
