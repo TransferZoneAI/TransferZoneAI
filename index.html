@@ -1114,12 +1114,6 @@ function showToast(msg) {
 
 let _currentTeamId = null;
 
-function getLeagueCountryName(leagueLike) {
-  const raw = leagueLike?.country?.name ?? leagueLike?.league?.country ?? leagueLike?.country ?? '';
-  if (raw && typeof raw === 'object') return String(raw.name || '');
-  return String(raw || '');
-}
-
 function choosePrimaryLeague(leagues = []) {
   const list = (leagues || []).filter(Boolean);
   if (!list.length) return null;
@@ -1133,7 +1127,7 @@ function choosePrimaryLeague(leagues = []) {
 
   const domesticLeague = list.find(l => {
     const name = String(l?.league?.name || '').toLowerCase();
-    const country = getLeagueCountryName(l).toLowerCase();
+    const country = String(l?.country?.name || l?.league?.country || '').toLowerCase();
     const type = String(l?.league?.type || '').toLowerCase();
     if (country === 'world' || country === 'uefa') return false;
     if (excludedNames.some(v => name.includes(v))) return false;
@@ -1154,7 +1148,7 @@ function getCurrentCompetitionSeasonYear(leagueLike) {
   if (isSingleYearCompetition(leagueLike)) {
     return month < 4 ? year - 1 : year;
   }
-  return month >= 7 ? year + 1 : year;
+  return month >= 7 ? year : year - 1;
 }
 
 function getSeasonYearsFromLeague(leagueLike, fallbackCount = 7) {
@@ -1165,9 +1159,11 @@ function getSeasonYearsFromLeague(leagueLike, fallbackCount = 7) {
 
   const currentSeasonYear = getCurrentCompetitionSeasonYear(leagueLike);
   const startYear = rawSeasons.length ? Math.max(rawSeasons[0], currentSeasonYear) : currentSeasonYear;
-  const minYear = rawSeasons.length ? Math.min(rawSeasons[rawSeasons.length - 1], startYear) : (startYear - fallbackCount + 1);
+  const oldestKnownYear = rawSeasons.length ? rawSeasons[rawSeasons.length - 1] : (startYear - fallbackCount + 1);
+  const endYear = Math.max(oldestKnownYear, startYear - fallbackCount + 1);
+
   const years = [];
-  for (let y = startYear; y >= minYear && years.length < fallbackCount; y--) {
+  for (let y = startYear; y >= endYear && years.length < fallbackCount; y--) {
     years.push(y);
   }
   return years;
@@ -1370,7 +1366,7 @@ function clubTopRows(players, pickFn, labelFn) {
 
 function isSingleYearCompetition(leagueLike) {
   const name = String(leagueLike?.league?.name || leagueLike?.name || '').toLowerCase();
-  const country = getLeagueCountryName(leagueLike).toLowerCase();
+  const country = String(leagueLike?.league?.country || leagueLike?.country || '').toLowerCase();
   const singleYearNames = ['allsvenskan','superettan','eliteserien','obos-ligaen','veikkausliiga','ykkosliiga','major league soccer','mls','brasileirao','serie a brazil','liga profesional argentina','j1 league','j2 league','k league'];
   const singleYearCountries = ['sweden','norway','finland','iceland','usa','brazil','argentina','japan','south korea','ireland'];
   return singleYearNames.some(v => name.includes(v)) || singleYearCountries.some(v => country.includes(v));
@@ -1380,7 +1376,7 @@ function formatSeasonLabel(year, leagueLike) {
   const y = Number(year);
   if (!Number.isFinite(y)) return String(year || '—');
   if (isSingleYearCompetition(leagueLike)) return String(y);
-  return `${y-1}/${String(y).slice(2)}`;
+  return `${y}/${String(y + 1).slice(2)}`;
 }
 
 function fixtureBelongsToDisplayedSeason(fixture, seasonYear, leagueLike) {
@@ -1388,13 +1384,15 @@ function fixtureBelongsToDisplayedSeason(fixture, seasonYear, leagueLike) {
   if (isNaN(d.getTime())) return true;
   const y = Number(seasonYear);
   if (!Number.isFinite(y)) return true;
+
   if (isSingleYearCompetition(leagueLike)) {
     const start = new Date(Date.UTC(y, 0, 1, 0, 0, 0));
     const end = new Date(Date.UTC(y, 11, 31, 23, 59, 59));
     return d >= start && d <= end;
   }
-  const start = new Date(Date.UTC(y - 1, 6, 1, 0, 0, 0));
-  const end = new Date(Date.UTC(y, 5, 30, 23, 59, 59));
+
+  const start = new Date(Date.UTC(y, 6, 1, 0, 0, 0));
+  const end = new Date(Date.UTC(y + 1, 5, 30, 23, 59, 59));
   return d >= start && d <= end;
 }
 
@@ -1424,7 +1422,1945 @@ function aggregateTeamSeason(fixtures, teamId, seasonYear, leagueLike) {
     else if (gf === ga) out.draws += 1;
     else out.losses += 1;
   }
+
   return out;
 }
 
->
+// ═══════════════════════════════════════════
+// SHOW TEAM
+// ═══════════════════════════════════════════
+
+async function showTeam(id, opts = {}) {
+  _currentTeamId = id;
+  showPage('team');
+
+  document.getElementById('teamHero').innerHTML = `
+    <div class="team-hero-inner">
+      <div class="team-badge-large">⚽</div>
+      <div class="team-meta-large">
+        <div class="skeleton" style="height:12px;width:120px;margin-bottom:8px;border-radius:4px"></div>
+        <div class="skeleton" style="height:36px;width:260px;border-radius:6px"></div>
+      </div>
+    </div>`;
+
+  document.getElementById('teamTabs').innerHTML = `
+    <button class="tab-btn active" onclick="showTeamTab('overview',this)">Overview</button>
+    <button class="tab-btn" onclick="showTeamTab('squad',this)">Squad</button>
+    <button class="tab-btn" onclick="showTeamTab('stats',this)">Statistics</button>
+    <button class="tab-btn" onclick="showTeamTab('toplayers',this)">Top Players</button>
+    <button class="tab-btn" onclick="showTeamTab('transfers',this)">Transfers</button>
+    <button class="tab-btn" onclick="showTeamTab('fixtures',this)">Fixtures</button>`;
+
+  document.getElementById('teamContent').innerHTML =
+    `<div class="skeleton" style="height:300px;border-radius:10px;margin-top:20px"></div>`;
+
+  try {
+    const { info, squad } = await fetchTeam(id);
+    const t = info?.team;
+    const v = info?.venue;
+    if (!t) throw new Error('no team');
+
+    document.getElementById('teamHero').innerHTML = `
+      <div class="team-hero-inner">
+        <div class="team-badge-large">
+          ${t.logo ? `<img src="${t.logo}" style="width:60px;height:60px;object-fit:contain">` : '⚽'}
+        </div>
+        <div class="team-meta-large">
+          <div class="breadcrumb"><a href="javascript:void(0)" onclick="showPage('leagues')">Leagues</a> · ${t.country}</div>
+          <h1>${fixName(fixEncoding(t.name))}</h1>
+          <div class="player-tags" style="margin-top:10px">
+            ${v?.name ? `<div class="player-tag">📍 ${v.name}</div>` : ''}
+            ${v?.capacity ? `<div class="player-tag">👥 ${v.capacity.toLocaleString()}</div>` : ''}
+            ${t.founded ? `<div class="player-tag">🎓 Founded ${t.founded}</div>` : ''}
+          </div>
+          <div id="teamFollowBtn" style="margin-top:12px"></div>
+        </div>
+      </div>`;
+
+    window._currentSquad = squad;
+    window._currentTeamName = t.name;
+    window._currentTeamLogo = t.logo || '';
+    window._currentTeamCountry = t.country || '';
+
+    // Share bar
+    document.querySelectorAll('.team-share-bar').forEach(el => el.remove());
+    const shareEl = document.createElement('div');
+    shareEl.className = 'team-share-bar';
+    shareEl.style.cssText = 'padding:0 16px;max-width:1280px;margin:0 auto';
+    shareEl.innerHTML = renderShareBar(fixName(t.name));
+    document.getElementById('teamTabs').before(shareEl);
+
+    if (!opts.skipHistory) setHash('club/' + slugify(fixName(t.name)));
+    applySeo({
+      title: `${fixName(fixEncoding(t.name))} Squad, Transfers, Fixtures & Stats | TransferZoneAI`,
+      description: `View ${fixName(fixEncoding(t.name))} squad, fixtures, transfers, stadium details and club statistics on TransferZoneAI.`,
+      path: `/club/${slugify(fixName(t.name))}`,
+      schemaName: fixName(fixEncoding(t.name))
+    });
+
+    const isFollowing = isFollowingTeam(id);
+    const followBtn = document.getElementById('teamFollowBtn');
+    if (followBtn) {
+      followBtn.innerHTML = isFollowing
+        ? `<button class="btn-follow following" onclick="unfollowTeam(${id})">★ Following</button>`
+        : `<button class="btn-follow" onclick="followTeam(${id})">☆ Follow</button>`;
+    }
+
+    showTeamTab('overview');
+  } catch(e) {
+    document.getElementById('teamHero').innerHTML =
+      `<div style="padding:20px;color:var(--text3)">Kunde inte ladda laginfo.</div>`;
+  }
+}
+
+async function showTeamTab(tab, btn) {
+  document.querySelectorAll('#teamTabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn?.classList.add('active');
+  const c = document.getElementById('teamContent');
+  const teamId = _currentTeamId;
+
+  if (tab === 'overview') {
+    c.innerHTML = `<div class="skeleton" style="height:320px;border-radius:10px;margin-top:20px"></div>`;
+    try {
+      const squad = window._currentSquad || [];
+      const teamName = window._currentTeamName || 'This club';
+      const teamCountry = window._currentTeamCountry || '—';
+      const teamData = await fetchTeam(teamId);
+      const info = teamData?.info || {};
+      const t = info.team || {};
+      const v = info.venue || '';
+
+      const [leagueDataCurrent, leagueDataAll] = await Promise.all([
+        apiFetch('leagues', { team: teamId, current: 'true' }).catch(() => ({ response: [] })),
+        apiFetch('leagues', { team: teamId }).catch(() => ({ response: [] }))
+      ]);
+      const leaguesCurrent = leagueDataCurrent.response || [];
+      const leaguesAll = leagueDataAll.response || [];
+      const primaryLeagueCurrent = choosePrimaryLeague(leaguesCurrent);
+      const primaryLeague = leaguesAll.find(l => l.league?.id === primaryLeagueCurrent?.league?.id) || choosePrimaryLeague(leaguesAll) || primaryLeagueCurrent;
+      if (!primaryLeague) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Ingen aktiv liga hittades.</div>`; return; }
+      const season = getSeasonYearsFromLeague(primaryLeague, 7)[0] ?? new Date().getFullYear() - 1;
+
+      const [seasonFixturesData, playersPage1] = await Promise.all([
+        apiFetch('fixtures', { team: teamId, season }).catch(() => ({ response:[] })),
+        apiFetch('players', { team: teamId, season, page: 1 }).catch(() => ({ response:[], paging:{ total:1 } }))
+      ]);
+
+      const seasonAggregate = aggregateTeamSeason(seasonFixturesData?.response || [], teamId, season, primaryLeague);
+      let players = playersPage1?.response || [];
+      const totalPages = Math.min(playersPage1?.paging?.total || 1, 3);
+      if (totalPages > 1) {
+        const extra = await Promise.all(Array.from({ length: totalPages - 1 }, (_, i) =>
+          apiFetch('players', { team: teamId, season, page: i + 2 }).catch(() => ({ response:[] }))
+        ));
+        extra.forEach(p => players.push(...(p.response || [])));
+      }
+
+      const groups = groupByPos(squad);
+      const played = seasonAggregate.played || 0;
+      const wins = seasonAggregate.wins || 0;
+      const draws = seasonAggregate.draws || 0;
+      const losses = seasonAggregate.losses || 0;
+      const goalsFor = seasonAggregate.goalsFor || 0;
+      const goalsAgainst = seasonAggregate.goalsAgainst || 0;
+      const cleanSheets = seasonAggregate.cleanSheets || 0;
+      const winRate = clubStatPercent(wins, played);
+      const avgAge = clubAgeAverage(squad);
+      const topScorers = clubTopRows(players, p => p.statistics?.reduce((a,s)=>a + (s.goals?.total || 0), 0), p => (p.statistics?.[0]?.games?.position || ''));
+      const topAssists = clubTopRows(players, p => p.statistics?.reduce((a,s)=>a + (s.goals?.assists || 0), 0), p => (p.statistics?.[0]?.games?.position || ''));
+      const topApps = clubTopRows(players, p => p.statistics?.reduce((a,s)=>a + (s.games?.appearences || 0), 0), p => (p.statistics?.[0]?.games?.position || ''));
+      const formMatches = seasonAggregate.formMatches || [];
+      const formHTML = formMatches.map(f => {
+        const isHome = f.teams.home.id === teamId;
+        const gf = isHome ? f.goals.home : f.goals.away;
+        const ga = isHome ? f.goals.away : f.goals.home;
+        const result = gf > ga ? 'W' : gf < ga ? 'L' : 'D';
+        return `<div class="club-form-pill ${result.toLowerCase()}" onclick="showMatch(${f.fixture.id})" style="cursor:pointer">${result}<div style="font-size:11px;font-weight:600;margin-top:2px">${gf}-${ga}</div></div>`;
+      }).join('');
+
+      const renderMiniRows = (rows, suffix='') => rows.length ? rows.map(r => `
+        <div class="club-mini-row" onclick="showPlayer(${r.id})" style="cursor:pointer">
+          <div class="club-mini-left">
+            <div class="club-mini-avatar">${r.photo ? `<img src="${r.photo}" style="width:100%;height:100%;object-fit:cover">` : '⚽'}</div>
+            <div style="min-width:0">
+              <div class="club-mini-name">${r.name}</div>
+              <div class="club-mini-sub">${r.sub}</div>
+            </div>
+          </div>
+          <div class="club-mini-val">${r.val}${suffix}</div>
+        </div>`).join('') : `<div style="color:var(--text3);font-size:13px">No data available yet.</div>`;
+
+      c.innerHTML = `
+        <div style="margin-top:20px">
+          <div class="club-highlight-row">
+            <div class="club-highlight"><div class="label">League</div><div class="value gold">${primaryLeague?.league?.name || '—'}</div></div>
+            <div class="club-highlight"><div class="label">Matches</div><div class="value">${played}</div></div>
+            <div class="club-highlight"><div class="label">Win Rate</div><div class="value">${winRate}</div></div>
+            <div class="club-highlight"><div class="label">Goals For</div><div class="value gold">${goalsFor}</div></div>
+            <div class="club-highlight"><div class="label">Goals Against</div><div class="value">${goalsAgainst}</div></div>
+            <div class="club-highlight"><div class="label">Clean Sheets</div><div class="value">${cleanSheets}</div></div>
+          </div>
+
+          <div class="club-overview-grid">
+            <div class="club-panel">
+              <div class="club-panel-title">Club Snapshot</div>
+              <div class="club-insight"><strong>${fixName(teamName)}</strong> is a club from <strong>${teamCountry}</strong>${primaryLeague?.league?.name ? ` competing in <strong>${primaryLeague.league.name}</strong>` : ''}. This season the team has ${wins} wins, ${draws} draws and ${losses} losses, with ${goalsFor} goals scored and ${goalsAgainst} conceded.</div>
+
+              <div class="club-two-col" style="margin-top:18px">
+                <div class="club-panel">
+                  <div class="club-panel-title">Club & Stadium</div>
+                  <div class="club-kv"><span class="k">Country</span><span class="v">${teamCountry}</span></div>
+                  <div class="club-kv"><span class="k">Founded</span><span class="v">${t.founded || '—'}</span></div>
+                  <div class="club-kv"><span class="k">Stadium</span><span class="v">${v.name || '—'}</span></div>
+                  <div class="club-kv"><span class="k">Capacity</span><span class="v">${v.capacity ? Number(v.capacity).toLocaleString() : '—'}</span></div>
+                  <div class="club-kv"><span class="k">City</span><span class="v">${v.city || '—'}</span></div>
+                  <div class="club-kv"><span class="k">Season</span><span class="v">${formatSeasonLabel(season, primaryLeague)}</span></div>
+                </div>
+
+                <div class="club-panel">
+                  <div class="club-panel-title">Squad Makeup</div>
+                  <div class="club-kv"><span class="k">Squad size</span><span class="v">${squad.length}</span></div>
+                  <div class="club-kv"><span class="k">Average age</span><span class="v">${avgAge}</span></div>
+                  <div class="club-kv"><span class="k">Goalkeepers</span><span class="v">${groups.Goalkeepers.length}</span></div>
+                  <div class="club-kv"><span class="k">Defenders</span><span class="v">${groups.Defenders.length}</span></div>
+                  <div class="club-kv"><span class="k">Midfielders</span><span class="v">${groups.Midfielders.length}</span></div>
+                  <div class="club-kv"><span class="k">Forwards</span><span class="v">${groups.Forwards.length}</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="club-panel">
+              <div class="club-panel-title">Recent Form</div>
+              <div class="club-form-row">${formHTML || '<div style="color:var(--text3);font-size:13px">No recent matches found.</div>'}</div>
+              <div style="margin-top:18px" class="club-roster-summary">
+                <div class="club-roster-box"><div class="n">${wins}</div><div class="t">Wins</div></div>
+                <div class="club-roster-box"><div class="n">${draws}</div><div class="t">Draws</div></div>
+                <div class="club-roster-box"><div class="n">${losses}</div><div class="t">Losses</div></div>
+                <div class="club-roster-box"><div class="n">${cleanSheets}</div><div class="t">Clean Sheets</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="club-two-col" style="margin-top:16px">
+            <div class="club-panel">
+              <div class="club-panel-title">Top Scorers</div>
+              <div class="club-mini-list">${renderMiniRows(topScorers, '⚽')}</div>
+            </div>
+            <div class="club-panel">
+              <div class="club-panel-title">Most Assists</div>
+              <div class="club-mini-list">${renderMiniRows(topAssists, '🅰️')}</div>
+            </div>
+          </div>
+
+          <div class="club-panel" style="margin-top:16px">
+            <div class="club-panel-title">Most Used Players</div>
+            <div class="club-mini-list">${renderMiniRows(topApps)}</div>
+          </div>
+        </div>`;
+    } catch(e) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda klubböversikt.</div>`; }
+  }
+
+  if (tab === 'squad') {
+    const squad = window._currentSquad || [];
+    if (!squad.length) { c.innerHTML = `<div style="padding:20px;color:var(--text3);font-size:13px">Truppen laddas…</div>`; return; }
+    const groups = groupByPos(squad);
+    const avgAge = clubAgeAverage(squad);
+    const section = (title, players) => !players.length ? '' : `
+      <div class="squad-section">
+        <div class="squad-section-title">${title}</div>
+        <div class="squad-grid">
+          ${players.map(p => `
+            <div class="player-card" onclick="showPlayer(${p.id})">
+              <div class="player-card-img">
+                ${p.photo ? `<img src="${p.photo}" style="width:52px;height:52px;border-radius:50%;object-fit:cover">` : '⚽'}
+              </div>
+              <div class="player-number">${p.number || '—'}</div>
+              <div class="player-card-name">${fixEncoding(p.name)}</div>
+              <div class="player-card-pos">${p.position || ''}${p.age ? ` · ${p.age}` : ''}</div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+    c.innerHTML = `
+      <div class="club-roster-summary" style="margin-top:20px">
+        <div class="club-roster-box"><div class="n">${squad.length}</div><div class="t">Squad Size</div></div>
+        <div class="club-roster-box"><div class="n">${avgAge}</div><div class="t">Average Age</div></div>
+        <div class="club-roster-box"><div class="n">${groups.Goalkeepers.length}</div><div class="t">Goalkeepers</div></div>
+        <div class="club-roster-box"><div class="n">${groups.Defenders.length}</div><div class="t">Defenders</div></div>
+        <div class="club-roster-box"><div class="n">${groups.Midfielders.length}</div><div class="t">Midfielders</div></div>
+        <div class="club-roster-box"><div class="n">${groups.Forwards.length}</div><div class="t">Forwards</div></div>
+      </div>` + Object.entries(groups).map(([g, ps]) => section(g, ps)).join('');
+  }
+
+  if (tab === 'stats') {
+    const statsYear = window._statsYear || null;
+    c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
+    try {
+      const [leagueDataCurrent, leagueDataAll] = await Promise.all([
+        apiFetch('leagues', { team: teamId, current: 'true' }).catch(() => ({ response: [] })),
+        apiFetch('leagues', { team: teamId }).catch(() => ({ response: [] }))
+      ]);
+      const leaguesCurrent = leagueDataCurrent.response || [];
+      const leaguesAll = leagueDataAll.response || [];
+      const primaryLeagueCurrent = choosePrimaryLeague(leaguesCurrent);
+      const primaryLeague = leaguesAll.find(l => l.league?.id === primaryLeagueCurrent?.league?.id) || choosePrimaryLeague(leaguesAll) || primaryLeagueCurrent;
+      window._currentTeamPrimaryLeague = primaryLeague;
+
+      const years = getSeasonYearsFromLeague(primaryLeague, 7);
+      const season = years.includes(statsYear) ? statsYear : (years[0] || new Date().getFullYear());
+      const fixturesData = await apiFetch('fixtures', { team: teamId, season }).catch(() => ({ response: [] }));
+      const seasonAggregate = aggregateTeamSeason(fixturesData.response || [], teamId, season, primaryLeague);
+
+      const yearBtns = years.map(y =>
+        '<button onclick="window._statsYear=' + y + ';showTeamTab(\'stats\',null,' + teamId + ')" ' +
+        'class="filter-btn ' + (season === y ? 'active' : '') + '" style="padding:4px 12px;font-size:12px">' + formatSeasonLabel(y, primaryLeague) + '</button>'
+      ).join('');
+      const yearPickerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">' + yearBtns + '</div>';
+
+      const played = seasonAggregate.played || 0;
+
+      if (!played) {
+        c.innerHTML = yearPickerHTML + `<div style="padding:20px;color:var(--text3)">Ingen statistik hittades för ${formatSeasonLabel(season, primaryLeague)}.</div>`;
+        return;
+      }
+
+      const totalWins = seasonAggregate.wins || 0;
+      const totalDraws = seasonAggregate.draws || 0;
+      const totalLoses = seasonAggregate.losses || 0;
+      const totalGoalsFor = seasonAggregate.goalsFor || 0;
+      const totalGoalsAgainst = seasonAggregate.goalsAgainst || 0;
+      const cleanSheets = seasonAggregate.cleanSheets || 0;
+      const formMatches = seasonAggregate.formMatches || [];
+
+      const formHTML = formMatches.length ? `
+        <div style="margin-bottom:24px">
+          <div class="section-title" style="margin-bottom:12px;font-size:16px">Recent Form</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${formMatches.map(f => {
+              const isHome = f.teams.home.id === teamId;
+              const gf = isHome ? f.goals.home : f.goals.away;
+              const ga = isHome ? f.goals.away : f.goals.home;
+              const result = gf > ga ? 'W' : gf < ga ? 'L' : 'D';
+              const color = result==='W'?'var(--green)':result==='L'?'var(--red)':'var(--gold-dim)';
+              const opp = isHome ? f.teams.away.name : f.teams.home.name;
+              const oppLogo = isHome ? f.teams.away.logo : f.teams.home.logo;
+              return `<div onclick="showMatch(${f.fixture.id})" style="cursor:pointer;text-align:center;min-width:64px">
+                <div style="background:${color};border-radius:8px;padding:8px 10px;margin-bottom:4px">
+                  <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:white">${result}</div>
+                  <div style="font-size:12px;color:rgba(255,255,255,0.9);font-weight:700">${gf}–${ga}</div>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:center;gap:3px;font-size:10px;color:var(--text3)">
+                  ${oppLogo?`<img src="${oppLogo}" style="width:12px;height:12px;object-fit:contain">`:''}
+                  <span style="max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${opp}</span>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>` : '';
+
+      const avg = (v, g) => (g > 0 ? (v / g).toFixed(1) : '—');
+
+      c.innerHTML = `<div style="margin-top:20px">
+        ${yearPickerHTML}${formHTML}
+        <div class="section-title" style="margin-bottom:12px;font-size:16px">Season Overview — ${formatSeasonLabel(season, primaryLeague)}</div>
+        <div class="stats-grid" style="margin-bottom:24px">
+          <div class="stat-box"><div class="stat-box-val">${played}</div><div class="stat-box-lbl">Matches</div></div>
+          <div class="stat-box"><div class="stat-box-val">${totalWins}</div><div class="stat-box-lbl">Wins</div></div>
+          <div class="stat-box"><div class="stat-box-val">${totalDraws}</div><div class="stat-box-lbl">Draws</div></div>
+          <div class="stat-box"><div class="stat-box-val">${totalLoses}</div><div class="stat-box-lbl">Losses</div></div>
+          <div class="stat-box"><div class="stat-box-val">${totalGoalsFor}</div><div class="stat-box-lbl">Goals For</div></div>
+          <div class="stat-box"><div class="stat-box-val">${totalGoalsAgainst}</div><div class="stat-box-lbl">Goals Against</div></div>
+          <div class="stat-box"><div class="stat-box-val">${avg(totalGoalsFor, played)}</div><div class="stat-box-lbl">Goals/Game</div></div>
+          <div class="stat-box"><div class="stat-box-val">${avg(totalGoalsAgainst, played)}</div><div class="stat-box-lbl">Conceded/Game</div></div>
+          <div class="stat-box"><div class="stat-box-val">${cleanSheets}</div><div class="stat-box-lbl">Clean Sheets</div></div>
+        </div>
+      </div>`;
+    } catch(e) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda statistik.</div>`; }
+  }
+
+  if (tab === 'transfers') {
+    c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
+    try {
+      const data = await fetchTransfers(teamId);
+      const filterYear = window._teamTransferYear || 'all';
+      const rows = data
+        .flatMap(t => (t.transfers || []).map(tr => ({
+          player: fixEncoding(t.player?.name ?? '—'),
+          playerId: t.player?.id ?? 0,
+          from: fixName(tr.teams?.out?.name ?? '—'),
+          to: fixName(tr.teams?.in?.name  ?? '—'),
+          fromLogo: tr.teams?.out?.logo ?? '',
+          toLogo: tr.teams?.in?.logo  ?? '',
+          fee: formatFee(tr.type),
+          feeType: (tr.type||'').toLowerCase().includes('loan') ? 'loan' : (tr.type||'').toLowerCase() === 'free' ? 'free' : 'paid',
+          date: tr.date ?? '—',
+        })))
+        .filter(r => {
+          if (!r.date || r.date === '—') return false;
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(r.date)) return false;
+          const d = new Date(r.date);
+          if (isNaN(d.getTime()) || d.getFullYear() < 2000) return false;
+          return true;
+        })
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+      if (!rows.length) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Inga transfers hittades.</div>`; return; }
+      const thisYr = new Date().getFullYear();
+      const yearFilterHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">' +
+        ['All', thisYr, thisYr-1, thisYr-2].map(y =>
+          '<button class="filter-btn ' + ((filterYear == y || (y==='All' && filterYear==='all')) ? 'active' : '') +
+          '" data-yr="' + (y==='All'?'all':y) + '" onclick="window._teamTransferYear=this.dataset.yr;showTeamTab(\'transfers\',null,' + teamId + ')" style="padding:4px 12px;font-size:12px">' + y + '</button>'
+        ).join('') + '</div>';
+      const filterHTML = `
+        <div class="toplist-filters" style="margin-bottom:12px">
+          <button class="filter-btn active" onclick="filterTeamTransfers('all', this, ${teamId})">All</button>
+          <button class="filter-btn" onclick="filterTeamTransfers('in', this, ${teamId})">Arrivals</button>
+          <button class="filter-btn" onclick="filterTeamTransfers('out', this, ${teamId})">Departures</button>
+        </div>`;
+      const filteredByYear = filterYear === 'all' ? rows : rows.filter(r => r.date && r.date.startsWith(String(filterYear)));
+      window._teamTransfers = filteredByYear;
+      window._teamTransferRows = rows;
+      window._teamId = teamId;
+      c.innerHTML = yearFilterHTML + filterHTML + renderTeamTransferTable(filteredByYear);
+    } catch(e) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda transfers.</div>`; }
+  }
+
+  if (tab === 'toplayers') {
+    const selectedYear = window._topPlayersYear || null;
+    c.innerHTML = `<div class="skeleton" style="height:300px;border-radius:10px;margin-top:20px"></div>`;
+    try {
+      const [leagueDataCurrent, leagueDataAll] = await Promise.all([
+        apiFetch('leagues', { team: teamId, current: 'true' }).catch(() => ({ response: [] })),
+        apiFetch('leagues', { team: teamId }).catch(() => ({ response: [] }))
+      ]);
+      const leaguesCurrent = leagueDataCurrent.response || [];
+      const leaguesAll = leagueDataAll.response || [];
+      const primaryLeagueCurrent = choosePrimaryLeague(leaguesCurrent);
+      const primaryLeague = leaguesAll.find(l => l.league?.id === primaryLeagueCurrent?.league?.id) || choosePrimaryLeague(leaguesAll) || primaryLeagueCurrent;
+      window._currentTeamPrimaryLeague = primaryLeague;
+      const seasonYears = getSeasonYearsFromLeague(primaryLeague, 7);
+      const season = seasonYears.includes(selectedYear) ? selectedYear : (seasonYears[0] || new Date().getFullYear() - 1);
+      const leagueId = primaryLeague?.league?.id;
+      if (!leagueId) throw new Error('no league');
+      let activeSeason = season;
+      let allPlayers = [];
+      const yearsToTry = getSeasonYearsFromLeague(primaryLeague, 7).filter((v,i,a)=>a.indexOf(v)===i);
+      for (const yr of yearsToTry) {
+        try {
+          const test = await apiFetch('players', { team: teamId, season: yr, page: 1 });
+          if ((test.response||[]).length > 0) {
+            activeSeason = yr;
+            allPlayers = test.response;
+            const totalPages = Math.min(test.paging?.total||1, 3);
+            if (totalPages > 1) {
+              const extra = await Promise.all(Array.from({length: totalPages-1}, (_,i) =>
+                apiFetch('players', { team: teamId, season: yr, page: i+2 }).catch(()=>({response:[]}))
+              ));
+              extra.forEach(p => allPlayers.push(...(p.response||[])));
+            }
+            break;
+          }
+        } catch(_) { continue; }
+      }
+      if (!allPlayers.length) { c.innerHTML = `<div style="padding:32px 20px;color:var(--text3);text-align:center"><div style="font-size:32px;margin-bottom:8px">📊</div><div>No player statistics available yet.</div></div>`; return; }
+      const yearPickerHTML = buildYearPicker(activeSeason, teamId, 'toplayers', '_topPlayersYear', primaryLeague);
+      const sumStat = (p, fn) => (p.statistics||[]).reduce((acc,s) => acc + (fn(s)||0), 0);
+      const byGoals   = [...allPlayers].sort((a,b) => sumStat(b,s=>s.goals?.total)   - sumStat(a,s=>s.goals?.total)).filter(p => sumStat(p,s=>s.goals?.total) > 0);
+      const byAssists = [...allPlayers].sort((a,b) => sumStat(b,s=>s.goals?.assists) - sumStat(a,s=>s.goals?.assists)).filter(p => sumStat(p,s=>s.goals?.assists) > 0);
+      const byApps    = [...allPlayers].sort((a,b) => sumStat(b,s=>s.games?.appearences) - sumStat(a,s=>s.games?.appearences)).filter(p => sumStat(p,s=>s.games?.appearences) > 0);
+      const byTackles = [...allPlayers].sort((a,b) => sumStat(b,s=>s.tackles?.total) - sumStat(a,s=>s.tackles?.total)).filter(p => sumStat(p,s=>s.tackles?.total) > 0);
+      const byYellow  = [...allPlayers].sort((a,b) => sumStat(b,s=>s.cards?.yellow)  - sumStat(a,s=>s.cards?.yellow)).filter(p => sumStat(p,s=>s.cards?.yellow) > 0);
+      const pRow = (p, i, val) => `
+        <div class="scorer-row" onclick="showPlayer(${p.player.id})" style="cursor:pointer">
+          <div class="scorer-rank ${i<3?'top':''}">${i+1}</div>
+          <div class="scorer-img">${p.player.photo?`<img src="${p.player.photo}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`:'⚽'}</div>
+          <div class="scorer-info">
+            <div class="scorer-name">${fixEncoding(p.player.name)}</div>
+            <div class="scorer-club">${p.statistics[0]?.games?.position||''}</div>
+          </div>
+          <div class="scorer-goals">${val}</div>
+        </div>`;
+      const card = (title, emoji, players, valFn) => !players.length ? '' : `
+        <div class="sidebar-card">
+          <div class="sidebar-title">${emoji} ${title}</div>
+          ${players.slice(0,8).map((p,i) => pRow(p, i, valFn(p))).join('')}
+        </div>`;
+      c.innerHTML = '<div style="margin-top:20px">' + yearPickerHTML +
+        '<div style="color:var(--text3);font-size:12px;margin-bottom:16px">Season ' + formatSeasonLabel(activeSeason, primaryLeague) + '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">' +
+        card('Goals', 'Goals', byGoals, p => sumStat(p, s => s.goals?.total)) +
+        card('Assists', 'Assists', byAssists, p => sumStat(p, s => s.goals?.assists)) +
+        card('Appearances', 'Apps', byApps, p => sumStat(p, s => s.games?.appearences)) +
+        card('Tackles', 'Tackles', byTackles, p => sumStat(p, s => s.tackles?.total)) +
+        card('Yellow Cards', 'Yellow', byYellow, p => sumStat(p, s => s.cards?.yellow)) +
+        '</div></div>';
+    } catch(e) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda spelarstatistik.</div>`; }
+  }
+
+  if (tab === 'fixtures') {
+    c.innerHTML = `<div class="skeleton" style="height:300px;border-radius:10px;margin-top:20px"></div>`;
+    try {
+      const leagueData = await apiFetch('leagues', { team: teamId, current: 'true' });
+      const currentLeagues = leagueData.response || [];
+      const season = currentLeagues[0]?.seasons?.find(s => s.current)?.year ?? new Date().getFullYear() - 1;
+      const [lastData, nextData] = await Promise.all([
+        apiFetch('fixtures', { team: teamId, season, last: 10 }),
+        apiFetch('fixtures', { team: teamId, season, next: 10 }),
+      ]);
+      const lastF = (lastData.response || []).reverse();
+      const nextF = nextData.response || [];
+      const allF = [...lastF, ...nextF];
+      if (!allF.length) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Inga matcher hittades.</div>`; return; }
+      const byLeague = {};
+      allF.forEach(f => {
+        const key = f.league.id;
+        if (!byLeague[key]) byLeague[key] = { name: f.league.name, logo: f.league.logo, fixtures: [] };
+        byLeague[key].fixtures.push(f);
+      });
+      const dateLabel = (dateStr) => new Date(dateStr).toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
+      c.innerHTML = `<div style="margin-top:20px">
+        ${Object.values(byLeague).map(league => `
+          <div style="margin-bottom:24px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border2)">
+              ${league.logo ? `<img src="${league.logo}" style="width:20px;height:20px;object-fit:contain">` : ''}
+              <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.5px">${league.name}</span>
+            </div>
+            <div class="matches-list">
+              ${league.fixtures.map(f => {
+                const m = normalizeMatch(f);
+                const statusShort = f.fixture.status.short;
+                const isLive = ['1H','HT','2H','ET','P'].includes(statusShort);
+                const isFT = ['FT','AET','PEN'].includes(statusShort);
+                const statusClass = isLive ? 'live' : isFT ? 'finished' : 'upcoming';
+                const statusText = isLive ? m.min : isFT ? 'FT' : m.time;
+                const score = (isLive || isFT)
+                  ? `<div class="match-score-display">${m.scoreH} – ${m.scoreA}</div>`
+                  : `<div class="match-score-display upcoming" style="font-size:14px">${m.time}</div>`;
+                return `<div class="match-card" onclick="showMatch(${f.fixture.id})" style="cursor:pointer">
+                  <div class="match-meta">
+                    <span style="font-size:11px;color:var(--text3)">${dateLabel(f.fixture.date)}</span>
+                    <span class="match-status ${statusClass}" style="margin-left:auto">${isLive?'● ':''} ${statusText}</span>
+                  </div>
+                  <div class="match-teams">
+                    <div class="match-team"><div class="team-logo">${f.teams.home.logo?`<img src="${f.teams.home.logo}" style="width:22px;height:22px;object-fit:contain">`:'⚽'}</div><span class="team-name-m">${f.teams.home.name}</span></div>
+                    ${score}
+                    <div class="match-team away"><div class="team-logo">${f.teams.away.logo?`<img src="${f.teams.away.logo}" style="width:22px;height:22px;object-fit:contain">`:'⚽'}</div><span class="team-name-m">${f.teams.away.name}</span></div>
+                  </div>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>`).join('')}
+      </div>`;
+    } catch(e) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda matcher.</div>`; }
+  }
+}
+
+function renderTeamTransferTable(rows) {
+  if (!rows.length) return `<div style="padding:20px;color:var(--text3)">Inga transfers.</div>`;
+  return `<div class="table-wrap">
+    <table class="transfers-table">
+      <thead><tr><th>Player</th><th>Movement</th><th>Fee</th><th>Date</th></tr></thead>
+      <tbody>${rows.slice(0, 50).map(r => `
+        <tr onclick="showPlayer(${r.playerId})" style="cursor:pointer">
+          <td><div class="t-player"><div class="t-player-img">⚽</div><div><div class="t-player-name">${r.player}</div></div></div></td>
+          <td><div class="t-clubs" style="align-items:center">
+            ${r.fromLogo ? `<img src="${r.fromLogo}" style="width:16px;height:16px;object-fit:contain">` : ''}
+            <span>${r.from}</span><span class="t-sep">→</span>
+            ${r.toLogo ? `<img src="${r.toLogo}" style="width:16px;height:16px;object-fit:contain">` : ''}
+            <span>${r.to}</span>
+          </div></td>
+          <td><span class="t-fee ${r.feeType==='loan'?'loan-fee':r.feeType==='free'?'free-fee':''}">${r.fee}</span></td>
+          <td style="color:var(--text3);font-size:12px">${r.date?.slice(0,10)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function filterTeamTransfers(type, btn, teamId) {
+  document.querySelectorAll('#teamContent .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const rows = window._teamTransfers || [];
+  const teamName = window._currentTeamName || '';
+  const filteredRows = type === 'all' ? rows
+    : type === 'in'  ? rows.filter(r => r.to.toLowerCase().includes(teamName.toLowerCase()))
+    : type === 'out' ? rows.filter(r => r.from.toLowerCase().includes(teamName.toLowerCase()))
+    : rows;
+  const tableContainer = document.getElementById('teamContent');
+  const table = tableContainer.querySelector('.table-wrap');
+  if (table) table.outerHTML = renderTeamTransferTable(type === 'all' ? rows : filteredRows);
+}
+
+// ═══════════════════════════════════════════
+// SHOW PLAYER
+// ═══════════════════════════════════════════
+
+let _currentPlayerId = null;
+
+async function showPlayer(id, opts = {}) {
+  _currentPlayerId = id;
+  showPage('player');
+
+  document.getElementById('playerHero').innerHTML = `
+    <div class="player-hero-inner">
+      <div class="player-avatar-large">⚽</div>
+      <div class="player-meta">
+        <div class="skeleton" style="height:12px;width:120px;margin-bottom:8px;border-radius:4px"></div>
+        <div class="skeleton" style="height:40px;width:280px;border-radius:6px"></div>
+      </div>
+    </div>`;
+
+  document.getElementById('playerTabs').innerHTML = `
+    <button class="tab-btn active" onclick="showPlayerTab('overview',this)">Overview</button>
+    <button class="tab-btn" onclick="showPlayerTab('advanced',this)">Advanced</button>
+    <button class="tab-btn" onclick="showPlayerTab('career',this)">Career</button>
+    <button class="tab-btn" onclick="showPlayerTab('transfers',this)">Transfers</button>`;
+
+  document.getElementById('playerContent').innerHTML =
+    `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
+
+  try {
+    const data = await fetchPlayer(id);
+    if (!data) throw new Error('no player');
+    const p = data.player;
+    const s = data.statistics?.[0];
+    window._currentPlayerData = data;
+    if (!opts.skipHistory) setHash('player/' + slugify(fixEncoding(p.name)));
+    applySeo({
+      title: `${fixEncoding(p.name)} Stats, Transfer History & Profile | TransferZoneAI`,
+      description: `View ${fixEncoding(p.name)} stats, transfer history, profile, position, age and current club on TransferZoneAI.`,
+      path: `/player/${slugify(fixEncoding(p.name))}`,
+      schemaName: fixEncoding(p.name)
+    });
+
+    const transferData = await apiFetch('transfers', { player: id });
+    const allTransfers = transferData.response?.[0]?.transfers || [];
+    const latestTransfer = allTransfers.filter(t => t.date).sort((a,b) => new Date(b.date) - new Date(a.date))[0];
+    const currentTeam = latestTransfer?.teams?.in?.name || s?.team?.name || '';
+    const currentTeamId = latestTransfer?.teams?.in?.id || s?.team?.id || 0;
+    window._currentPlayerTransfers = allTransfers;
+
+    const seasonsData = await apiFetch('players/seasons', { player: id }).catch(() => ({ response: [] }));
+    const availableSeasons = (seasonsData.response || []).slice().reverse();
+    const currentSeason = window._playerYear || availableSeasons[0] || new Date().getFullYear() - 1;
+
+    const seasonDropdown = availableSeasons.length > 1 ? `
+      <select id="playerSeasonSelect" onchange="changePlayerSeason(${id}, this.value)"
+        style="background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;cursor:pointer">
+        ${availableSeasons.map(y => `<option value="${y}" ${y === currentSeason ? 'selected' : ''}>${formatSeasonLabel(y, s?.league)}</option>`).join('')}
+      </select>` : '';
+
+    document.getElementById('playerHero').innerHTML = `
+      <div class="player-hero-inner">
+        <div class="player-avatar-large">
+          ${p.photo ? `<img src="${p.photo}" style="width:90px;height:90px;border-radius:14px;object-fit:cover">` : '⚽'}
+        </div>
+        <div class="player-meta" style="flex:1">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+            <div>
+              <div style="font-size:12px;color:var(--text3);margin-bottom:4px">
+                <a href="javascript:void(0)" onclick="showTeam(${currentTeamId})" style="color:var(--gold);text-decoration:none">${fixName(currentTeam)}</a>
+                · ${p.nationality||''}
+              </div>
+              <h1>${fixEncoding(p.name)}</h1>
+              <div class="player-tags">
+                ${s?.games?.position ? `<div class="player-tag pos-tag">${s.games.position}</div>` : ''}
+                ${p.age ? `<div class="player-tag">🎂 ${p.age}</div>` : ''}
+                ${p.height ? `<div class="player-tag">📏 ${p.height}</div>` : ''}
+                ${p.weight ? `<div class="player-tag">⚖️ ${p.weight}</div>` : ''}
+              </div>
+            </div>
+            ${seasonDropdown}
+          </div>
+        </div>
+      </div>`;
+
+    document.querySelectorAll('.player-share-bar').forEach(el => el.remove());
+    const playerShareEl = document.createElement('div');
+    playerShareEl.className = 'player-share-bar';
+    playerShareEl.style.cssText = 'padding:0 16px;max-width:1280px;margin:0 auto';
+    playerShareEl.innerHTML = renderShareBar(fixEncoding(p.name));
+    document.getElementById('playerTabs').before(playerShareEl);
+
+    showPlayerTab('overview', null, data);
+  } catch(e) {
+    document.getElementById('playerHero').innerHTML =
+      `<div style="padding:20px;color:var(--text3)">Kunde inte ladda spelarinfo.</div>`;
+  }
+}
+
+async function changePlayerSeason(playerId, year) {
+  window._playerYear = parseInt(year);
+  window._playerStatFilter = 'all';
+  const data = await apiFetch('players', { id: playerId, season: year });
+  const playerObj = data.response?.[0];
+  if (playerObj) { window._currentPlayerData = playerObj; showPlayerTab('overview', null, playerObj); }
+}
+
+async function showPlayerTab(tab, btn, playerData) {
+  const currentYear = new Date().getFullYear();
+  playerData = playerData || window._currentPlayerData;
+  document.querySelectorAll('#playerTabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn?.classList.add('active');
+  const c = document.getElementById('playerContent');
+  if (!playerData) return;
+  const allStats = playerData.statistics || [];
+  const s = allStats[0];
+  const p = playerData.player || {};
+  const aggAll = playerAgg(allStats);
+
+  if (tab === 'overview') {
+    const seasonYear = s?.league?.season ?? currentYear - 1;
+    const seasonLabel = formatSeasonLabel(seasonYear, s?.league);
+    const leagueStats = allStats.filter(st => !/(cup|coupe|copa|coppa|pokal|trophy|friendly|friendlies|nations|u\d{2})/i.test(st.league?.name||''));
+    const cupStats    = allStats.filter(st => /(cup|coupe|copa|coppa|pokal|trophy)/i.test(st.league?.name||''));
+    const intlStats   = allStats.filter(st => /(national|u\d{2}|friendly|friendlies|nations league)/i.test(st.league?.name||''));
+    const compFilters = [{ key:'all', label:'All', stats: allStats }];
+    if (leagueStats.length && leagueStats.length < allStats.length) compFilters.push({ key:'league', label:'League', stats: leagueStats });
+    if (cupStats.length)  compFilters.push({ key:'cup',  label:'Cup', stats: cupStats });
+    if (intlStats.length) compFilters.push({ key:'intl', label:'National Team', stats: intlStats });
+    const activeFilter = window._playerStatFilter || 'all';
+    const activeStats  = compFilters.find(f => f.key === activeFilter)?.stats || allStats;
+    const agg = playerAgg(activeStats);
+    const latestClub = s?.team?.name || '—';
+    const latestLeague = s?.league?.name || '—';
+    const birthLine = [p.birth?.date, p.birth?.place, p.birth?.country].filter(Boolean).join(' · ');
+    const contractStatus = p.injured ? '<span class="badge badge-red">Injured</span>' : '<span class="badge badge-green">Available</span>';
+    const filterBtns = compFilters.length > 1 ? compFilters.map(f => {
+      const active = activeFilter === f.key ? ' active' : '';
+      return '<button class="filter-btn' + active + '" data-filter="' + f.key + '" onclick="window._playerStatFilter=this.dataset.filter;showPlayerTab(\'overview\',null)">' + f.label + '</button>';
+    }).join('') : '';
+    const competitionRows = activeStats.map(st =>
+      '<tr><td><div style="display:flex;align-items:center;gap:6px">' +
+        (st.league?.logo ? '<img src="' + st.league.logo + '" style="width:16px;height:16px;object-fit:contain">' : '') +
+        (st.league?.name||'—') + '</div></td>' +
+        '<td>' + fixName(st.team?.name||'—') + '</td>' +
+        '<td>' + (st.games?.appearences||0) + '</td>' +
+        '<td>' + (st.goals?.total||0) + '</td>' +
+        '<td>' + (st.goals?.assists||0) + '</td>' +
+        '<td>' + (st.games?.minutes||0) + '</td></tr>'
+    ).join('');
+    c.innerHTML =
+      '<div style="margin-top:20px">' +
+        (filterBtns ? '<div class="toplist-filters" style="margin-bottom:16px">' + filterBtns + '</div>' : '') +
+        '<div class="player-highlight-row">' +
+          '<div class="player-highlight"><div class="label">Season</div><div class="value gold">' + seasonLabel + '</div></div>' +
+          '<div class="player-highlight"><div class="label">Appearances</div><div class="value">' + agg.apps + '</div></div>' +
+          '<div class="player-highlight"><div class="label">Goals</div><div class="value gold">' + agg.goals + '</div></div>' +
+          '<div class="player-highlight"><div class="label">Assists</div><div class="value">' + agg.assists + '</div></div>' +
+          '<div class="player-highlight"><div class="label">Avg Rating</div><div class="value">' + agg.rating + '</div></div>' +
+          '<div class="player-highlight"><div class="label">G+A / 90</div><div class="value">' + agg.goalContributionPer90 + '</div></div>' +
+        '</div>' +
+        '<div class="player-overview-grid">' +
+          '<div class="player-panel">' +
+            '<div class="player-panel-title">Player Snapshot</div>' +
+            '<div class="player-insight"><strong>' + fixEncoding(p.name || 'This player') + '</strong> currently plays for <strong>' + fixName(latestClub) + '</strong> in <strong>' + latestLeague + '</strong>. ' +
+            'This season he has ' + agg.goals + ' goals, ' + agg.assists + ' assists and an average rating of ' + agg.rating + ' across ' + agg.apps + ' appearances.</div>' +
+            '<div class="player-detail-grid">' +
+              '<div class="player-panel"><div class="player-panel-title">Profile</div>' +
+                '<div class="player-kv"><span class="k">Full name</span><span class="v">' + fixEncoding(([p.firstname, p.lastname].filter(Boolean).join(' ') || p.name || '—')) + '</span></div>' +
+                '<div class="player-kv"><span class="k">Position</span><span class="v">' + (s?.games?.position || '—') + '</span></div>' +
+                '<div class="player-kv"><span class="k">Nationality</span><span class="v">' + (p.nationality || '—') + '</span></div>' +
+                '<div class="player-kv"><span class="k">Age</span><span class="v">' + (p.age || '—') + '</span></div>' +
+                '<div class="player-kv"><span class="k">Birth</span><span class="v">' + (birthLine || '—') + '</span></div>' +
+                '<div class="player-kv"><span class="k">Status</span><span class="v">' + contractStatus + '</span></div>' +
+              '</div>' +
+              '<div class="player-panel"><div class="player-panel-title">Season Usage</div>' +
+                '<div class="player-kv"><span class="k">Minutes</span><span class="v">' + agg.minutes.toLocaleString() + '</span></div>' +
+                '<div class="player-kv"><span class="k">Starts</span><span class="v">' + agg.lineups + '</span></div>' +
+                '<div class="player-kv"><span class="k">Captain</span><span class="v">' + agg.captain + '</span></div>' +
+                '<div class="player-kv"><span class="k">Sub on</span><span class="v">' + agg.substituteIn + '</span></div>' +
+                '<div class="player-kv"><span class="k">Sub off</span><span class="v">' + agg.substituteOut + '</span></div>' +
+                '<div class="player-kv"><span class="k">Bench</span><span class="v">' + agg.substituteBench + '</span></div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="player-panel">' +
+            '<div class="player-panel-title">Key Performance</div>' +
+            '<div class="player-mini-bars">' +
+              '<div class="player-bar-block"><div class="player-bar-head"><strong>Shot Accuracy</strong><span>' + agg.shotAccuracy + '</span></div><div class="player-bar-track"><div class="player-bar-fill" style="width:' + (agg.shotAccuracy === '—' ? '0%' : agg.shotAccuracy) + '"></div></div></div>' +
+              '<div class="player-bar-block"><div class="player-bar-head"><strong>Pass Accuracy</strong><span>' + agg.passAccuracy + '</span></div><div class="player-bar-track"><div class="player-bar-fill" style="width:' + (agg.passAccuracy === '—' ? '0%' : agg.passAccuracy) + '"></div></div></div>' +
+              '<div class="player-bar-block"><div class="player-bar-head"><strong>Dribble Success</strong><span>' + agg.dribbleRate + '</span></div><div class="player-bar-track"><div class="player-bar-fill" style="width:' + (agg.dribbleRate === '—' ? '0%' : agg.dribbleRate) + '"></div></div></div>' +
+              '<div class="player-bar-block"><div class="player-bar-head"><strong>Duel Win Rate</strong><span>' + agg.duelRate + '</span></div><div class="player-bar-track"><div class="player-bar-fill" style="width:' + (agg.duelRate === '—' ? '0%' : agg.duelRate) + '"></div></div></div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        (activeStats.length > 0 ?
+          '<div class="player-section-stack">' +
+            '<div class="player-panel"><div class="player-panel-title">By Competition</div>' +
+            '<div class="table-wrap"><table class="career-table"><thead><tr><th>Competition</th><th>Club</th><th>Apps</th><th>Goals</th><th>Assists</th><th>Minutes</th></tr></thead>' +
+            '<tbody>' + competitionRows + '</tbody></table></div></div>' +
+          '</div>' : '') +
+      '</div>';
+  }
+
+  if (tab === 'advanced') {
+    const agg = aggAll;
+    c.innerHTML = '<div style="margin-top:20px" class="player-section-stack">' +
+      '<div class="player-two-col">' +
+        '<div class="player-panel">' +
+          '<div class="player-panel-title">Attacking Data</div>' +
+          '<div class="player-kv"><span class="k">Goals</span><span class="v">' + agg.goals + '</span></div>' +
+          '<div class="player-kv"><span class="k">Assists</span><span class="v">' + agg.assists + '</span></div>' +
+          '<div class="player-kv"><span class="k">Shots</span><span class="v">' + agg.shots + '</span></div>' +
+          '<div class="player-kv"><span class="k">Shots on target</span><span class="v">' + agg.shotsOn + '</span></div>' +
+          '<div class="player-kv"><span class="k">Shot accuracy</span><span class="v">' + agg.shotAccuracy + '</span></div>' +
+          '<div class="player-kv"><span class="k">Pens scored</span><span class="v">' + agg.pensScored + '</span></div>' +
+          '<div class="player-kv"><span class="k">Pens missed</span><span class="v">' + agg.pensMissed + '</span></div>' +
+        '</div>' +
+        '<div class="player-panel">' +
+          '<div class="player-panel-title">Passing & Build-up</div>' +
+          '<div class="player-kv"><span class="k">Passes</span><span class="v">' + agg.passes.toLocaleString() + '</span></div>' +
+          '<div class="player-kv"><span class="k">Key passes</span><span class="v">' + agg.keyPasses + '</span></div>' +
+          '<div class="player-kv"><span class="k">Pass accuracy</span><span class="v">' + agg.passAccuracy + '</span></div>' +
+          '<div class="player-kv"><span class="k">Dribble attempts</span><span class="v">' + agg.dribbleAttempts + '</span></div>' +
+          '<div class="player-kv"><span class="k">Successful dribbles</span><span class="v">' + agg.dribbleSuccess + '</span></div>' +
+          '<div class="player-kv"><span class="k">Dribble success</span><span class="v">' + agg.dribbleRate + '</span></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="player-two-col">' +
+        '<div class="player-panel">' +
+          '<div class="player-panel-title">Defensive & Physical</div>' +
+          '<div class="player-kv"><span class="k">Duels won</span><span class="v">' + agg.duelsWon + ' / ' + agg.duelsTotal + '</span></div>' +
+          '<div class="player-kv"><span class="k">Duel win rate</span><span class="v">' + agg.duelRate + '</span></div>' +
+          '<div class="player-kv"><span class="k">Tackles</span><span class="v">' + agg.tackles + '</span></div>' +
+          '<div class="player-kv"><span class="k">Interceptions</span><span class="v">' + agg.interceptions + '</span></div>' +
+          '<div class="player-kv"><span class="k">Blocks</span><span class="v">' + agg.blocks + '</span></div>' +
+          '<div class="player-kv"><span class="k">Offsides</span><span class="v">' + agg.offsides + '</span></div>' +
+        '</div>' +
+        '<div class="player-panel">' +
+          '<div class="player-panel-title">Discipline & Fouls</div>' +
+          '<div class="player-kv"><span class="k">Fouls drawn</span><span class="v">' + agg.foulsDrawn + '</span></div>' +
+          '<div class="player-kv"><span class="k">Fouls committed</span><span class="v">' + agg.foulsCommitted + '</span></div>' +
+          '<div class="player-kv"><span class="k">Yellow cards</span><span class="v">' + agg.yellow + '</span></div>' +
+          '<div class="player-kv"><span class="k">Red cards</span><span class="v">' + agg.red + '</span></div>' +
+          '<div class="player-kv"><span class="k">Competitions tracked</span><span class="v">' + agg.comps + '</span></div>' +
+          '<div class="player-kv"><span class="k">Penalty saves</span><span class="v">' + agg.pensSaved + '</span></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  if (tab === 'transfers') {
+    const transfers = window._currentPlayerTransfers || [];
+    if (!transfers.length) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Inga transfers hittades.</div>`; return; }
+    const sorted = [...transfers].filter(t => t.date).sort((a,b) => new Date(b.date) - new Date(a.date));
+    c.innerHTML = `<div style="margin-top:20px" class="table-wrap">
+      <table class="career-table">
+        <thead><tr><th>Date</th><th>From</th><th>To</th><th>Fee</th></tr></thead>
+        <tbody>${sorted.map(t => `
+          <tr>
+            <td style="color:var(--text3);font-size:12px">${t.date?.slice(0,10)||'—'}</td>
+            <td><div style="display:flex;align-items:center;gap:6px">${t.teams?.out?.logo?`<img src="${t.teams.out.logo}" style="width:18px;height:18px;object-fit:contain">`:''}${t.teams?.out?.name||'—'}</div></td>
+            <td><div style="display:flex;align-items:center;gap:6px">${t.teams?.in?.logo?`<img src="${t.teams.in.logo}" style="width:18px;height:18px;object-fit:contain">`:''}${t.teams?.in?.name||'—'}</div></td>
+            <td><span class="t-fee ${(t.type||'').toLowerCase().includes('loan')?'loan-fee':(t.type||'').toLowerCase()==='free'?'free-fee':''}">${formatFee(t.type)}</span></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  if (tab === 'career') {
+    c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
+    try {
+      const currentYear = new Date().getFullYear();
+      const seasons = [currentYear, currentYear-1, currentYear-2, currentYear-3, currentYear-4];
+      const results = await Promise.all(seasons.map(y => apiFetch('players', { id: _currentPlayerId, season: y }).catch(() => null)));
+      const rows = results.flatMap((r,i) => {
+        const stats = r?.response?.[0]?.statistics || [];
+        return stats.map(s => ({ season: formatSeasonLabel(seasons[i], s.league), club: s.team?.name || '—', league: s.league?.name || '—', apps: s.games?.appearences || 0, goals: s.goals?.total || 0, assists: s.goals?.assists || 0 }));
+      });
+      c.innerHTML = `<div style="margin-top:20px" class="table-wrap">
+        <table class="career-table">
+          <thead><tr><th>Season</th><th>Club</th><th>League</th><th>Apps</th><th>G</th><th>A</th></tr></thead>
+          <tbody>${rows.map((r,i) => `<tr><td><span class="career-season">${r.season}</span></td><td><div class="career-club">${fixName(r.club)}</div></td><td style="color:var(--text3);font-size:12px">${r.league}</td><td>${r.apps}</td><td class="${i===0?'career-highlight':''}">${r.goals}</td><td>${r.assists}</td></tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+    } catch(e) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda karriärstatistik.</div>`; }
+  }
+}
+
+// ═══════════════════════════════════════════
+// INIT HOME
+// ═══════════════════════════════════════════
+
+async function initHome() {
+  document.getElementById('topLeagues').innerHTML = LEAGUES.slice(0, 12).map(l => `
+    <div class="league-card" onclick="showLeague(${l.id},'${l.name.replace(/'/g,"\\'")}','${l.code||''}')">
+      <div class="league-flag">${flagImg(l.code)}</div>
+      <div class="league-info">
+        <div class="league-name">${l.name}</div>
+        <div class="league-country">${l.country}</div>
+      </div>
+      ${l.badge ? `<div class="league-badge">${l.badge}</div>` : ''}
+    </div>`).join('');
+
+  document.getElementById('homeMatches').innerHTML =
+    [1,2,3].map(() => `<div class="skeleton" style="height:80px;border-radius:10px"></div>`).join('');
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [liveRes, recentRes, nextRes, transfersRes] = await Promise.allSettled([
+    apiFetch('fixtures', { live: 'all' }),
+    apiFetch('fixtures', { date: today }),
+    apiFetch('fixtures', { league: '39-140-78-135-61', season: SEASON, next: 10 }),
+    fetch('/api/transfers-daily').then(r=>r.json()).then(d => d.results > 0 ? d : fetch('/api/football?endpoint=transfers/global&season=2025').then(r=>r.json())).catch(()=>({response:[]})),
+  ]);
+
+  const liveFixtures  = liveRes.status   === 'fulfilled' ? (liveRes.value.response  || []) : [];
+  const todayFixtures = recentRes.status === 'fulfilled' ? (recentRes.value.response || []) : [];
+  const nextFixtures  = nextRes.status   === 'fulfilled' ? (nextRes.value.response   || []) : [];
+
+  const seenIds = new Set();
+  const allFixtures = [...liveFixtures, ...todayFixtures, ...nextFixtures]
+    .filter(f => { if (seenIds.has(f.fixture.id)) return false; seenIds.add(f.fixture.id); return true; })
+    .sort((a, b) => {
+      const aLive = ['1H','HT','2H','ET','P'].includes(a.fixture.status.short);
+      const bLive = ['1H','HT','2H','ET','P'].includes(b.fixture.status.short);
+      if (aLive && !bLive) return -1;
+      if (!aLive && bLive) return 1;
+      return new Date(a.fixture.date) - new Date(b.fixture.date);
+    });
+
+  if (allFixtures.length) {
+    document.getElementById('homeMatches').innerHTML =
+      `<div class="matches-list">${allFixtures.slice(0, 8).map(f => matchCard(normalizeMatch(f))).join('')}</div>`;
+    const tickerItems = allFixtures.map(f => {
+      const m = normalizeMatch(f);
+      const st = f.fixture.status.short;
+      const isLive = ['1H','HT','2H','ET','P'].includes(st);
+      const isDone = ['FT','AET','PEN'].includes(st);
+      const label = isLive ? m.min : isDone ? 'FT' : m.time;
+      const color = isLive ? 'var(--green)' : isDone ? 'var(--text3)' : 'var(--gold)';
+      const score = (isLive || isDone)
+        ? `<span class="ticker-score">${m.scoreH ?? 0} – ${m.scoreA ?? 0}</span>`
+        : `<span class="ticker-score" style="font-size:12px;color:var(--text3)">vs</span>`;
+      return `<div class="ticker-item"><span>${m.home}</span>${score}<span>${m.away}</span><span class="ticker-minute" style="color:${color}">${label}</span></div>`;
+    });
+    if (tickerItems.length) {
+      const t = tickerItems.join('');
+      document.getElementById('tickerTrack').innerHTML = t + t;
+    }
+  } else {
+    document.getElementById('homeMatches').innerHTML =
+      `<div style="padding:16px;color:var(--text3);font-size:13px;text-align:center">Inga matcher just nu — nästa omgång kommer snart.</div>`;
+  }
+
+  setTimeout(() => {
+    const track = document.getElementById('tickerTrack');
+    if (!track.innerHTML.trim()) {
+      const fb = [
+        { home:'Arsenal', away:'Man City', h:2, a:1 },
+        { home:'Barcelona', away:'Real Madrid', h:1, a:2 },
+        { home:'Bayern', away:'Dortmund', h:3, a:0 },
+        { home:'PSG', away:'Lyon', h:2, a:0 },
+      ].map(m => `<div class="ticker-item"><span>${m.home}</span><span class="ticker-score">${m.h} – ${m.a}</span><span>${m.away}</span><span class="ticker-minute" style="color:var(--text3)">FT</span></div>`).join('');
+      track.innerHTML = fb + fb;
+    }
+  }, 4000);
+
+  if (transfersRes.status === 'fulfilled') {
+    const raw = transfersRes.value.response || [];
+    const rows = raw.slice(0, 8);
+    if (rows.length) {
+      document.getElementById('recentTransfers').innerHTML = rows.map(function(t) {
+        const feeType = (t.type||'').toLowerCase().includes('loan') ? 'loan' : (t.type||'').toLowerCase() === 'free' ? 'free' : 'paid';
+        const fee = formatFee(t.type);
+        return '<div class="transfer-card" onclick="showPlayer(' + t.playerId + ')" style="cursor:pointer">' +
+          '<div class="transfer-player-img">' + (t.photo ? '<img src="' + t.photo + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover">' : '⚽') + '</div>' +
+          '<div class="transfer-info"><div class="transfer-player-name">' + fixEncoding(t.player) + '</div>' +
+          '<div class="transfer-clubs" style="display:flex;align-items:center;gap:4px">' +
+            (t.fromLogo ? '<img src="' + t.fromLogo + '" style="width:14px;height:14px;object-fit:contain">' : '') +
+            '<span>' + fixName(t.from) + '</span><span class="transfer-arrow">→</span>' +
+            (t.toLogo ? '<img src="' + t.toLogo + '" style="width:14px;height:14px;object-fit:contain">' : '') +
+            '<span>' + fixName(t.to) + '</span></div>' +
+          '<div style="font-size:11px;color:var(--text3)">' + (t.date ? t.date.slice(0,10) : '') + '</div></div>' +
+          '<div class="transfer-fee ' + (feeType==='loan'?'loan':feeType==='free'?'free':'') + '">' + fee + '</div></div>';
+      }).join('');
+    } else {
+      renderTransfersFallback();
+    }
+  } else {
+    renderTransfersFallback();
+  }
+}
+
+function renderTransfersFallback() {
+  document.getElementById('recentTransfers').innerHTML =
+    '<div style="padding:20px;color:var(--text3);text-align:center;font-size:13px">Loading latest transfers...</div>';
+  fetch('/api/transfers-daily')
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      const rows = data.response || [];
+      if (!rows.length) return;
+      document.getElementById('recentTransfers').innerHTML = rows.slice(0,8).map(function(t) {
+        const feeType = (t.type||'').toLowerCase().includes('loan')?'loan':(t.type||'').toLowerCase()==='free'?'free':'paid';
+        const fee = formatFee(t.type);
+        return '<div class="transfer-card" onclick="showPlayer('+t.playerId+')" style="cursor:pointer">' +
+          '<div class="transfer-player-img">' + (t.photo?'<img src="'+t.photo+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover">':'⚽') + '</div>' +
+          '<div class="transfer-info"><div class="transfer-player-name">'+fixEncoding(t.player)+'</div>' +
+          '<div class="transfer-clubs" style="display:flex;align-items:center;gap:4px">' +
+            (t.fromLogo?'<img src="'+t.fromLogo+'" style="width:14px;height:14px;object-fit:contain">':'') +
+            '<span>'+fixName(t.from)+'</span><span class="transfer-arrow">→</span>' +
+            (t.toLogo?'<img src="'+t.toLogo+'" style="width:14px;height:14px;object-fit:contain">':'') +
+            '<span>'+fixName(t.to)+'</span></div>' +
+          '<div style="font-size:11px;color:var(--text3)">'+(t.date?t.date.slice(0,10):'')+'</div></div>' +
+          '<div class="transfer-fee '+(feeType==='loan'?'loan':feeType==='free'?'free':'')+'">'+fee+'</div></div>';
+      }).join('');
+    }).catch(function(){});
+}
+
+// ═══════════════════════════════════════════
+// LEAGUES PAGE
+// ═══════════════════════════════════════════
+
+function showLeague(id, name, flag, opts = {}) {
+  if (!opts.skipHistory) setHash('league/' + slugify(name));
+  applySeo({
+    title: `${name} Table, Top Scorers, Transfers & Stats | TransferZoneAI`,
+    description: `View ${name} standings, top scorers, transfers, fixtures and club stats on TransferZoneAI.`,
+    path: `/league/${slugify(name)}`,
+    schemaName: name
+  });
+  const current = document.querySelector('.page.active')?.id?.replace('page-','');
+  if (current && current !== 'leagues') {
+    _navHistory.push(current);
+    if (_navHistory.length > 20) _navHistory.shift();
+  }
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-leagues')?.classList.add('active');
+  window.scrollTo(0,0);
+  updateBackButton('leagues');
+  renderLeaguePage(id, name, flag);
+}
+
+async function renderLeaguePage(id, name, flag) {
+  const c = document.getElementById('allLeaguesContent');
+  c.innerHTML = `<div style="margin-bottom:20px"><div class="section-title"><span>${name}</span></div></div>
+    <div class="skeleton" style="height:300px;border-radius:10px"></div>`;
+  try {
+    const leagueInfo = await apiFetch('leagues', { id });
+    const seasons = leagueInfo.response?.[0]?.seasons || [];
+    const currentSeason = seasons.filter(s => s.current).pop() || seasons[seasons.length - 1];
+    const season = currentSeason?.year ?? new Date().getFullYear();
+    let activeSeason = season;
+    const testTable = await apiFetch('standings', { league: id, season }).catch(() => ({ response:[] }));
+    if (!testTable.response?.length) activeSeason = season - 1;
+    const testScorers = await apiFetch('players/topscorers', { league: id, season: activeSeason }).catch(() => ({ response:[] }));
+    const [table, scorers, assistsData, yellowData, redData] = await Promise.all([
+      testTable.response?.length ? Promise.resolve(testTable) : apiFetch('standings', { league: id, season: activeSeason }),
+      Promise.resolve(testScorers),
+      apiFetch('players/topassists',     { league: id, season: activeSeason }).catch(() => ({ response:[] })),
+      apiFetch('players/topyellowcards', { league: id, season: activeSeason }).catch(() => ({ response:[] })),
+      apiFetch('players/topredcards',    { league: id, season: activeSeason }).catch(() => ({ response:[] })),
+    ]);
+    const standings  = table.response?.[0]?.league?.standings?.[0] ?? [];
+    const topscorers = scorers.response    ?? [];
+    const assists    = assistsData.response ?? [];
+    const yellows    = yellowData.response  ?? [];
+    const reds       = redData.response     ?? [];
+    const summerLeagueCountries = ['Sweden','Norway','Denmark','Finland','USA','Canada','Australia','Japan','South Korea','Russia','Ukraine'];
+    const isSummerLeague = summerLeagueCountries.some(co => (leagueInfo.response?.[0]?.country?.name||'').includes(co));
+    const seasonLabel = isSummerLeague ? `${activeSeason}` : `${activeSeason}/${String(activeSeason+1).slice(2)}`;
+    const backBtn = `<div style="margin-bottom:20px"><div class="section-title"><span>${name}</span> <span style="color:var(--text3);font-size:14px;font-weight:400">${seasonLabel}</span></div></div>`;
+
+    if (!standings.length && !topscorers.length) {
+      c.innerHTML = backBtn + `<div style="padding:20px;color:var(--text3)">Ingen data tillgänglig för denna liga just nu.</div>`;
+      return;
+    }
+
+    const standingsHTML = standings.length ? `
+      <div style="margin-bottom:28px">
+        <div class="section-title" style="margin-bottom:12px">Standings</div>
+        <div class="table-wrap">
+          <table class="standings-table">
+            <thead><tr><th>#</th><th>Club</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th><th>Form</th></tr></thead>
+            <tbody>${standings.map(r => {
+              const desc = (r.description||'').toLowerCase();
+              const cl = desc.includes('champions'), el = desc.includes('europa')||desc.includes('conference'), rel = desc.includes('relegat');
+              return `<tr onclick="showTeam(${r.team.id})" style="cursor:pointer">
+                <td><span class="st-pos ${cl?'st-cl':el?'st-el':rel?'st-rel':''}">${r.rank}</span></td>
+                <td><div style="display:flex;align-items:center;gap:6px">${r.team.logo?`<img src="${r.team.logo}" style="width:18px;height:18px;object-fit:contain">`:''}<span class="st-team-name">${fixName(r.team.name)}</span></div></td>
+                <td>${r.all?.win??0}</td><td>${r.all?.draw??0}</td><td>${r.all?.lose??0}</td>
+                <td>${(r.goalsDiff??0)>=0?'+':''}${r.goalsDiff??0}</td>
+                <td><span class="st-pts">${r.points}</span></td>
+                <td><div class="st-form">${formDots(r.form)}</div></td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>
+        </div>
+      </div>` : '';
+
+    const playerRow = (p, i, val) => `
+      <div class="scorer-row" onclick="showPlayer(${p.player.id})" style="cursor:pointer">
+        <div class="scorer-rank ${i<3?'top':''}">${i+1}</div>
+        <div class="scorer-img">${p.player.photo?`<img src="${p.player.photo}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`:'⚽'}</div>
+        <div class="scorer-info">
+          <div class="scorer-name">${fixEncoding(p.player.name)}</div>
+          <div class="scorer-club">${fixName(p.statistics[0]?.team?.name||'')}</div>
+        </div>
+        <div class="scorer-goals">${val}</div>
+      </div>`;
+
+    const topCard = (title, emoji, players, valFn) => !players.length ? '' : `
+      <div class="sidebar-card">
+        <div class="sidebar-title">${emoji} ${title}</div>
+        ${players.slice(0,10).map((p,i) => playerRow(p, i, valFn(p))).join('')}
+      </div>`;
+
+    const topListsHTML = `
+      <div class="section-title" style="margin:24px 0 16px">Top Lists</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-bottom:24px">
+        ${topCard('Top Scorers',  '⚽', topscorers, p => p.statistics[0]?.goals?.total||0)}
+        ${topCard('Top Assists',  '🅰️', assists,    p => p.statistics[0]?.goals?.assists||0)}
+        ${topCard('Yellow Cards', '🟡', yellows,    p => p.statistics[0]?.cards?.yellow||0)}
+        ${topCard('Red Cards',    '🔴', reds,       p => p.statistics[0]?.cards?.red||0)}
+      </div>`;
+
+    const [t1, t2, t3] = await Promise.all([
+      apiFetch('transfers', { league: id, season: activeSeason }).catch(()=>({response:[]})),
+      apiFetch('transfers', { league: id, season: activeSeason-1 }).catch(()=>({response:[]})),
+      apiFetch('transfers', { league: id, season: activeSeason-2 }).catch(()=>({response:[]})),
+    ]);
+    const allLeagueTransfers = [...(t1.response||[]), ...(t2.response||[]), ...(t3.response||[])]
+      .flatMap(entry => (entry.transfers||[]).map(tr => ({
+        player: fixEncoding(entry.player?.name||''), playerId: entry.player?.id||0,
+        photo: entry.player?.photo||'',
+        from: fixName(tr.teams?.out?.name||''), to: fixName(tr.teams?.in?.name||''),
+        fromLogo: tr.teams?.out?.logo||'', toLogo: tr.teams?.in?.logo||'',
+        fee: formatFee(tr.type),
+        feeType: (tr.type||'').toLowerCase().includes('loan')?'loan':(tr.type||'').toLowerCase()==='free'?'free':'paid',
+        date: tr.date||'',
+      })))
+      .filter(t => t.date && /^\d{4}-\d{2}-\d{2}$/.test(t.date))
+      .sort((a,b) => new Date(b.date)-new Date(a.date));
+
+    const leagueTransfersHTML = allLeagueTransfers.length ? `
+      <div style="margin-top:24px">
+        <div class="section-title" style="margin-bottom:12px">Transfers</div>
+        <div class="table-wrap">
+          <table class="transfers-table">
+            <thead><tr><th>Player</th><th>Movement</th><th>Fee</th><th>Date</th></tr></thead>
+            <tbody>${allLeagueTransfers.slice(0,30).map(t => `
+              <tr onclick="showPlayer(${t.playerId})" style="cursor:pointer">
+                <td><div class="t-player">${t.photo?`<img src="${t.photo}" style="width:28px;height:28px;border-radius:50%;object-fit:cover">`:'<div class="t-player-img">⚽</div>'}<div class="t-player-name">${t.player}</div></div></td>
+                <td><div class="t-clubs">${t.fromLogo?`<img src="${t.fromLogo}" style="width:14px;height:14px;object-fit:contain">`:''}<span>${t.from}</span><span class="t-sep">→</span>${t.toLogo?`<img src="${t.toLogo}" style="width:14px;height:14px;object-fit:contain">`:''}<span>${t.to}</span></div></td>
+                <td><span class="t-fee ${t.feeType==='loan'?'loan-fee':t.feeType==='free'?'free-fee':''}">${t.fee}</span></td>
+                <td style="color:var(--text3);font-size:12px">${t.date.slice(0,10)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>` : '';
+
+    c.innerHTML = backBtn + '<div style="padding:4px 0 8px">' + renderShareBar(name) + '</div>' + standingsHTML + topListsHTML + leagueTransfersHTML;
+  } catch(e) {
+    c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda ligadata.</div>`;
+  }
+}
+
+let _allLeagues = [];
+
+async function initLeagues(region) {
+  const c = document.getElementById('allLeaguesContent');
+  c.innerHTML = `<div class="skeleton" style="height:400px;border-radius:10px"></div>`;
+  try {
+    if (!_allLeagues.length) {
+      const data = await apiFetch('leagues', { current: 'true' });
+      _allLeagues = data.response || [];
+    }
+    renderLeaguesByCountry(_allLeagues, region);
+  } catch(e) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda ligor.</div>`; }
+}
+
+function renderLeaguesByCountry(leagues, region) {
+  const c = document.getElementById('allLeaguesContent');
+  const europeCountries = ['England','Spain','Germany','Italy','France','Portugal','Netherlands','Belgium','Turkey','Scotland','Greece','Russia','Sweden','Norway','Denmark','Switzerland','Austria','Croatia','Serbia','Czech Republic','Poland','Ukraine','Romania','Slovakia','Hungary','Bulgaria','Slovenia','Albania','Kosovo','Bosnia','Montenegro','Armenia','Georgia','Azerbaijan','Cyprus','Malta','Luxembourg','Iceland','Finland','Estonia','Latvia','Lithuania','Faroe Islands','Northern Ireland','Wales','Ireland','Belarus','North Macedonia','Moldova'];
+  const southAmCountries = ['Brazil','Argentina','Chile','Colombia','Uruguay','Peru','Ecuador','Paraguay','Bolivia','Venezuela'];
+  const northAmCountries = ['United States','Mexico','Canada','Costa Rica','Honduras','Guatemala','El Salvador','Panama','Jamaica','Trinidad and Tobago'];
+  const asiaCountries = ['Japan','South Korea','China','Saudi Arabia','UAE','Qatar','Iran','Iraq','India','Australia','Thailand','Indonesia','Malaysia','Vietnam','Uzbekistan','Kazakhstan','Bahrain','Kuwait','Oman','Jordan','Lebanon','Syria','Israel'];
+  const africaCountries = ['Egypt','Morocco','Nigeria','South Africa','Ghana','Senegal','Tunisia','Algeria','Cameroon','Ivory Coast','Kenya','Ethiopia','Tanzania','Uganda','Zimbabwe','Zambia'];
+  const regionMap = { europe: europeCountries, 'south-america': southAmCountries, 'north-america': northAmCountries, asia: asiaCountries, africa: africaCountries };
+
+  const filtered = !region || region === 'all' ? leagues : leagues.filter(l => (regionMap[region] || []).includes(l.country?.name));
+
+  const byCountry = {};
+  filtered.forEach(l => {
+    const country = l.country?.name || 'World';
+    if (!byCountry[country]) byCountry[country] = { leagues: [], flag: l.country?.flag || '' };
+    byCountry[country].leagues.push(l);
+  });
+
+  const TOP = ['England','Spain','Germany','Italy','France','Portugal','Netherlands','Belgium','Turkey','Brazil','Argentina','United States','Japan','Saudi Arabia','Sweden','Norway','Denmark','Scotland','Greece','Russia'];
+  const sorted = Object.entries(byCountry).sort(([a], [b]) => {
+    const ai = TOP.indexOf(a), bi = TOP.indexOf(b);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
+  const WOMEN_LEAGUE_IDS = new Set([8,44,64,74,82,91,139,142,146,190,254,484,524,525,549,638,649,660,666,669,670,671,673,697,698,699,712,725,733,736,737,739,743,854,880,897,912,915,918,922,926,947,948,949,950]);
+  const womenKeywords = ['women','woman','female','ladies','damen','feminin','femenin','naisten','kvinner','kvinde','femenino','feminino','mulheres','mujer'];
+  function isWomen(name, leagueId) {
+    if (leagueId && WOMEN_LEAGUE_IDS.has(leagueId)) return true;
+    const n = (name||'').toLowerCase();
+    return womenKeywords.some(k => n.includes(k));
+  }
+
+  function leagueRank(name) {
+    if (!name) return 99;
+    const n = name.toLowerCase();
+    if (/^(premier league|la liga|bundesliga|serie a|ligue 1|eredivisie|primeira liga|pro league|j1 league|mls|série a|liga profesional|eliteserien|superliga|allsvenskan|champions league)$/i.test(n)) return 1;
+    if (/(cup|pokal|coupe|copa|coppa|trophy|shield|supercup|friendly|u18|u21|u23|youth|reserve|women|damen|dam |feminin|ladies)/.test(n)) return 50;
+    if (/(championship|segunda|2\. bundesliga|ligue 2|serie b|eerste divisie|segunda liga|1\. division|superettan)/.test(n)) return 2;
+    if (/(league one|national$|ettan|3rd division|j3 league|série c)/.test(n)) return 3;
+    return 10;
+  }
+
+  function sortLeagues(ls) {
+    const men   = ls.filter(l => !isWomen(l.league.name, l.league.id)).sort((a,b) => leagueRank(a.league.name) - leagueRank(b.league.name));
+    const women = ls.filter(l =>  isWomen(l.league.name, l.league.id)).sort((a,b) => leagueRank(a.league.name) - leagueRank(b.league.name));
+    return { men, women };
+  }
+
+  function leagueRow(l) {
+    return `<div class="league-row" onclick="showLeague(${l.league.id},'${(l.league.name||'').replace(/'/g,"\\'")}','')">
+      ${l.league.logo ? `<img class="league-row-logo" src="${l.league.logo}">` : '<span style="width:24px;text-align:center">🏆</span>'}
+      <span class="league-row-name">${l.league.name}</span>
+      <span class="league-row-tier">${l.league.type||''}</span>
+    </div>`;
+  }
+
+  c.innerHTML = sorted.map(([country, { leagues: ls, flag }], idx) => {
+    const { men, women } = sortLeagues(ls);
+    const id = 'acc_' + idx;
+    const bodyHTML = `<div class="leagues-two-col">
+      <div>${men.length ? '<div class="leagues-col-title">Men</div>' : ''}${men.map(leagueRow).join('')}</div>
+      <div>${women.length ? '<div class="leagues-col-title">Women</div>' : ''}${women.map(leagueRow).join('')}</div>
+    </div>`;
+    return `<div class="country-accordion">
+      <div class="country-accordion-header" onclick="toggleAccordion('${id}', this)">
+        ${flag ? `<img class="country-flag-img" src="${flag}" onerror="this.style.display='none'">` : '<span style="width:32px"></span>'}
+        <span class="country-accordion-name">${country}</span>
+        <span class="country-accordion-count">${ls.length} league${ls.length>1?'s':''}</span>
+        <span class="country-accordion-arrow">▼</span>
+      </div>
+      <div class="country-accordion-body" id="${id}">${bodyHTML}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleAccordion(id, header) {
+  const body = document.getElementById(id);
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  header.classList.toggle('open', !isOpen);
+}
+
+function filterLeagues(region, btn) {
+  document.querySelectorAll('#page-leagues .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (_allLeagues.length) renderLeaguesByCountry(_allLeagues, region);
+  else initLeagues(region);
+}
+
+// ═══════════════════════════════════════════
+// TRANSFERS PAGE
+// ═══════════════════════════════════════════
+
+let _allTransfers = [];
+const TRANSFERS_PER_PAGE = 10;
+
+async function initTransfers() {
+  document.getElementById('transfersBody').innerHTML = skeletonRows(6, 5);
+  try {
+    const teamIds = [50, 33, 529, 157, 85];
+    const results = await Promise.all(teamIds.map(id => fetchTransfers(id).catch(() => [])));
+    _allTransfers = results.flatMap(data =>
+      data.flatMap(t => (t.transfers || []).map(tr => ({
+        player: t.player.name, playerId: t.player.id, pos: '—',
+        from: tr.teams.out.name, to: tr.teams.in.name, fee: tr.type || '—',
+        type: tr.type?.toLowerCase().includes('loan') ? 'loan' : tr.type?.toLowerCase() === 'free' ? 'free' : 'paid',
+        date: tr.date?.slice(0, 7) || '—', flag: '⚽',
+      })))
+    ).sort((a, b) => b.date.localeCompare(a.date));
+    renderTransfers(_allTransfers, 1);
+  } catch(e) {
+    document.getElementById('transfersBody').innerHTML =
+      `<tr><td colspan="5" style="color:var(--text3);padding:20px;text-align:center">Kunde inte ladda transfers.</td></tr>`;
+  }
+}
+
+function renderTransfers(data, page) {
+  const start = (page - 1) * TRANSFERS_PER_PAGE;
+  const slice = data.slice(start, start + TRANSFERS_PER_PAGE);
+  document.getElementById('transfersBody').innerHTML = slice.map(t => `
+    <tr onclick="showPlayer(${t.playerId})">
+      <td><div class="t-player"><div class="t-player-img">${t.flag}</div><div><div class="t-player-name">${fixEncoding(t.player)}</div></div></div></td>
+      <td><div class="t-clubs"><span>${t.from}</span><span class="t-sep">→</span><span>${t.to}</span></div></td>
+      <td><span class="t-fee ${t.type==='loan'?'loan-fee':t.type==='free'?'free-fee':''}">${t.fee}</span></td>
+      <td style="color:var(--text3);font-size:12px">${t.date}</td>
+      <td><span class="badge badge-${t.type==='paid'?'gold':t.type==='loan'?'blue':'green'}">${t.type==='paid'?'Confirmed':t.type==='loan'?'Loan':'Free'}</span></td>
+    </tr>`).join('');
+  const pages = Math.ceil(data.length / TRANSFERS_PER_PAGE);
+  document.getElementById('transfersPagination').innerHTML =
+    Array.from({length: Math.min(pages, 8)}, (_, i) =>
+      `<button class="page-btn ${i+1===page?'active':''}" onclick="renderTransfers(_allTransfers,${i+1})">${i+1}</button>`
+    ).join('');
+}
+
+function filterTransfers(type, btn) {
+  document.querySelectorAll('#page-transfers .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const filtered = type === 'all' ? _allTransfers : type === 'loans' ? _allTransfers.filter(t => t.type === 'loan') : type === 'free' ? _allTransfers.filter(t => t.type === 'free') : _allTransfers.filter(t => t.type === 'paid');
+  renderTransfers(filtered, 1);
+}
+
+// ═══════════════════════════════════════════
+// TOP LISTS
+// ═══════════════════════════════════════════
+
+async function showTopList(type, btn) {
+  document.querySelectorAll('#page-toplist .filter-btn').forEach(b => b.classList.remove('active'));
+  btn?.classList.add('active');
+  const c = document.getElementById('topListContent');
+  c.innerHTML = `<div class="skeleton" style="height:300px;border-radius:10px"></div>`;
+  try {
+    if (type === 'scorers' || type === 'assists') {
+      const scorers = await fetchTopScorers(39);
+      const field = type === 'assists' ? 'assists' : 'total';
+      c.innerHTML = `<div class="table-wrap"><table class="career-table">
+        <thead><tr><th>#</th><th>Player</th><th>Club</th><th>${type==='assists'?'Assists':'Goals'}</th><th>Apps</th></tr></thead>
+        <tbody>${scorers.map((s,i) => `
+          <tr onclick="showPlayer(${s.player.id})">
+            <td><span class="st-pos ${i<3?'st-cl':''}">${i+1}</span></td>
+            <td><div class="career-club">${s.player.photo?`<img src="${s.player.photo}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">`:''}${s.player.name}</div></td>
+            <td style="color:var(--text3)">${fixName(s.statistics[0]?.team?.name||'')}</td>
+            <td class="${i===0?'career-highlight':''}"><b>${s.statistics[0]?.goals?.[field]||0}</b></td>
+            <td>${s.statistics[0]?.games?.appearences||0}</td>
+          </tr>`).join('')}
+        </tbody></table></div>`;
+    }
+    if (type === 'value' || type === 'clean') {
+      c.innerHTML = `<div style="padding:20px;color:var(--text3);font-size:13px">Denna data kräver Transfermarkt-integration. Kommer snart! 🚀</div>`;
+    }
+    if (type === 'transfers') {
+      if (!_allTransfers.length) await initTransfers();
+      const paid = _allTransfers.filter(t => t.type === 'paid').slice(0, 20);
+      c.innerHTML = `<div class="table-wrap"><table class="transfers-table">
+        <thead><tr><th>#</th><th>Player</th><th>Movement</th><th>Fee</th><th>Date</th></tr></thead>
+        <tbody>${paid.map((t,i) => `
+          <tr onclick="showPlayer(${t.playerId})">
+            <td><span class="st-pos ${i<3?'st-cl':''}">${i+1}</span></td>
+            <td><div class="t-player"><div class="t-player-img">${t.flag}</div><div><div class="t-player-name">${fixEncoding(t.player)}</div></div></div></td>
+            <td><div class="t-clubs"><span>${t.from}</span><span class="t-sep">→</span><span>${t.to}</span></div></td>
+            <td><span class="t-fee">${t.fee}</span></td>
+            <td style="color:var(--text3);font-size:12px">${t.date}</td>
+          </tr>`).join('')}
+        </tbody></table></div>`;
+    }
+  } catch(e) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda data.</div>`; }
+}
+
+// ═══════════════════════════════════════════
+// LIVE PAGE
+// ═══════════════════════════════════════════
+
+let _liveData = [];
+let _liveFilter = 'all';
+let _liveDate = new Date().toISOString().slice(0, 10);
+
+async function initLive() {
+  _liveDate = new Date().toISOString().slice(0, 10);
+  renderLiveDatePicker();
+  await new Promise(r => setTimeout(r, 50));
+  await loadLiveByDate(_liveDate, _liveFilter);
+}
+
+function renderLiveDatePicker() {
+  const c = document.getElementById('liveContent');
+  const today = new Date();
+  const days = [];
+  for (let i = -3; i <= 3; i++) { const d = new Date(today); d.setDate(today.getDate() + i); days.push(d); }
+  const dateStr = (d) => d.toISOString().slice(0, 10);
+  const labelStr = (d) => {
+    const diff = Math.round((d - today) / 86400000);
+    if (diff === 0) return 'Today'; if (diff === -1) return 'Yesterday'; if (diff === 1) return 'Tomorrow';
+    return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  };
+  c.innerHTML = `
+    <div id="liveDatePicker" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:16px;scrollbar-width:none">
+      ${days.map(d => `<button onclick="selectLiveDate('${dateStr(d)}', this)" class="filter-btn ${dateStr(d) === _liveDate ? 'active' : ''}" style="flex-shrink:0;white-space:nowrap;padding:6px 14px">${labelStr(d)}</button>`).join('')}
+    </div>
+    <div class="toplist-filters" style="margin-bottom:16px">
+      <button class="filter-btn ${_liveFilter==='all'?'active':''}" onclick="filterLive('all',this)">All</button>
+      <button class="filter-btn ${_liveFilter==='live'?'active':''}" onclick="filterLive('live',this)">🟢 Live</button>
+      <button class="filter-btn ${_liveFilter==='upcoming'?'active':''}" onclick="filterLive('upcoming',this)">Upcoming</button>
+      <button class="filter-btn ${_liveFilter==='finished'?'active':''}" onclick="filterLive('finished',this)">Finished</button>
+    </div>
+    <div id="liveMatchesContent"></div>`;
+}
+
+async function selectLiveDate(date, btn) {
+  _liveDate = date;
+  document.querySelectorAll('#liveDatePicker .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  await loadLiveByDate(date, _liveFilter);
+}
+
+async function loadLiveByDate(date, type) {
+  const mc = document.getElementById('liveMatchesContent');
+  if (!mc) return;
+  mc.innerHTML = `<div class="skeleton" style="height:300px;border-radius:10px"></div>`;
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    let fixtures = [];
+    if (date === today) {
+      const [liveData, todayData] = await Promise.all([apiFetch('fixtures', { live: 'all' }), apiFetch('fixtures', { date })]);
+      const seen = new Set();
+      fixtures = [...(liveData.response||[]), ...(todayData.response||[])].filter(f => { if (seen.has(f.fixture.id)) return false; seen.add(f.fixture.id); return true; });
+    } else {
+      const data = await apiFetch('fixtures', { date });
+      fixtures = data.response || [];
+    }
+    _liveData = fixtures;
+    renderLiveMatches(fixtures, type);
+  } catch(e) { if (mc) mc.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda matcher.</div>`; }
+}
+
+function renderLiveMatches(fixtures, type) {
+  const mc = document.getElementById('liveMatchesContent');
+  if (!mc) return;
+  const filtered = type === 'live' ? fixtures.filter(f => ['1H','HT','2H','ET','P'].includes(f.fixture?.status?.short))
+    : type === 'upcoming' ? fixtures.filter(f => f.fixture?.status?.short === 'NS')
+    : type === 'finished' ? fixtures.filter(f => ['FT','AET','PEN'].includes(f.fixture?.status?.short))
+    : fixtures;
+  if (!filtered.length) { mc.innerHTML = `<div style="padding:20px;color:var(--text3);text-align:center">No matches found.</div>`; return; }
+  const byCountry = {};
+  filtered.forEach(f => {
+    const country = f.league?.country || 'World';
+    const leagueKey = f.league?.id || f.league?.name;
+    if (!byCountry[country]) byCountry[country] = {};
+    if (!byCountry[country][leagueKey]) byCountry[country][leagueKey] = { name: f.league?.name || '—', logo: f.league?.logo || '', fixtures: [] };
+    byCountry[country][leagueKey].fixtures.push(f);
+  });
+  const TOP = ['England','Spain','Germany','Italy','France','Portugal','Netherlands','Belgium','Turkey','Brazil','Argentina','United States','Sweden','Norway','Denmark'];
+  const sortedCountries = Object.entries(byCountry).sort(([a],[b]) => {
+    const ai = TOP.indexOf(a), bi = TOP.indexOf(b);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1; if (bi !== -1) return 1;
+    return a.localeCompare(b);
+  });
+  mc.innerHTML = sortedCountries.map(([country, leagues], ci) => {
+    const leagueList = Object.values(leagues);
+    const accId = `live_acc_${ci}`;
+    return `<div class="country-accordion" style="margin-bottom:6px">
+      <div class="country-accordion-header" onclick="toggleAccordion('${accId}', this)">
+        <span class="country-accordion-name" style="font-size:14px">${country}</span>
+        <span class="country-accordion-count">${leagueList.reduce((s,l)=>s+l.fixtures.length,0)} matches</span>
+        <span class="country-accordion-arrow">▼</span>
+      </div>
+      <div class="country-accordion-body" id="${accId}">
+        ${leagueList.map(league => `
+          <div style="margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:4px 0">
+              ${league.logo ? `<img src="${league.logo}" style="width:18px;height:18px;object-fit:contain">` : ''}
+              <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text2)">${league.name}</span>
+            </div>
+            <div class="matches-list">${league.fixtures.map(f => matchCard(normalizeMatch(f))).join('')}</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function filterLive(type, btn) {
+  document.querySelectorAll('#page-live .toplist-filters .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _liveFilter = type;
+  renderLiveMatches(_liveData.length ? _liveData : [], type);
+}
+
+// ═══════════════════════════════════════════
+// MATCH PAGE
+// ═══════════════════════════════════════════
+
+let _currentFixtureId = null;
+
+async function showMatch(fixtureId, opts = {}) {
+  _currentFixtureId = fixtureId;
+  if (!opts.skipHistory) setHash('match/' + fixtureId);
+  showPage('match');
+
+  document.getElementById('matchHero').innerHTML = `<div class="match-hero-wrap"><div class="match-hero-inner"><div class="skeleton" style="height:140px;border-radius:10px"></div></div></div>`;
+  document.getElementById('matchTabs').innerHTML = '';
+  document.getElementById('matchContent').innerHTML = `<div class="skeleton" style="height:300px;border-radius:10px;margin-top:20px"></div>`;
+
+  try {
+    const data = await apiFetch('fixtures', { id: fixtureId });
+    const f = data.response?.[0];
+    if (!f) throw new Error('No fixture');
+    const status = f.fixture.status;
+    const isLive = ['1H','HT','2H','ET','P'].includes(status.short);
+    const isFT   = ['FT','AET','PEN'].includes(status.short);
+    const isNS   = status.short === 'NS';
+    const scoreClass = isLive ? 'live' : '';
+    const statusLabel = isLive ? `${status.elapsed}'` : isFT ? 'Full Time' : isNS ? new Date(f.fixture.date).toLocaleString('en-GB', { hour:'2-digit', minute:'2-digit', day:'numeric', month:'short' }) : status.long;
+    const statusBadgeClass = isLive ? 'live' : isFT ? 'ft' : 'ns';
+
+    document.getElementById('matchHero').innerHTML = `
+      <div class="match-hero-wrap">
+        <div class="match-hero-inner">
+          <div class="match-hero-league">
+            ${f.league.logo ? `<img src="${f.league.logo}">` : ''}
+            <a href="javascript:void(0)" onclick="showLeague(${f.league.id},'${(f.league.name||'').replace(/'/g,"\\'")}','')">${f.league.name}</a>
+            <span>·</span><span>${f.league.country}</span><span>·</span><span>Round ${f.league.round || ''}</span>
+          </div>
+          <div class="match-scoreboard">
+            <div class="match-team-hero" onclick="showTeam(${f.teams.home.id})">
+              <div class="match-team-logo-hero">${f.teams.home.logo?`<img src="${f.teams.home.logo}">`:'⚽'}</div>
+              <div class="match-team-name-hero">${f.teams.home.name}</div>
+            </div>
+            <div class="match-score-hero">
+              <div class="match-score-big ${scoreClass}">${isNS ? '–' : `${f.goals.home ?? 0} – ${f.goals.away ?? 0}`}</div>
+              <div class="match-status-badge ${statusBadgeClass}">${statusLabel}</div>
+            </div>
+            <div class="match-team-hero" onclick="showTeam(${f.teams.away.id})">
+              <div class="match-team-logo-hero">${f.teams.away.logo?`<img src="${f.teams.away.logo}">`:'⚽'}</div>
+              <div class="match-team-name-hero">${f.teams.away.name}</div>
+            </div>
+          </div>
+          <div class="match-meta-row">
+            ${f.fixture.venue?.name ? `<span class="match-meta-item">🏟️ ${f.fixture.venue.name}</span>` : ''}
+            ${f.fixture.venue?.city ? `<span class="match-meta-item">📍 ${f.fixture.venue.city}</span>` : ''}
+            ${f.fixture.referee ? `<span class="match-meta-item">🟡 ${f.fixture.referee}</span>` : ''}
+            <span class="match-meta-item">📅 ${new Date(f.fixture.date).toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'})}</span>
+          </div>
+        </div>
+      </div>`;
+
+    document.getElementById('matchTabs').innerHTML = `
+      <button class="tab-btn" onclick="showMatchTab('events',this,${fixtureId})">Events</button>
+      <button class="tab-btn" onclick="showMatchTab('lineups',this,${fixtureId})">Lineups</button>
+      <button class="tab-btn" onclick="showMatchTab('stats',this,${fixtureId})">Statistics</button>`;
+
+    window._currentFixture = f;
+
+    const matchTitle = f.teams.home.name + ' vs ' + f.teams.away.name;
+    applySeo({
+      title: `${matchTitle} Live Score, Lineups & Stats | TransferZoneAI`,
+      description: `Follow ${matchTitle} with live score, match events, lineups, statistics and league info on TransferZoneAI.`,
+      path: `/match/${fixtureId}`,
+      schemaName: matchTitle
+    });
+    document.getElementById('matchContent').insertAdjacentHTML('beforebegin',
+      '<div style="padding:4px 16px 0;max-width:1280px;margin:0 auto">' + renderShareBar(matchTitle) + '</div>');
+
+    if (isNS) {
+      document.querySelectorAll('#matchTabs .tab-btn')[1]?.classList.add('active');
+      showMatchTab('lineups', document.querySelectorAll('#matchTabs .tab-btn')[1], fixtureId);
+    } else {
+      showMatchTab('events', document.querySelectorAll('#matchTabs .tab-btn')[0], fixtureId);
+    }
+  } catch(e) {
+    document.getElementById('matchHero').innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda matchen.</div>`;
+  }
+}
+
+async function showMatchTab(tab, btn, fixtureId) {
+  document.querySelectorAll('#matchTabs .tab-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  else document.querySelectorAll('#matchTabs .tab-btn')[['events','lineups','stats'].indexOf(tab)]?.classList.add('active');
+  const c = document.getElementById('matchContent');
+  c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
+  try {
+    if (tab === 'events') {
+      const data = await apiFetch('fixtures/events', { fixture: fixtureId });
+      const events = data.response || [];
+      if (!events.length) {
+        const f = window._currentFixture;
+        const isFT = ['FT','AET','PEN'].includes(f?.fixture?.status?.short);
+        c.innerHTML = `<div style="padding:32px 20px;color:var(--text3);text-align:center;margin-top:20px"><div style="font-size:32px;margin-bottom:8px">${isFT ? '📊' : '⏳'}</div><div>${isFT ? 'No detailed events available.' : 'Match has not started yet.'}</div></div>`;
+        return;
+      }
+      const f = window._currentFixture;
+      const homeId = f?.teams?.home?.id;
+      const eventIcon = (type, detail) => {
+        if (type === 'Goal') { if (detail?.includes('Own')) return '⚽🔴'; if (detail?.includes('Penalty')) return '⚽🎯'; return '⚽'; }
+        if (type === 'Card') return detail?.includes('Yellow') ? '🟡' : '🔴';
+        if (type === 'subst') return '🔄';
+        return '•';
+      };
+      c.innerHTML = `<div style="margin-top:20px">
+        <div style="display:grid;grid-template-columns:1fr 40px 1fr;gap:8px;padding:0 4px;margin-bottom:6px">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3)">${f?.teams?.home?.name||'Home'}</div>
+          <div></div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);text-align:right">${f?.teams?.away?.name||'Away'}</div>
+        </div>
+        <div class="events-list">
+          ${events.map(e => {
+            const isHome = e.team?.id === homeId;
+            const icon = eventIcon(e.type, e.detail);
+            const playerName = fixEncoding(e.player?.name || '');
+            const assistName = fixEncoding(e.assist?.name || '');
+            return `<div class="event-row">
+              <div class="event-home">${isHome ? `<div class="event-player">${playerName} ${icon}</div>${assistName?`<div class="event-assist">${assistName}</div>`:''}` : ''}</div>
+              <div class="event-center">${e.time?.elapsed}'</div>
+              <div class="event-away">${!isHome ? `<div class="event-player">${icon} ${playerName}</div>${assistName?`<div class="event-assist">${assistName}</div>`:''}` : ''}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }
+    if (tab === 'lineups') {
+      const data = await apiFetch('fixtures/lineups', { fixture: fixtureId });
+      const lineups = data.response || [];
+      if (!lineups.length) { c.innerHTML = `<div style="padding:20px;color:var(--text3);text-align:center;margin-top:20px">Lineup not available yet.</div>`; return; }
+      const renderTeam = (team) => {
+        const starters = (team.startXI || []).map(p => p.player);
+        const subs = (team.substitutes || []).map(p => p.player);
+        return `<div>
+          <div class="lineup-team-title">${team.team?.logo?`<img src="${team.team.logo}" style="width:22px;height:22px;object-fit:contain">`:''}${team.team?.name||''}<span style="color:var(--text3);font-size:13px;font-weight:400">${team.formation||''}</span></div>
+          ${starters.map(p => `<div class="lineup-player" onclick="showPlayer(${p.id})"><div class="lineup-number">${p.number||'—'}</div><div class="lineup-name">${fixEncoding(p.name||'')}</div><div class="lineup-pos">${p.pos||''}</div></div>`).join('')}
+          ${subs.length ? `<div style="margin-top:10px;font-size:11px;color:var(--text3);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:1px;padding:6px 0">Substitutes</div>${subs.map(p => `<div class="lineup-player" onclick="showPlayer(${p.id})" style="opacity:0.7"><div class="lineup-number">${p.number||'—'}</div><div class="lineup-name">${fixEncoding(p.name||'')}</div><div class="lineup-pos">${p.pos||''}</div></div>`).join('')}` : ''}
+        </div>`;
+      };
+      c.innerHTML = `<div class="lineup-grid" style="margin-top:20px">${lineups.map(renderTeam).join('')}</div>`;
+    }
+    if (tab === 'stats') {
+      const data = await apiFetch('fixtures/statistics', { fixture: fixtureId });
+      const stats = data.response || [];
+      if (!stats.length) { c.innerHTML = `<div style="padding:20px;color:var(--text3);text-align:center;margin-top:20px">Statistics not available yet.</div>`; return; }
+      const home = stats[0]?.statistics || [];
+      const away = stats[1]?.statistics || [];
+      const parseVal = (v) => { if (v === null || v === undefined) return 0; if (typeof v === 'string' && v.includes('%')) return parseFloat(v); return parseFloat(v) || 0; };
+      c.innerHTML = `<div style="margin-top:20px;max-width:600px;margin-left:auto;margin-right:auto">
+        <div style="display:flex;justify-content:space-between;margin-bottom:16px;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">
+          <span>${stats[0]?.team?.name||'Home'}</span><span>${stats[1]?.team?.name||'Away'}</span>
+        </div>
+        ${home.map((stat, i) => {
+          const awayStat = away[i];
+          const hVal = parseVal(stat.value), aVal = parseVal(awayStat?.value);
+          const total = hVal + aVal || 1;
+          const hPct = Math.round((hVal / total) * 100);
+          return `<div style="margin-bottom:16px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <span style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--gold)">${stat.value??0}</span>
+              <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">${stat.type}</span>
+              <span style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--text2)">${awayStat?.value??0}</span>
+            </div>
+            <div class="stat-bar-track"><div class="stat-bar-home" style="width:${hPct}%"></div></div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }
+  } catch(e) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda data.</div>`; }
+}
+
+// ═══════════════════════════════════════════
+// REDIS — spara följda lag
+// ═══════════════════════════════════════════
+
+// Hämta OneSignal subscriber ID och spara i localStorage
+function initOneSignalSubscriber() {
+  if (!window.OneSignalDeferred) return;
+  window.OneSignalDeferred.push(async function(OneSignal) {
+    try {
+      const id = await OneSignal.User.PushSubscription.id;
+      if (id) {
+        localStorage.setItem('tz_subscriber_id', id);
+        // Synka befintliga följda lag till Redis
+        syncFollowedTeamsToRedis();
+      }
+    } catch(e) {}
+  });
+}
+
+async function syncFollowedTeamsToRedis() {
+  const subscriberId = localStorage.getItem('tz_subscriber_id');
+  if (!subscriberId) return;
+  const teams = getFollowedTeams();
+  if (!teams.length) return;
+  const teamIds = teams.map(t => t.id);
+  try {
+    await fetch('/api/follow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscriberId, teamIds, action: 'sync' }),
+    });
+  } catch(e) {}
+}
+
+async function saveTeamFollowToRedis(teamId, isFollow) {
+  const subscriberId = localStorage.getItem('tz_subscriber_id');
+  if (!subscriberId) return;
+  try {
+    await fetch('/api/follow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscriberId, teamIds: [teamId], action: isFollow ? 'follow' : 'unfollow' }),
+    });
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════
+// MY CLUBS
+// ═══════════════════════════════════════════
+
+const FOLLOWED_KEY = 'transferzone_followed_teams';
+
+function getFollowedTeams() { try { return JSON.parse(localStorage.getItem(FOLLOWED_KEY) || '[]'); } catch { return []; } }
+function saveFollowedTeams(teams) { localStorage.setItem(FOLLOWED_KEY, JSON.stringify(teams)); }
+function isFollowingTeam(teamId) { return getFollowedTeams().some(t => t.id === teamId); }
+
+function followTeam(teamId) {
+  const teams = getFollowedTeams();
+  if (teams.some(t => t.id === teamId)) return;
+  const name = window._currentTeamName || 'Unknown';
+  const logo = window._currentTeamLogo || '';
+  const country = window._currentTeamCountry || '';
+  teams.push({ id: teamId, name, logo, country });
+  saveFollowedTeams(teams);
+  showToast(`Following ${fixName(name)} ★`);
+  const btn = document.getElementById('teamFollowBtn');
+  if (btn) btn.innerHTML = `<button class="btn-follow following" onclick="unfollowTeam(${teamId})">★ Following</button>`;
+  if (document.getElementById('page-myclubs')?.classList.contains('active')) renderMyClubs();
+  // Redis — spara följt lag
+  saveTeamFollowToRedis(teamId, true);
+}
+
+function unfollowTeam(teamId) {
+  const name = getFollowedTeams().find(t => t.id === teamId)?.name || '';
+  saveFollowedTeams(getFollowedTeams().filter(t => t.id !== teamId));
+  showToast('Unfollowed');
+  const btn = document.getElementById('teamFollowBtn');
+  if (btn) btn.innerHTML = `<button class="btn-follow" onclick="followTeam(${teamId})">☆ Follow</button>`;
+  if (document.getElementById('page-myclubs')?.classList.contains('active')) renderMyClubs();
+  // Redis — ta bort följt lag
+  saveTeamFollowToRedis(teamId, false);
+}
+
+function renderMyClubs() {
+  const teams = getFollowedTeams();
+  const c = document.getElementById('myClubsContent');
+  if (!teams.length) {
+    c.innerHTML = `<div class="my-clubs-empty"><div class="big-icon">⭐</div><p>Follow your favourite clubs to keep track of them here.</p><p style="font-size:12px;color:var(--text3)">Open any club page and press <b>☆ Follow</b></p><button class="btn-primary" style="margin-top:16px" onclick="showPage('leagues')">Browse Leagues</button></div>`;
+    return;
+  }
+  c.innerHTML = `<div class="my-clubs-grid">
+    ${teams.map(t => `
+      <div class="my-club-card" onclick="showTeam(${t.id})">
+        <button class="my-club-unfollow" onclick="event.stopPropagation();unfollowTeam(${t.id})" title="Unfollow">✕</button>
+        ${t.logo ? `<img class="my-club-logo" src="${t.logo}" onerror="this.style.display='none'">` : '<div style="font-size:40px">⚽</div>'}
+        <div class="my-club-name">${fixName(fixEncoding(t.name))}</div>
+        <div class="my-club-country">${t.country || ''}</div>
+      </div>`).join('')}
+  </div>`;
+}
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+
+const _navHistory = [];
+
+function slugify(str) {
+  return (str || '').toLowerCase()
+    .replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/å/g, 'a')
+    .replace(/é/g, 'e').replace(/ü/g, 'u').replace(/ø/g, 'o')
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+}
+
+function setHash(hash) { history.pushState(null, '', '/' + hash.replace(/^\/+/, '')); }
+
+function showPage(id, opts = {}) {
+  const current = document.querySelector('.page.active')?.id?.replace('page-','');
+  if (current && current !== id) { _navHistory.push(current); if (_navHistory.length > 20) _navHistory.shift(); }
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById('page-'+id)?.classList.add('active');
+  document.getElementById('bnav-'+id)?.classList.add('active');
+  window.scrollTo(0,0);
+  updateBackButton(id);
+  const mainPagePaths = { home:'/', leagues:'/leagues', transfers:'/transfers', toplist:'/toplists', live:'/live', myclubs:'/myclubs' };
+  if (!opts.skipHistory && mainPagePaths[id] !== undefined) history.pushState(null, '', mainPagePaths[id]);
+  if (id === 'home') applyHomeSeo();
+  if (id === 'leagues') applySeo({ title: 'Football Leagues, Tables & Top Scorers | TransferZoneAI', description: 'Browse football leagues, standings, top scorers and club data from around the world on TransferZoneAI.', path: '/leagues' });
+  if (id === 'transfers') applySeo({ title: 'Football Transfers, Loans & Free Agents | TransferZoneAI', description: 'Track football transfers, loan deals and free agents across clubs and leagues worldwide on TransferZoneAI.', path: '/transfers' });
+  if (id === 'toplist') applySeo({ title: 'Top Scorers, Assists & Football Rankings | TransferZoneAI', description: 'Explore top scorers, assists and football rankings on TransferZoneAI.', path: '/toplists' });
+  if (id === 'live') applySeo({ title: 'Live Football Scores, Results & Fixtures | TransferZoneAI', description: 'Follow live football scores, results and upcoming fixtures across global football on TransferZoneAI.', path: '/live' });
+  if (id === 'myclubs') applySeo({ title: 'My Clubs | TransferZoneAI', description: 'Follow your favourite football clubs and keep track of them in one place on TransferZoneAI.', path: '/myclubs' });
+  if (id === 'leagues' && !window._leaguesInited) { initLeagues('all'); window._leaguesInited = true; }
+  if (id === 'transfers' && !window._transfersInited) { initTransfers(); window._transfersInited = true; }
+  if (id === 'toplist' && !window._toplistInited) { showTopList('scorers', document.querySelector('#page-toplist .filter-btn')); window._toplistInited = true; }
+  if (id === 'live') { initLive(); window._liveInited = true; }
+  if (id === 'myclubs') { renderMyClubs(); }
+}
+
+window.addEventListener('popstate', () => { resolveAndShowRoute(location.pathname); });
+
+function goBack() {
+  if (_navHistory.length === 0) { showPage('home'); return; }
+  const prev = _navHistory.pop();
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById('page-'+prev)?.classList.add('active');
+  document.getElementById('bnav-'+prev)?.classList.add('active');
+  window.scrollTo(0,0);
+  updateBackButton(prev);
+}
+
+function updateBackButton(pageId) {
+  const mainPages = ['home','leagues','transfers','toplist','live','myclubs'];
+  const bar = document.getElementById('globalBackBar');
+  if (!bar) return;
+  if (mainPages.includes(pageId) && _navHistory.length === 0) bar.style.display = 'none';
+  else bar.style.display = 'flex';
+}
+
+// ═══════════════════════════════════════════
+// PWA
+// ═══════════════════════════════════════════
+
+let _deferredPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  _deferredPrompt = e;
+  const banner = document.getElementById('installBanner');
+  if (banner) banner.style.display = 'flex';
+});
+
+document.getElementById('installBtn')?.addEventListener('click', async () => {
+  if (!_deferredPrompt) { showToast('Tap Share → "Add to Home Screen" to install'); return; }
+  _deferredPrompt.prompt();
+  const { outcome } = await _deferredPrompt.userChoice;
+  if (outcome === 'accepted') { document.getElementById('installBanner').style.display = 'none'; showToast('App installed! ✓'); }
+  _deferredPrompt = null;
+});
+
+function dismissInstallBanner() { document.getElementById('installBanner').style.display = 'none'; }
+
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.navigator.standalone === true;
+if (isIOS && !isStandalone) {
+  const banner = document.getElementById('installBanner');
+  if (banner) {
+    banner.style.display = 'flex';
+    const span = banner.querySelector('.install-banner-text span');
+    if (span) span.textContent = 'Tap Share → "Add to Home Screen"';
+  }
+}
+
+// ═══════════════════════════════════════════
+// SOCIAL SHARE
+// ═══════════════════════════════════════════
+
+function shareTwitter(title) {
+  const url = encodeURIComponent(location.href);
+  const tx = encodeURIComponent('Check out ' + title + ' on TransferZoneAI!');
+  window.open('https://twitter.com/intent/tweet?text=' + tx + '&url=' + url, '_blank');
+}
+function shareFacebook() { window.open('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(location.href), '_blank'); }
+function shareCopy() { navigator.clipboard.writeText(location.href).then(function(){ showToast('Link copied!'); }); }
+function renderShareBar(title) {
+  const t = (title||'').replace(/'/g, '');
+  return '<div class="share-bar">' +
+    '<span style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Share:</span>' +
+    '<button class="share-btn twitter" onclick="shareTwitter(\'' + t + '\')">&#120143; Tweet</button>' +
+    '<button class="share-btn facebook" onclick="shareFacebook()">Facebook</button>' +
+    '<button class="share-btn" onclick="shareCopy()">&#128279; Copy Link</button>' +
+    '</div>';
+}
+
+// ═══════════════════════════════════════════
+// GLOBAL SEARCH
+// ═══════════════════════════════════════════
+
+let _searchTimeout = null;
+let _searchCache = {};
+
+function closeSearch() { document.getElementById('searchResults').classList.remove('visible'); }
+function openSearchResult(action) { closeSearch(); document.getElementById('globalSearch').value = ''; action(); }
+
+function renderSearchResults(groups) {
+  const results = document.getElementById('searchResults');
+  if (!groups.length) { results.innerHTML = '<div class="sr-loading">No results found</div>'; results.classList.add('visible'); return; }
+  results.innerHTML = groups.map((item, i) => {
+    const icon = item.logo ? ('<img src="' + item.logo + '">') : (item.iconText || '⚽');
+    return '<div class="search-result-item" onclick="window._sr' + i + '()">' +
+      '<div class="sr-icon">' + icon + '</div>' +
+      '<div class="sr-text"><div class="sr-name">' + fixName(fixEncoding(item.name)) + '</div><div class="sr-sub">' + (item.sub || '') + '</div></div>' +
+      '<div class="sr-type">' + item.type + '</div></div>';
+  }).join('');
+  groups.forEach((item, i) => { window['_sr' + i] = () => openSearchResult(item.action); });
+  results.classList.add('visible');
+}
+
+async function performSearch(q) {
+  if (!q || q.length < 2) { document.getElementById('searchResults').classList.remove('visible'); return; }
+  const cacheKey = q.toLowerCase();
+  if (_searchCache[cacheKey]) { renderSearchResults(_searchCache[cacheKey]); return; }
+  const results = document.getElementById('searchResults');
+  results.innerHTML = '<div class="sr-loading">Searching...</div>';
+  results.classList.add('visible');
+  try {
+    const leagueMatches = LEAGUES.filter(l => l.name.toLowerCase().includes(q.toLowerCase())).slice(0, 3).map(l => ({
+      type: 'League', name: l.name, sub: l.country, logo: '', iconText: '🏆', action: () => showLeague(l.id, l.name, l.code||'')
+    }));
+    const [teamData, playerData] = await Promise.all([
+      apiFetch('teams', { search: q }).catch(() => ({ response: [] })),
+      apiFetch('players/profiles', { search: q }).catch(() => ({ response: [] })),
+    ]);
+    const teamResults = (teamData.response || []).slice(0, 3).map(t => ({ type: 'Club', name: t.team.name, sub: t.team.country || '', logo: t.team.logo, action: () => showTeam(t.team.id) }));
+    const playerResults = (playerData.response || []).slice(0, 5).map(p => {
+      const pl = p.player || p;
+      return { type: 'Player', name: pl.name, sub: (pl.nationality || '') + (pl.age ? ' · ' + pl.age + ' yrs' : ''), logo: pl.photo, action: () => showPlayer(pl.id) };
+    });
+    const all = [...playerResults, ...teamResults, ...leagueMatches].slice(0, 8);
+    _searchCache[cacheKey] = all;
+    renderSearchResults(all);
+  } catch(e) { results.innerHTML = '<div class="sr-loading">Search failed</div>'; }
+}
+
+document.getElementById('globalSearch').addEventListener('input', function() {
+  const q = this.value.trim();
+  clearTimeout(_searchTimeout);
+  if (!q) { closeSearch(); return; }
+  _searchTimeout = setTimeout(() => performSearch(q), 300);
+});
+
+document.getElementById('globalSearch').addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeSearch(); document.getElementById('globalSearch').value = ''; }
+});
+
+document.addEventListener('click', e => { if (!e.target.closest('.header-search')) closeSearch(); });
+
+function focusAI() { document.getElementById('aiSearchInput').focus(); }
+
+// ═══════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════
+
+initHome();
+applyHomeSeo();
+resolveAndShowRoute(location.pathname);
+initOneSignalSubscriber();
+</script>
+
+<script defer src="/_vercel/insights/script.js"></script>
+<noscript>
+  <div style="padding:24px;max-width:960px;margin:0 auto;font-family:Arial,sans-serif">
+    <h2>Football pages</h2>
+    <p>Browse key leagues directly:</p>
+    <ul>
+      <li><a href="/league/premier_league">Premier League</a></li>
+      <li><a href="/league/la_liga">La Liga</a></li>
+      <li><a href="/league/bundesliga">Bundesliga</a></li>
+      <li><a href="/league/serie_a">Serie A</a></li>
+      <li><a href="/league/ligue_1">Ligue 1</a></li>
+      <li><a href="/league/allsvenskan">Allsvenskan</a></li>
+    </ul>
+  </div>
+</noscript>
+</body>
+</html>
