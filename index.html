@@ -352,9 +352,9 @@ header { position: sticky; top: 0; z-index: 100; background: rgba(10,10,15,0.82)
 .team-meta-large h1 { font-family: 'Barlow Condensed', sans-serif; font-size: clamp(24px, 5vw, 40px); font-weight: 900; letter-spacing: -0.5px; line-height: 1; }
 .team-meta-large .breadcrumb { font-size: 12px; color: var(--text3); margin-bottom: 6px; }
 .team-meta-large .breadcrumb a { color: var(--gold); text-decoration: none; }
-.team-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border2); overflow-x: auto; scrollbar-width: none; background: var(--bg2); padding: 0 16px; }
+.team-tabs { display:flex; justify-content:center; gap:10px; border-bottom:1px solid var(--border2); overflow-x:auto; scrollbar-width:none; background:var(--bg2); padding:0 16px; max-width:1280px; margin:0 auto; }
 .team-tabs::-webkit-scrollbar { display: none; }
-.tab-btn { padding: 12px 16px; border: none; background: none; color: var(--text3); font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; transition: all 0.2s; }
+.tab-btn { padding: 14px 8px; border: none; background: none; color: var(--text3); font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; transition: all 0.2s; position:relative; }
 .tab-btn.active { color: var(--gold); border-bottom-color: var(--gold); }
 .tab-btn:hover { color: var(--text); }
 .tab-content { display: none; padding: 20px 0; }
@@ -606,7 +606,7 @@ header { position: sticky; top: 0; z-index: 100; background: rgba(10,10,15,0.82)
   .stat-box { padding: 12px 8px; }
   .stat-box-val { font-size: 26px; }
   .stat-box-lbl { font-size: 10px; }
-  .team-tabs { padding: 0 12px; }
+  .team-tabs { padding: 0 12px; justify-content:flex-start; }
   .tab-btn { padding: 10px 12px; font-size: 13px; }
   .standings-table th:nth-child(3), .standings-table td:nth-child(3),
   .standings-table th:nth-child(4), .standings-table td:nth-child(4),
@@ -1114,14 +1114,14 @@ function showToast(msg) {
 
 let _currentTeamId = null;
 
-function buildYearPicker(activeSeason, teamId, tab, globalVar) {
+function buildYearPicker(activeSeason, teamId, tab, globalVar, leagueLike = window._currentTeamPrimaryLeague) {
   const el = document.createElement('div');
   el.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px';
   for (let y = new Date().getFullYear(); y >= new Date().getFullYear() - 7; y--) {
     const btn = document.createElement('button');
     btn.className = 'filter-btn' + (activeSeason === y ? ' active' : '');
     btn.style.cssText = 'padding:4px 12px;font-size:12px';
-    btn.textContent = y;
+    btn.textContent = formatSeasonLabel(y, leagueLike);
     btn.onclick = (function(yr) {
       return function() { window[globalVar] = yr; showTeamTab(tab, null, teamId); };
     })(y);
@@ -1308,6 +1308,49 @@ function clubTopRows(players, pickFn, labelFn) {
   }));
 }
 
+function isSingleYearCompetition(leagueLike) {
+  const name = String(leagueLike?.league?.name || leagueLike?.name || '').toLowerCase();
+  const country = String(leagueLike?.league?.country || leagueLike?.country || '').toLowerCase();
+  const singleYearNames = ['allsvenskan','superettan','eliteserien','obos-ligaen','veikkausliiga','ykkosliiga','major league soccer','mls','brasileirao','serie a brazil','liga profesional argentina','j1 league','j2 league','k league'];
+  const singleYearCountries = ['sweden','norway','finland','iceland','usa','brazil','argentina','japan','south korea','ireland'];
+  return singleYearNames.some(v => name.includes(v)) || singleYearCountries.some(v => country.includes(v));
+}
+
+function formatSeasonLabel(year, leagueLike) {
+  const y = Number(year);
+  if (!Number.isFinite(y)) return String(year || '—');
+  if (isSingleYearCompetition(leagueLike)) return String(y);
+  return `${y-1}/${String(y).slice(2)}`;
+}
+
+function aggregateTeamSeason(fixtures, teamId) {
+  const finishedStatuses = new Set(['FT', 'AET', 'PEN']);
+  const finished = (fixtures || [])
+    .filter(f => (f.teams?.home?.id === teamId || f.teams?.away?.id === teamId) && finishedStatuses.has(f.fixture?.status?.short))
+    .sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date));
+
+  const out = {
+    played: 0, wins: 0, draws: 0, losses: 0,
+    goalsFor: 0, goalsAgainst: 0, cleanSheets: 0,
+    formMatches: finished.slice(-5)
+  };
+
+  for (const f of finished) {
+    const isHome = f.teams.home.id === teamId;
+    const gf = Number(isHome ? (f.goals.home ?? 0) : (f.goals.away ?? 0));
+    const ga = Number(isHome ? (f.goals.away ?? 0) : (f.goals.home ?? 0));
+    out.played += 1;
+    out.goalsFor += gf;
+    out.goalsAgainst += ga;
+    if (ga === 0) out.cleanSheets += 1;
+    if (gf > ga) out.wins += 1;
+    else if (gf === ga) out.draws += 1;
+    else out.losses += 1;
+  }
+
+  return out;
+}
+
 // ═══════════════════════════════════════════
 // SHOW TEAM
 // ═══════════════════════════════════════════
@@ -1419,13 +1462,12 @@ async function showTeamTab(tab, btn) {
       const primaryLeague = leagues.find(l => !cupKeywords.some(k => (l.league.name||'').toLowerCase().includes(k))) || leagues[0];
       const season = primaryLeague?.seasons?.find(s => s.current)?.year ?? new Date().getFullYear() - 1;
 
-      const [statsWrap, formData, playersPage1] = await Promise.all([
-        apiFetch('teams/statistics', { team: teamId, league: primaryLeague?.league?.id, season }).catch(() => ({ response:null })),
-        apiFetch('fixtures', { team: teamId, last: 5 }).catch(() => ({ response:[] })),
+      const [seasonFixturesData, playersPage1] = await Promise.all([
+        apiFetch('fixtures', { team: teamId, season }).catch(() => ({ response:[] })),
         apiFetch('players', { team: teamId, season, page: 1 }).catch(() => ({ response:[], paging:{ total:1 } }))
       ]);
 
-      const stat = statsWrap?.response || null;
+      const seasonAggregate = aggregateTeamSeason(seasonFixturesData?.response || [], teamId);
       let players = playersPage1?.response || [];
       const totalPages = Math.min(playersPage1?.paging?.total || 1, 3);
       if (totalPages > 1) {
@@ -1436,19 +1478,19 @@ async function showTeamTab(tab, btn) {
       }
 
       const groups = groupByPos(squad);
-      const played = stat?.fixtures?.played?.total || 0;
-      const wins = stat?.fixtures?.wins?.total || 0;
-      const draws = stat?.fixtures?.draws?.total || 0;
-      const losses = stat?.fixtures?.loses?.total || 0;
-      const goalsFor = stat?.goals?.for?.total?.total || 0;
-      const goalsAgainst = stat?.goals?.against?.total?.total || 0;
-      const cleanSheets = stat?.clean_sheet?.total || 0;
+      const played = seasonAggregate.played || 0;
+      const wins = seasonAggregate.wins || 0;
+      const draws = seasonAggregate.draws || 0;
+      const losses = seasonAggregate.losses || 0;
+      const goalsFor = seasonAggregate.goalsFor || 0;
+      const goalsAgainst = seasonAggregate.goalsAgainst || 0;
+      const cleanSheets = seasonAggregate.cleanSheets || 0;
       const winRate = clubStatPercent(wins, played);
       const avgAge = clubAgeAverage(squad);
       const topScorers = clubTopRows(players, p => p.statistics?.reduce((a,s)=>a + (s.goals?.total || 0), 0), p => (p.statistics?.[0]?.games?.position || ''));
       const topAssists = clubTopRows(players, p => p.statistics?.reduce((a,s)=>a + (s.goals?.assists || 0), 0), p => (p.statistics?.[0]?.games?.position || ''));
       const topApps = clubTopRows(players, p => p.statistics?.reduce((a,s)=>a + (s.games?.appearences || 0), 0), p => (p.statistics?.[0]?.games?.position || ''));
-      const formMatches = formData?.response || [];
+      const formMatches = seasonAggregate.formMatches || [];
       const formHTML = formMatches.map(f => {
         const isHome = f.teams.home.id === teamId;
         const gf = isHome ? f.goals.home : f.goals.away;
@@ -1493,7 +1535,7 @@ async function showTeamTab(tab, btn) {
                   <div class="club-kv"><span class="k">Stadium</span><span class="v">${v.name || '—'}</span></div>
                   <div class="club-kv"><span class="k">Capacity</span><span class="v">${v.capacity ? Number(v.capacity).toLocaleString() : '—'}</span></div>
                   <div class="club-kv"><span class="k">City</span><span class="v">${v.city || '—'}</span></div>
-                  <div class="club-kv"><span class="k">Season</span><span class="v">${season}</span></div>
+                  <div class="club-kv"><span class="k">Season</span><span class="v">${formatSeasonLabel(season, primaryLeague)}</span></div>
                 </div>
 
                 <div class="club-panel">
@@ -1570,122 +1612,88 @@ async function showTeamTab(tab, btn) {
       </div>` + Object.entries(groups).map(([g, ps]) => section(g, ps)).join('');
   }
 
-if (tab === 'stats') {
-  const statsYear = window._statsYear || null;
-  c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
+  if (tab === 'stats') {
+    const statsYear = window._statsYear || null;
+    c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
+    try {
+      const leagueData = await apiFetch('leagues', { team: teamId, current: 'true' }).catch(() => ({ response: [] }));
+      const leagues = leagueData.response || [];
+      const cupKeywords = ['cup','pokal','coupe','copa','coppa','trophy','shield','supercup'];
+      const primaryLeague = leagues.find(l => !cupKeywords.some(k => (l.league.name || '').toLowerCase().includes(k))) || leagues[0] || null;
+      window._currentTeamPrimaryLeague = primaryLeague;
 
-  try {
-    const thisYear = new Date().getFullYear();
-    const season = statsYear || thisYear;
+      const thisYear = new Date().getFullYear();
+      const defaultSeason = statsYear || primaryLeague?.seasons?.find(s => s.current)?.year || thisYear;
+      const season = statsYear || defaultSeason;
 
-    const yearBtns = Array.from({ length: 7 }, (_, i) => thisYear - i).map(y =>
-      '<button onclick="window._statsYear=' + y + ';showTeamTab(\'stats\',null)" ' +
-      'class="filter-btn ' + (season === y ? 'active' : '') + '" style="padding:4px 12px;font-size:12px">' + y + '</button>'
-    ).join('');
+      const yearBtns = Array.from({length: 7}, (_, i) => thisYear - i).map(y =>
+        '<button onclick="window._statsYear=' + y + ';showTeamTab(\'stats\',null,' + teamId + ')" ' +
+        'class="filter-btn ' + (season === y ? 'active' : '') + '" style="padding:4px 12px;font-size:12px">' + formatSeasonLabel(y, primaryLeague) + '</button>'
+      ).join('');
+      const yearPickerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">' + yearBtns + '</div>';
 
-    const yearPickerHTML =
-      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">' + yearBtns + '</div>';
+      const fixturesData = await apiFetch('fixtures', { team: teamId, season }).catch(() => ({ response: [] }));
+      const seasonAggregate = aggregateTeamSeason(fixturesData.response || [], teamId);
+      const played = seasonAggregate.played || 0;
 
-    // Hämta ALLA matcher för laget denna säsong
-    const fixturesData = await apiFetch('fixtures', {
-      team: teamId,
-      season: season
-    }).catch(() => ({ response: [] }));
+      if (!played) {
+        c.innerHTML = yearPickerHTML + `<div style="padding:20px;color:var(--text3)">Ingen statistik hittades för ${formatSeasonLabel(season, primaryLeague)}.</div>`;
+        return;
+      }
 
-    const fixtures = fixturesData.response || [];
+      const totalWins = seasonAggregate.wins || 0;
+      const totalDraws = seasonAggregate.draws || 0;
+      const totalLoses = seasonAggregate.losses || 0;
+      const totalGoalsFor = seasonAggregate.goalsFor || 0;
+      const totalGoalsAgainst = seasonAggregate.goalsAgainst || 0;
+      const cleanSheets = seasonAggregate.cleanSheets || 0;
+      const formMatches = seasonAggregate.formMatches || [];
 
-    if (!fixtures.length) {
-      c.innerHTML = yearPickerHTML + `<div style="padding:20px;color:var(--text3)">Ingen statistik hittades för ${season}.</div>`;
-      return;
-    }
+      const formHTML = formMatches.length ? `
+        <div style="margin-bottom:24px">
+          <div class="section-title" style="margin-bottom:12px;font-size:16px">Recent Form</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${formMatches.map(f => {
+              const isHome = f.teams.home.id === teamId;
+              const gf = isHome ? f.goals.home : f.goals.away;
+              const ga = isHome ? f.goals.away : f.goals.home;
+              const result = gf > ga ? 'W' : gf < ga ? 'L' : 'D';
+              const color = result==='W'?'var(--green)':result==='L'?'var(--red)':'var(--gold-dim)';
+              const opp = isHome ? f.teams.away.name : f.teams.home.name;
+              const oppLogo = isHome ? f.teams.away.logo : f.teams.home.logo;
+              return `<div onclick="showMatch(${f.fixture.id})" style="cursor:pointer;text-align:center;min-width:64px">
+                <div style="background:${color};border-radius:8px;padding:8px 10px;margin-bottom:4px">
+                  <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:white">${result}</div>
+                  <div style="font-size:12px;color:rgba(255,255,255,0.9);font-weight:700">${gf}–${ga}</div>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:center;gap:3px;font-size:10px;color:var(--text3)">
+                  ${oppLogo?`<img src="${oppLogo}" style="width:12px;height:12px;object-fit:contain">`:''}
+                  <span style="max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${opp}</span>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>` : '';
 
-    const finishedStatuses = ['FT', 'AET', 'PEN'];
-    const finished = fixtures
-      .filter(f => finishedStatuses.includes(f.fixture?.status?.short))
-      .sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date));
+      const avg = (v, g) => (g > 0 ? (v / g).toFixed(1) : '—');
 
-    if (!finished.length) {
-      c.innerHTML = yearPickerHTML + `<div style="padding:20px;color:var(--text3)">Inga avslutade matcher hittades för ${season}.</div>`;
-      return;
-    }
-
-    let played = 0;
-    let totalWins = 0;
-    let totalDraws = 0;
-    let totalLoses = 0;
-    let totalGoalsFor = 0;
-    let totalGoalsAgainst = 0;
-    let cleanSheets = 0;
-
-    for (const f of finished) {
-      const isHome = f.teams.home.id === teamId;
-      const gf = isHome ? (f.goals.home ?? 0) : (f.goals.away ?? 0);
-      const ga = isHome ? (f.goals.away ?? 0) : (f.goals.home ?? 0);
-
-      played++;
-      totalGoalsFor += gf;
-      totalGoalsAgainst += ga;
-
-      if (ga === 0) cleanSheets++;
-
-      if (gf > ga) totalWins++;
-      else if (gf === ga) totalDraws++;
-      else totalLoses++;
-    }
-
-    // Recent form = sista 5 avslutade matcherna under vald säsong
-    const formMatches = [...finished].slice(-5);
-
-    const formHTML = formMatches.length ? `
-      <div style="margin-bottom:24px">
-        <div class="section-title" style="margin-bottom:12px;font-size:16px">Recent Form</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${formMatches.map(f => {
-            const isHome = f.teams.home.id === teamId;
-            const gf = isHome ? (f.goals.home ?? 0) : (f.goals.away ?? 0);
-            const ga = isHome ? (f.goals.away ?? 0) : (f.goals.home ?? 0);
-            const result = gf > ga ? 'W' : gf < ga ? 'L' : 'D';
-            const color = result === 'W' ? 'var(--green)' : result === 'L' ? 'var(--red)' : 'var(--gold-dim)';
-            const opp = isHome ? f.teams.away.name : f.teams.home.name;
-            const oppLogo = isHome ? f.teams.away.logo : f.teams.home.logo;
-
-            return `<div onclick="showMatch(${f.fixture.id})" style="cursor:pointer;text-align:center;min-width:64px">
-              <div style="background:${color};border-radius:8px;padding:8px 10px;margin-bottom:4px">
-                <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:white">${result}</div>
-                <div style="font-size:12px;color:rgba(255,255,255,0.9);font-weight:700">${gf}–${ga}</div>
-              </div>
-              <div style="display:flex;align-items:center;justify-content:center;gap:3px;font-size:10px;color:var(--text3)">
-                ${oppLogo ? `<img src="${oppLogo}" style="width:12px;height:12px;object-fit:contain">` : ''}
-                <span style="max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${opp}</span>
-              </div>
-            </div>`;
-          }).join('')}
+      c.innerHTML = `<div style="margin-top:20px">
+        ${yearPickerHTML}${formHTML}
+        <div class="section-title" style="margin-bottom:12px;font-size:16px">Season Overview — ${formatSeasonLabel(season, primaryLeague)}</div>
+        <div class="stats-grid" style="margin-bottom:24px">
+          <div class="stat-box"><div class="stat-box-val">${played}</div><div class="stat-box-lbl">Matches</div></div>
+          <div class="stat-box"><div class="stat-box-val">${totalWins}</div><div class="stat-box-lbl">Wins</div></div>
+          <div class="stat-box"><div class="stat-box-val">${totalDraws}</div><div class="stat-box-lbl">Draws</div></div>
+          <div class="stat-box"><div class="stat-box-val">${totalLoses}</div><div class="stat-box-lbl">Losses</div></div>
+          <div class="stat-box"><div class="stat-box-val">${totalGoalsFor}</div><div class="stat-box-lbl">Goals For</div></div>
+          <div class="stat-box"><div class="stat-box-val">${totalGoalsAgainst}</div><div class="stat-box-lbl">Goals Against</div></div>
+          <div class="stat-box"><div class="stat-box-val">${avg(totalGoalsFor, played)}</div><div class="stat-box-lbl">Goals/Game</div></div>
+          <div class="stat-box"><div class="stat-box-val">${avg(totalGoalsAgainst, played)}</div><div class="stat-box-lbl">Conceded/Game</div></div>
+          <div class="stat-box"><div class="stat-box-val">${cleanSheets}</div><div class="stat-box-lbl">Clean Sheets</div></div>
         </div>
-      </div>` : '';
-
-    const avg = (v, g) => (g > 0 ? (v / g).toFixed(1) : '—');
-
-    c.innerHTML = `<div style="margin-top:20px">
-      ${yearPickerHTML}
-      ${formHTML}
-
-      <div class="section-title" style="margin-bottom:12px;font-size:16px">Season Overview — ${season}</div>
-      <div class="stats-grid" style="margin-bottom:24px">
-        <div class="stat-box"><div class="stat-box-val">${played}</div><div class="stat-box-lbl">Matches</div></div>
-        <div class="stat-box"><div class="stat-box-val">${totalWins}</div><div class="stat-box-lbl">Wins</div></div>
-        <div class="stat-box"><div class="stat-box-val">${totalDraws}</div><div class="stat-box-lbl">Draws</div></div>
-        <div class="stat-box"><div class="stat-box-val">${totalLoses}</div><div class="stat-box-lbl">Losses</div></div>
-        <div class="stat-box"><div class="stat-box-val">${totalGoalsFor}</div><div class="stat-box-lbl">Goals For</div></div>
-        <div class="stat-box"><div class="stat-box-val">${totalGoalsAgainst}</div><div class="stat-box-lbl">Goals Against</div></div>
-        <div class="stat-box"><div class="stat-box-val">${avg(totalGoalsFor, played)}</div><div class="stat-box-lbl">Goals/Game</div></div>
-        <div class="stat-box"><div class="stat-box-val">${avg(totalGoalsAgainst, played)}</div><div class="stat-box-lbl">Conceded/Game</div></div>
-        <div class="stat-box"><div class="stat-box-val">${cleanSheets}</div><div class="stat-box-lbl">Clean Sheets</div></div>
-      </div>
-    </div>`;
-  } catch (e) {
-    c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda statistik.</div>`;
+      </div>`;
+    } catch(e) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda statistik.</div>`; }
   }
-}
 
   if (tab === 'transfers') {
     c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
@@ -1741,6 +1749,7 @@ if (tab === 'stats') {
       const leagues = leagueData.response || [];
       const cupKw = ['cup','pokal','coupe','copa','coppa','trophy','shield'];
       const primaryLeague = leagues.find(l => !cupKw.some(k => (l.league.name||'').toLowerCase().includes(k))) || leagues[0];
+      window._currentTeamPrimaryLeague = primaryLeague;
       const season = primaryLeague?.seasons?.find(s => s.current)?.year ?? new Date().getFullYear() - 1;
       const leagueId = primaryLeague?.league?.id;
       if (!leagueId) throw new Error('no league');
@@ -1766,7 +1775,7 @@ if (tab === 'stats') {
         } catch(_) { continue; }
       }
       if (!allPlayers.length) { c.innerHTML = `<div style="padding:32px 20px;color:var(--text3);text-align:center"><div style="font-size:32px;margin-bottom:8px">📊</div><div>No player statistics available yet.</div></div>`; return; }
-      const yearPickerHTML = buildYearPicker(activeSeason, teamId, 'toplayers', '_topPlayersYear');
+      const yearPickerHTML = buildYearPicker(activeSeason, teamId, 'toplayers', '_topPlayersYear', primaryLeague);
       const sumStat = (p, fn) => (p.statistics||[]).reduce((acc,s) => acc + (fn(s)||0), 0);
       const byGoals   = [...allPlayers].sort((a,b) => sumStat(b,s=>s.goals?.total)   - sumStat(a,s=>s.goals?.total)).filter(p => sumStat(p,s=>s.goals?.total) > 0);
       const byAssists = [...allPlayers].sort((a,b) => sumStat(b,s=>s.goals?.assists) - sumStat(a,s=>s.goals?.assists)).filter(p => sumStat(p,s=>s.goals?.assists) > 0);
@@ -1789,7 +1798,7 @@ if (tab === 'stats') {
           ${players.slice(0,8).map((p,i) => pRow(p, i, valFn(p))).join('')}
         </div>`;
       c.innerHTML = '<div style="margin-top:20px">' + yearPickerHTML +
-        '<div style="color:var(--text3);font-size:12px;margin-bottom:16px">Season ' + activeSeason + '</div>' +
+        '<div style="color:var(--text3);font-size:12px;margin-bottom:16px">Season ' + formatSeasonLabel(activeSeason, primaryLeague) + '</div>' +
         '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">' +
         card('Goals', 'Goals', byGoals, p => sumStat(p, s => s.goals?.total)) +
         card('Assists', 'Assists', byAssists, p => sumStat(p, s => s.goals?.assists)) +
@@ -1950,7 +1959,7 @@ async function showPlayer(id, opts = {}) {
     const seasonDropdown = availableSeasons.length > 1 ? `
       <select id="playerSeasonSelect" onchange="changePlayerSeason(${id}, this.value)"
         style="background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;cursor:pointer">
-        ${availableSeasons.map(y => `<option value="${y}" ${y === currentSeason ? 'selected' : ''}>${y}/${String(y+1).slice(2)}</option>`).join('')}
+        ${availableSeasons.map(y => `<option value="${y}" ${y === currentSeason ? 'selected' : ''}>${formatSeasonLabel(y, s?.league)}</option>`).join('')}
       </select>` : '';
 
     document.getElementById('playerHero').innerHTML = `
@@ -2014,9 +2023,7 @@ async function showPlayerTab(tab, btn, playerData) {
 
   if (tab === 'overview') {
     const seasonYear = s?.league?.season ?? currentYear - 1;
-    const summerCountries = ['Sweden','Norway','Denmark','Finland','USA','Australia'];
-    const isSummer = summerCountries.some(co => (s?.league?.country||'').includes(co));
-    const seasonLabel = isSummer ? String(seasonYear) : seasonYear + '/' + String(seasonYear+1).slice(2);
+    const seasonLabel = formatSeasonLabel(seasonYear, s?.league);
     const leagueStats = allStats.filter(st => !/(cup|coupe|copa|coppa|pokal|trophy|friendly|friendlies|nations|u\d{2})/i.test(st.league?.name||''));
     const cupStats    = allStats.filter(st => /(cup|coupe|copa|coppa|pokal|trophy)/i.test(st.league?.name||''));
     const intlStats   = allStats.filter(st => /(national|u\d{2}|friendly|friendlies|nations league)/i.test(st.league?.name||''));
@@ -2173,7 +2180,7 @@ async function showPlayerTab(tab, btn, playerData) {
       const results = await Promise.all(seasons.map(y => apiFetch('players', { id: _currentPlayerId, season: y }).catch(() => null)));
       const rows = results.flatMap((r,i) => {
         const stats = r?.response?.[0]?.statistics || [];
-        return stats.map(s => ({ season: `${seasons[i]}/${String(seasons[i]+1).slice(2)}`, club: s.team?.name || '—', league: s.league?.name || '—', apps: s.games?.appearences || 0, goals: s.goals?.total || 0, assists: s.goals?.assists || 0 }));
+        return stats.map(s => ({ season: formatSeasonLabel(seasons[i], s.league), club: s.team?.name || '—', league: s.league?.name || '—', apps: s.games?.appearences || 0, goals: s.goals?.total || 0, assists: s.goals?.assists || 0 }));
       });
       c.innerHTML = `<div style="margin-top:20px" class="table-wrap">
         <table class="career-table">
