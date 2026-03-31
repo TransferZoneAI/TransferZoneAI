@@ -1177,20 +1177,19 @@ function getSeasonYearsFromLeague(leagueLike, fallbackCount = 7) {
 }
 
 function buildYearPicker(activeSeason, teamId, tab, globalVar, leagueLike = window._currentTeamPrimaryLeague) {
-  const el = document.createElement('div');
-  el.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px';
-  const years = getSeasonYearsFromLeague(leagueLike, 7);
-  for (const y of years) {
-    const btn = document.createElement('button');
-    btn.className = 'filter-btn' + (activeSeason === y ? ' active' : '');
-    btn.style.cssText = 'padding:4px 12px;font-size:12px';
-    btn.textContent = formatSeasonLabel(y, leagueLike);
-    btn.onclick = (function(yr) {
-      return function() { window[globalVar] = yr; showTeamTab(tab, null, teamId); };
-    })(y);
-    el.appendChild(btn);
-  }
-  return el.outerHTML;
+  const years = (getSeasonYearsFromLeague(leagueLike, 7) || [])
+    .map(y => Number(y))
+    .filter(Boolean);
+  const currentActive = Number(activeSeason);
+
+  return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">' +
+    years.map(y =>
+      '<button onclick="window.' + globalVar + '=' + y + ';showTeamTab(\'' + tab + '\', null)" ' +
+      'class="filter-btn ' + (currentActive === y ? 'active' : '') + '" style="padding:4px 12px;font-size:12px">' +
+      formatSeasonLabel(y, leagueLike) +
+      '</button>'
+    ).join('') +
+  '</div>';
 }
 
 const NAME_FIXES = {
@@ -1469,6 +1468,17 @@ function getPlayerSeasonCandidates(seasonYear, leagueLike) {
   return [y, y + 1];
 }
 
+function statBelongsToDisplayedSeason(stat, displayedSeason, leagueLike) {
+  const statSeason = Number(stat?.league?.season);
+  if (!statSeason) return false;
+
+  if (isSingleYearCompetition(leagueLike)) {
+    return statSeason === Number(displayedSeason);
+  }
+
+  return statSeason === Number(displayedSeason);
+}
+
 async function fetchPlayersMultiSeason(teamId, seasonYear, leagueLike) {
   const candidates = [...new Set(getPlayerSeasonCandidates(seasonYear, leagueLike))];
   const results = [];
@@ -1533,53 +1543,87 @@ async function fetchFixturePlayersCached(fixtureId) {
 }
 
 async function fetchFixturePlayersForSeason(teamId, seasonYear, leagueLike) {
-  const rawPlayers = await fetchPlayersMultiSeason(teamId, seasonYear, leagueLike);
-  const mergedPlayers = mergePlayersForDisplayedSeason(rawPlayers, seasonYear, leagueLike);
+  const displayedSeason = Number(seasonYear);
 
-  const out = [];
-  const seen = new Set();
+  const apiSeasons = isSingleYearCompetition(leagueLike)
+    ? [displayedSeason, displayedSeason - 1]
+    : [displayedSeason, displayedSeason + 1];
 
-  for (const entry of (mergedPlayers || [])) {
-    const player = entry?.player;
-    if (!player?.id || seen.has(player.id)) continue;
-    seen.add(player.id);
+  const uniqueApiSeasons = [...new Set(apiSeasons)].filter(Boolean);
 
-    const statsList = Array.isArray(entry.statistics) ? entry.statistics : [];
-    const totals = {
-      games: { appearences: 0, position: '' },
-      goals: { total: 0, assists: 0 },
-      tackles: { total: 0 },
-      cards: { yellow: 0 }
-    };
-
-    for (const s of statsList) {
-      totals.games.appearences += Number(s?.games?.appearences || 0);
-      if (!totals.games.position && s?.games?.position) totals.games.position = s.games.position;
-      totals.goals.total += Number(s?.goals?.total || 0);
-      totals.goals.assists += Number(s?.goals?.assists || 0);
-      totals.tackles.total += Number(s?.tackles?.total || 0);
-      totals.cards.yellow += Number(s?.cards?.yellow || 0);
-    }
-
-    if (
-      totals.games.appearences > 0 ||
-      totals.goals.total > 0 ||
-      totals.goals.assists > 0 ||
-      totals.tackles.total > 0 ||
-      totals.cards.yellow > 0
-    ) {
-      out.push({
-        player: {
-          id: player.id,
-          name: player.name || '—',
-          photo: player.photo || ''
-        },
-        statistics: [totals]
-      });
+  const requests = [];
+  for (const apiSeason of uniqueApiSeasons) {
+    for (let page = 1; page <= 4; page++) {
+      requests.push(
+        apiFetch('players', {
+          team: teamId,
+          season: apiSeason,
+          page
+        }).catch(() => ({ response: [] }))
+      );
     }
   }
 
-  return out;
+  const responses = await Promise.all(requests);
+  const playerMap = new Map();
+
+  for (const res of responses) {
+    const rows = res?.response || [];
+
+    for (const row of rows) {
+      const player = row?.player;
+      const statsList = Array.isArray(row?.statistics) ? row.statistics : [];
+      if (!player?.id || !statsList.length) continue;
+
+      const filteredStats = statsList.filter(stat => {
+        if (Number(stat?.team?.id) !== Number(teamId)) return false;
+        return statBelongsToDisplayedSeason(stat, displayedSeason, leagueLike);
+      });
+
+      if (!filteredStats.length) continue;
+
+      if (!playerMap.has(player.id)) {
+        playerMap.set(player.id, {
+          player: {
+            id: player.id,
+            name: player.name || '—',
+            photo: player.photo || ''
+          },
+          statistics: [{
+            games: { appearences: 0, position: '' },
+            goals: { total: 0, assists: 0 },
+            tackles: { total: 0 },
+            cards: { yellow: 0 }
+          }]
+        });
+      }
+
+      const existing = playerMap.get(player.id);
+      const total = existing.statistics[0];
+
+      for (const stat of filteredStats) {
+        total.games.appearences += Number(stat?.games?.appearences || 0);
+        if (!total.games.position && stat?.games?.position) {
+          total.games.position = stat.games.position;
+        }
+        total.goals.total += Number(stat?.goals?.total || 0);
+        total.goals.assists += Number(stat?.goals?.assists || 0);
+        total.tackles.total += Number(stat?.tackles?.total || 0);
+        total.cards.yellow += Number(stat?.cards?.yellow || 0);
+      }
+    }
+  }
+
+  return Array.from(playerMap.values()).filter(p => {
+    const s = p.statistics?.[0];
+    return s && (
+      Number(s.games?.appearences || 0) > 0 ||
+      Number(s.goals?.total || 0) > 0 ||
+      Number(s.goals?.assists || 0) > 0 ||
+      Number(s.tackles?.total || 0) > 0 ||
+      Number(s.cards?.yellow || 0) > 0
+    );
+  });
 }
 
 // ═══════════════════════════════════════════
@@ -1980,7 +2024,7 @@ async function showTeamTab(tab, btn) {
   }
 
   if (tab === 'toplayers') {
-    const selectedYear = window._topPlayersYear || null;
+    const selectedYearRaw = window._topPlayersYear || null;
     c.innerHTML = `<div class="skeleton" style="height:300px;border-radius:10px;margin-top:20px"></div>`;
 
     try {
@@ -2005,10 +2049,11 @@ async function showTeamTab(tab, btn) {
         return;
       }
 
-      const seasonYears = getSeasonYearsFromLeague(primaryLeague, 7);
-      const season = seasonYears.includes(Number(selectedYear))
-        ? Number(selectedYear)
-        : (seasonYears[0] || getCurrentCompetitionSeasonYear(primaryLeague));
+      const seasonYears = (getSeasonYearsFromLeague(primaryLeague, 7) || []).map(y => Number(y)).filter(Boolean);
+      const selectedYear = Number(selectedYearRaw);
+      const season = seasonYears.includes(selectedYear)
+        ? selectedYear
+        : Number(seasonYears[0] || getCurrentCompetitionSeasonYear(primaryLeague));
 
       window._topPlayersYear = season;
 
@@ -2101,100 +2146,6 @@ async function showTeamTab(tab, btn) {
       c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda spelarstatistik.</div>`;
     }
   }
-
-  if (tab === 'fixtures') {
-    c.innerHTML = `<div class="skeleton" style="height:300px;border-radius:10px;margin-top:20px"></div>`;
-    try {
-      const leagueData = await apiFetch('leagues', { team: teamId, current: 'true' });
-      const currentLeagues = leagueData.response || [];
-      const season = currentLeagues[0]?.seasons?.find(s => s.current)?.year ?? new Date().getFullYear() - 1;
-      const [lastData, nextData] = await Promise.all([
-        apiFetch('fixtures', { team: teamId, season, last: 10 }),
-        apiFetch('fixtures', { team: teamId, season, next: 10 }),
-      ]);
-      const lastF = (lastData.response || []).reverse();
-      const nextF = nextData.response || [];
-      const allF = [...lastF, ...nextF];
-      if (!allF.length) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Inga matcher hittades.</div>`; return; }
-      const byLeague = {};
-      allF.forEach(f => {
-        const key = f.league.id;
-        if (!byLeague[key]) byLeague[key] = { name: f.league.name, logo: f.league.logo, fixtures: [] };
-        byLeague[key].fixtures.push(f);
-      });
-      const dateLabel = (dateStr) => new Date(dateStr).toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
-      c.innerHTML = `<div style="margin-top:20px">
-        ${Object.values(byLeague).map(league => `
-          <div style="margin-bottom:24px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border2)">
-              ${league.logo ? `<img src="${league.logo}" style="width:20px;height:20px;object-fit:contain">` : ''}
-              <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:0.5px">${league.name}</span>
-            </div>
-            <div class="matches-list">
-              ${league.fixtures.map(f => {
-                const m = normalizeMatch(f);
-                const statusShort = f.fixture.status.short;
-                const isLive = ['1H','HT','2H','ET','P'].includes(statusShort);
-                const isFT = ['FT','AET','PEN'].includes(statusShort);
-                const statusClass = isLive ? 'live' : isFT ? 'finished' : 'upcoming';
-                const statusText = isLive ? m.min : isFT ? 'FT' : m.time;
-                const score = (isLive || isFT)
-                  ? `<div class="match-score-display">${m.scoreH} – ${m.scoreA}</div>`
-                  : `<div class="match-score-display upcoming" style="font-size:14px">${m.time}</div>`;
-                return `<div class="match-card" onclick="showMatch(${f.fixture.id})" style="cursor:pointer">
-                  <div class="match-meta">
-                    <span style="font-size:11px;color:var(--text3)">${dateLabel(f.fixture.date)}</span>
-                    <span class="match-status ${statusClass}" style="margin-left:auto">${isLive?'● ':''} ${statusText}</span>
-                  </div>
-                  <div class="match-teams">
-                    <div class="match-team"><div class="team-logo">${f.teams.home.logo?`<img src="${f.teams.home.logo}" style="width:22px;height:22px;object-fit:contain">`:'⚽'}</div><span class="team-name-m">${f.teams.home.name}</span></div>
-                    ${score}
-                    <div class="match-team away"><div class="team-logo">${f.teams.away.logo?`<img src="${f.teams.away.logo}" style="width:22px;height:22px;object-fit:contain">`:'⚽'}</div><span class="team-name-m">${f.teams.away.name}</span></div>
-                  </div>
-                </div>`;
-              }).join('')}
-            </div>
-          </div>`).join('')}
-      </div>`;
-    } catch(e) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda matcher.</div>`; }
-  }
-}
-
-function renderTeamTransferTable(rows) {
-  if (!rows.length) return `<div style="padding:20px;color:var(--text3)">Inga transfers.</div>`;
-  return `<div class="table-wrap">
-    <table class="transfers-table">
-      <thead><tr><th>Player</th><th>Movement</th><th>Fee</th><th>Date</th></tr></thead>
-      <tbody>${rows.slice(0, 50).map(r => `
-        <tr onclick="showPlayer(${r.playerId})" style="cursor:pointer">
-          <td><div class="t-player"><div class="t-player-img">⚽</div><div><div class="t-player-name">${r.player}</div></div></div></td>
-          <td><div class="t-clubs" style="align-items:center">
-            ${r.fromLogo ? `<img src="${r.fromLogo}" style="width:16px;height:16px;object-fit:contain">` : ''}
-            <span>${r.from}</span><span class="t-sep">→</span>
-            ${r.toLogo ? `<img src="${r.toLogo}" style="width:16px;height:16px;object-fit:contain">` : ''}
-            <span>${r.to}</span>
-          </div></td>
-          <td><span class="t-fee ${r.feeType==='loan'?'loan-fee':r.feeType==='free'?'free-fee':''}">${r.fee}</span></td>
-          <td style="color:var(--text3);font-size:12px">${r.date?.slice(0,10)}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-  </div>`;
-}
-
-function filterTeamTransfers(type, btn, teamId) {
-  document.querySelectorAll('#teamContent .filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  const rows = window._teamTransfers || [];
-  const teamName = window._currentTeamName || '';
-  const filteredRows = type === 'all' ? rows
-    : type === 'in'  ? rows.filter(r => r.to.toLowerCase().includes(teamName.toLowerCase()))
-    : type === 'out' ? rows.filter(r => r.from.toLowerCase().includes(teamName.toLowerCase()))
-    : rows;
-  const tableContainer = document.getElementById('teamContent');
-  const table = tableContainer.querySelector('.table-wrap');
-  if (table) table.outerHTML = renderTeamTransferTable(type === 'all' ? rows : filteredRows);
-}
 
 // ═══════════════════════════════════════════
 // SHOW PLAYER
