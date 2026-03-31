@@ -18,6 +18,16 @@
     {
       "path": "/api/notify-transfers",
       "schedule": "30 3 * * *"
+    },
+
+    // 🔥 NYA (VIKTIGA)
+    {
+      "path": "/api/notify-prematch",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/notify-live",
+      "schedule": "*/1 * * * *"
     }
   ]
 }
