@@ -1629,30 +1629,21 @@ async function showTeamTab(tab, btn) {
     const statsYear = window._statsYear || null;
     c.innerHTML = `<div class="skeleton" style="height:200px;border-radius:10px;margin-top:20px"></div>`;
     try {
-      const leagueData = await apiFetch('leagues', { team: teamId, current: 'true' }).catch(() => ({ response: [] }));
-      const leagues = leagueData.response || [];
+      const [leagueDataCurrent, leagueDataAll] = await Promise.all([
+        apiFetch('leagues', { team: teamId, current: 'true' }).catch(() => ({ response: [] })),
+        apiFetch('leagues', { team: teamId }).catch(() => ({ response: [] }))
+      ]);
+      const leaguesCurrent = leagueDataCurrent.response || [];
+      const leaguesAll = leagueDataAll.response || [];
       const cupKeywords = ['cup','pokal','coupe','copa','coppa','trophy','shield','supercup'];
-      const primaryLeague = leagues.find(l => !cupKeywords.some(k => (l.league.name || '').toLowerCase().includes(k))) || leagues[0] || null;
+      const primaryLeagueCurrent = leaguesCurrent.find(l => !cupKeywords.some(k => (l.league.name || '').toLowerCase().includes(k))) || leaguesCurrent[0] || null;
+      const primaryLeague = leaguesAll.find(l => l.league?.id === primaryLeagueCurrent?.league?.id) || primaryLeagueCurrent || leaguesAll[0] || null;
       window._currentTeamPrimaryLeague = primaryLeague;
 
       const years = getSeasonYearsFromLeague(primaryLeague, 7);
-      let season = statsYear || years[0] || new Date().getFullYear();
-      let fixturesData = await apiFetch('fixtures', { team: teamId, season }).catch(() => ({ response: [] }));
-      let seasonAggregate = aggregateTeamSeason(fixturesData.response || [], teamId);
-
-      if (!statsYear && (!seasonAggregate.played || seasonAggregate.played === 0)) {
-        for (const y of years.slice(1)) {
-          const tryFixtures = await apiFetch('fixtures', { team: teamId, season: y }).catch(() => ({ response: [] }));
-          const tryAggregate = aggregateTeamSeason(tryFixtures.response || [], teamId);
-          if (tryAggregate.played && tryAggregate.played > 0) {
-            season = y;
-            fixturesData = tryFixtures;
-            seasonAggregate = tryAggregate;
-            window._statsYear = y;
-            break;
-          }
-        }
-      }
+      const season = statsYear || years[0] || new Date().getFullYear();
+      const fixturesData = await apiFetch('fixtures', { team: teamId, season }).catch(() => ({ response: [] }));
+      const seasonAggregate = aggregateTeamSeason(fixturesData.response || [], teamId);
 
       const yearBtns = years.map(y =>
         '<button onclick="window._statsYear=' + y + ';showTeamTab(\'stats\',null,' + teamId + ')" ' +
@@ -1771,12 +1762,17 @@ async function showTeamTab(tab, btn) {
     const selectedYear = window._topPlayersYear || null;
     c.innerHTML = `<div class="skeleton" style="height:300px;border-radius:10px;margin-top:20px"></div>`;
     try {
-      const leagueData = await apiFetch('leagues', { team: teamId, current: 'true' });
-      const leagues = leagueData.response || [];
+      const [leagueDataCurrent, leagueDataAll] = await Promise.all([
+        apiFetch('leagues', { team: teamId, current: 'true' }).catch(() => ({ response: [] })),
+        apiFetch('leagues', { team: teamId }).catch(() => ({ response: [] }))
+      ]);
+      const leaguesCurrent = leagueDataCurrent.response || [];
+      const leaguesAll = leagueDataAll.response || [];
       const cupKw = ['cup','pokal','coupe','copa','coppa','trophy','shield'];
-      const primaryLeague = leagues.find(l => !cupKw.some(k => (l.league.name||'').toLowerCase().includes(k))) || leagues[0];
+      const primaryLeagueCurrent = leaguesCurrent.find(l => !cupKw.some(k => (l.league.name||'').toLowerCase().includes(k))) || leaguesCurrent[0];
+      const primaryLeague = leaguesAll.find(l => l.league?.id === primaryLeagueCurrent?.league?.id) || primaryLeagueCurrent || leaguesAll[0];
       window._currentTeamPrimaryLeague = primaryLeague;
-      const season = primaryLeague?.seasons?.find(s => s.current)?.year ?? new Date().getFullYear() - 1;
+      const season = selectedYear || getSeasonYearsFromLeague(primaryLeague, 7)[0] || new Date().getFullYear() - 1;
       const leagueId = primaryLeague?.league?.id;
       if (!leagueId) throw new Error('no league');
       let activeSeason = season;
