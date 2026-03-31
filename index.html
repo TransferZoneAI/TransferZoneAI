@@ -2135,25 +2135,41 @@ async function showTeamTab(tab, btn) {
   if (tab === 'fixtures') {
     c.innerHTML = `<div class="skeleton" style="height:300px;border-radius:10px;margin-top:20px"></div>`;
     try {
-      const leagueData = await apiFetch('leagues', { team: teamId, current: 'true' }).catch(() => ({ response: [] }));
-      const currentLeagues = leagueData.response || [];
-      const season = currentLeagues[0]?.seasons?.find(s => s.current)?.year ?? new Date().getFullYear() - 1;
-      const [lastData, nextData] = await Promise.all([
-        apiFetch('fixtures', { team: teamId, season, last: 10 }).catch(() => ({ response: [] })),
-        apiFetch('fixtures', { team: teamId, season, next: 10 }).catch(() => ({ response: [] })),
+      const [lastData, nextData, liveData] = await Promise.all([
+        apiFetch('fixtures', { team: teamId, last: 10 }).catch(() => ({ response: [] })),
+        apiFetch('fixtures', { team: teamId, next: 10 }).catch(() => ({ response: [] })),
+        apiFetch('fixtures', { team: teamId, live: 'all' }).catch(() => ({ response: [] }))
       ]);
-      const lastF = (lastData.response || []).reverse();
-      const nextF = nextData.response || [];
-      const allF = [...lastF, ...nextF];
+
+      const seen = new Set();
+      const allF = [...(liveData.response || []), ...(lastData.response || []), ...(nextData.response || [])]
+        .filter(f => {
+          const id = f?.fixture?.id;
+          if (!id || seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        })
+        .sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date));
+
       if (!allF.length) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Inga matcher hittades.</div>`; return; }
+
+      const upcoming = allF.filter(f => f.fixture?.status?.short === 'NS');
+      const played = allF.filter(f => f.fixture?.status?.short !== 'NS').sort((a,b) => new Date(b.fixture.date) - new Date(a.fixture.date));
+      const ordered = [...upcoming, ...played];
+
       const byLeague = {};
-      allF.forEach(f => {
+      ordered.forEach(f => {
         const key = f.league.id;
         if (!byLeague[key]) byLeague[key] = { name: f.league.name, logo: f.league.logo, fixtures: [] };
         byLeague[key].fixtures.push(f);
       });
+
       const dateLabel = (dateStr) => new Date(dateStr).toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
       c.innerHTML = `<div style="margin-top:20px">
+        <div class="toplist-filters" style="margin-bottom:16px;pointer-events:none;opacity:.95">
+          <button class="filter-btn active">Upcoming ${upcoming.length}</button>
+          <button class="filter-btn active">Played/Live ${played.length}</button>
+        </div>
         ${Object.values(byLeague).map(league => `
           <div style="margin-bottom:24px">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border2)">
@@ -2167,7 +2183,7 @@ async function showTeamTab(tab, btn) {
                 const isLive = ['1H','HT','2H','ET','P'].includes(statusShort);
                 const isFT = ['FT','AET','PEN'].includes(statusShort);
                 const statusClass = isLive ? 'live' : isFT ? 'finished' : 'upcoming';
-                const statusText = isLive ? m.min : isFT ? 'FT' : m.time;
+                const statusText = isLive ? m.min : isFT ? 'FT' : dateLabel(f.fixture.date) + ' · ' + m.time;
                 const score = (isLive || isFT)
                   ? `<div class="match-score-display">${m.scoreH} – ${m.scoreA}</div>`
                   : `<div class="match-score-display upcoming" style="font-size:14px">${m.time}</div>`;
@@ -2188,6 +2204,51 @@ async function showTeamTab(tab, btn) {
       </div>`;
     } catch(e) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda matcher.</div>`; }
   }
+}
+
+
+function renderTeamTransferTable(rows) {
+  if (!rows || !rows.length) return `<div style="padding:20px;color:var(--text3)">Inga transfers hittades.</div>`;
+  return `<div class="table-wrap">
+    <table class="transfers-table">
+      <thead><tr><th>Player</th><th>Movement</th><th>Fee</th><th>Date</th></tr></thead>
+      <tbody>${rows.slice(0, 100).map(r => `
+        <tr ${r.playerId ? `onclick="showPlayer(${r.playerId})" style="cursor:pointer"` : ''}>
+          <td><div class="t-player"><div class="t-player-img">⚽</div><div><div class="t-player-name">${r.player || '—'}</div></div></div></td>
+          <td><div class="t-clubs" style="align-items:center">
+            ${r.fromLogo ? `<img src="${r.fromLogo}" style="width:16px;height:16px;object-fit:contain">` : ''}
+            <span>${r.from || '—'}</span><span class="t-sep">→</span>
+            ${r.toLogo ? `<img src="${r.toLogo}" style="width:16px;height:16px;object-fit:contain">` : ''}
+            <span>${r.to || '—'}</span>
+          </div></td>
+          <td><span class="t-fee ${r.feeType==='loan'?'loan-fee':r.feeType==='free'?'free-fee':''}">${r.fee || '—'}</span></td>
+          <td style="color:var(--text3);font-size:12px">${r.date ? r.date.slice(0,10) : '—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function filterTeamTransfers(type, btn, teamId) {
+  const wrap = document.getElementById('teamContent');
+  if (!wrap) return;
+  const toolbar = wrap.querySelector('.toplist-filters');
+  toolbar?.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn?.classList.add('active');
+
+  const rows = window._teamTransferRows || [];
+  const name = String(window._currentTeamName || '').toLowerCase();
+  const filteredByYear = window._teamTransfers || rows;
+
+  let filtered = filteredByYear;
+  if (type === 'in') {
+    filtered = filteredByYear.filter(r => String(r.to || '').toLowerCase() === name);
+  } else if (type === 'out') {
+    filtered = filteredByYear.filter(r => String(r.from || '').toLowerCase() === name);
+  }
+
+  const existing = wrap.querySelector('.table-wrap, .team-transfer-empty');
+  if (existing) existing.outerHTML = filtered.length ? renderTeamTransferTable(filtered) : `<div class="team-transfer-empty" style="padding:20px;color:var(--text3)">Inga transfers hittades.</div>`;
 }
 
 // ═══════════════════════════════════════════
