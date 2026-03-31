@@ -19,8 +19,6 @@
       "path": "/api/notify-transfers",
       "schedule": "30 3 * * *"
     },
-
-    // 🔥 NYA (VIKTIGA)
     {
       "path": "/api/notify-prematch",
       "schedule": "*/5 * * * *"
