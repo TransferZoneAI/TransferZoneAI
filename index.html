@@ -1491,11 +1491,21 @@ async function fetchPlayersMultiSeason(teamId, seasonYear, leagueLike) {
 
 function mergePlayersForDisplayedSeason(players, seasonYear, leagueLike) {
   const merged = new Map();
+  const targetLeagueId = leagueLike?.league?.id || leagueLike?.id || null;
 
   for (const entry of (players || [])) {
     const player = entry?.player;
     if (!player?.id) continue;
-    const stats = (entry.statistics || []).filter(st => fixtureBelongsToDisplayedSeason({ fixture: { date: st?.league?.season ? new Date(Date.UTC(Number(st.league.season), 6, 1)).toISOString() : '' } }, seasonYear, leagueLike) || true);
+
+    const stats = (entry.statistics || []).filter(st => {
+      if (targetLeagueId && st?.league?.id && st.league.id !== targetLeagueId) return false;
+      const statSeason = Number(st?.league?.season);
+      if (!Number.isFinite(statSeason)) return true;
+      if (isSingleYearCompetition(leagueLike)) return statSeason === Number(seasonYear);
+      return statSeason === Number(seasonYear);
+    });
+
+    if (!stats.length) continue;
 
     if (!merged.has(player.id)) {
       merged.set(player.id, {
@@ -1523,55 +1533,53 @@ async function fetchFixturePlayersCached(fixtureId) {
 }
 
 async function fetchFixturePlayersForSeason(teamId, seasonYear, leagueLike) {
-  const fixtures = await fetchFixturesMultiSeason(teamId, seasonYear, leagueLike);
-  const relevantFixtures = (fixtures || [])
-    .filter(f => (f.teams?.home?.id === teamId || f.teams?.away?.id === teamId))
-    .filter(f => fixtureBelongsToDisplayedSeason(f, seasonYear, leagueLike))
-    .filter(f => ['FT', 'AET', 'PEN'].includes(f.fixture?.status?.short))
-    .sort((a, b) => new Date(a.fixture?.date || 0) - new Date(b.fixture?.date || 0));
+  const rawPlayers = await fetchPlayersMultiSeason(teamId, seasonYear, leagueLike);
+  const mergedPlayers = mergePlayersForDisplayedSeason(rawPlayers, seasonYear, leagueLike);
 
-  const aggregated = new Map();
+  const out = [];
+  const seen = new Set();
 
-  for (const fixture of relevantFixtures) {
-    const response = (await fetchFixturePlayersCached(fixture.fixture.id))?.response || [];
-    const teamBlock = response.find(t => t.team?.id === teamId);
-    const players = teamBlock?.players || [];
+  for (const entry of (mergedPlayers || [])) {
+    const player = entry?.player;
+    if (!player?.id || seen.has(player.id)) continue;
+    seen.add(player.id);
 
-    for (const row of players) {
-      const player = row.player || {};
-      const stats = row.statistics || [];
-      if (!player.id) continue;
+    const statsList = Array.isArray(entry.statistics) ? entry.statistics : [];
+    const totals = {
+      games: { appearences: 0, position: '' },
+      goals: { total: 0, assists: 0 },
+      tackles: { total: 0 },
+      cards: { yellow: 0 }
+    };
 
-      if (!aggregated.has(player.id)) {
-        aggregated.set(player.id, {
-          player: {
-            id: player.id,
-            name: player.name || '—',
-            photo: player.photo || ''
-          },
-          statistics: [{
-            games: { appearences: 0, position: '' },
-            goals: { total: 0, assists: 0 },
-            tackles: { total: 0 },
-            cards: { yellow: 0 },
-          }]
-        });
-      }
-
-      const target = aggregated.get(player.id).statistics[0];
-      const s = Array.isArray(stats) ? stats[0] || {} : stats || {};
-      target.games.appearences += 1;
-      if (!target.games.position && s.games?.position) target.games.position = s.games.position;
-      target.goals.total += Number(s.goals?.total || 0);
-      target.goals.assists += Number(s.goals?.assists || 0);
-      target.tackles.total += Number(s.tackles?.total || 0);
-      target.cards.yellow += Number(s.cards?.yellow || 0);
+    for (const s of statsList) {
+      totals.games.appearences += Number(s?.games?.appearences || 0);
+      if (!totals.games.position && s?.games?.position) totals.games.position = s.games.position;
+      totals.goals.total += Number(s?.goals?.total || 0);
+      totals.goals.assists += Number(s?.goals?.assists || 0);
+      totals.tackles.total += Number(s?.tackles?.total || 0);
+      totals.cards.yellow += Number(s?.cards?.yellow || 0);
     }
 
-    await sleep(120);
+    if (
+      totals.games.appearences > 0 ||
+      totals.goals.total > 0 ||
+      totals.goals.assists > 0 ||
+      totals.tackles.total > 0 ||
+      totals.cards.yellow > 0
+    ) {
+      out.push({
+        player: {
+          id: player.id,
+          name: player.name || '—',
+          photo: player.photo || ''
+        },
+        statistics: [totals]
+      });
+    }
   }
 
-  return Array.from(aggregated.values());
+  return out;
 }
 
 // ═══════════════════════════════════════════
@@ -1972,199 +1980,128 @@ async function showTeamTab(tab, btn) {
   }
 
   if (tab === 'toplayers') {
-  const selectedYear = window._topPlayersYear || null;
-  c.innerHTML = `<div class="skeleton" style="height:300px;border-radius:10px;margin-top:20px"></div>`;
+    const selectedYear = window._topPlayersYear || null;
+    c.innerHTML = `<div class="skeleton" style="height:300px;border-radius:10px;margin-top:20px"></div>`;
 
-  try {
-    const [leagueDataCurrent, leagueDataAll] = await Promise.all([
-      apiFetch('leagues', { team: teamId, current: 'true' }).catch(() => ({ response: [] })),
-      apiFetch('leagues', { team: teamId }).catch(() => ({ response: [] }))
-    ]);
+    try {
+      const [leagueDataCurrent, leagueDataAll] = await Promise.all([
+        apiFetch('leagues', { team: teamId, current: 'true' }).catch(() => ({ response: [] })),
+        apiFetch('leagues', { team: teamId }).catch(() => ({ response: [] }))
+      ]);
 
-    const leaguesCurrent = leagueDataCurrent.response || [];
-    const leaguesAll = leagueDataAll.response || [];
+      const leaguesCurrent = leagueDataCurrent.response || [];
+      const leaguesAll = leagueDataAll.response || [];
 
-    const primaryLeagueCurrent = choosePrimaryLeague(leaguesCurrent);
-    const primaryLeague =
-      leaguesAll.find(l => l.league?.id === primaryLeagueCurrent?.league?.id) ||
-      choosePrimaryLeague(leaguesAll) ||
-      primaryLeagueCurrent;
+      const primaryLeagueCurrent = choosePrimaryLeague(leaguesCurrent);
+      const primaryLeague =
+        leaguesAll.find(l => l.league?.id === primaryLeagueCurrent?.league?.id) ||
+        choosePrimaryLeague(leaguesAll) ||
+        primaryLeagueCurrent;
 
-    window._currentTeamPrimaryLeague = primaryLeague;
+      window._currentTeamPrimaryLeague = primaryLeague;
 
-    const seasonYears = getSeasonYearsFromLeague(primaryLeague, 7);
-    const season =
-      seasonYears.includes(selectedYear)
-        ? selectedYear
+      if (!primaryLeague) {
+        c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte hitta liga för spelarstatistik.</div>`;
+        return;
+      }
+
+      const seasonYears = getSeasonYearsFromLeague(primaryLeague, 7);
+      const season = seasonYears.includes(Number(selectedYear))
+        ? Number(selectedYear)
         : (seasonYears[0] || getCurrentCompetitionSeasonYear(primaryLeague));
 
-    const yearPickerHTML = buildYearPicker(
-      season,
-      teamId,
-      'toplayers',
-      '_topPlayersYear',
-      primaryLeague
-    );
+      window._topPlayersYear = season;
 
-    const leagueId = primaryLeague?.league?.id;
-    if (!leagueId) {
-      c.innerHTML = yearPickerHTML + `<div style="padding:20px;color:var(--text3)">No league found for player stats.</div>`;
-      return;
-    }
+      const yearPickerHTML = buildYearPicker(
+        season,
+        teamId,
+        'toplayers',
+        '_topPlayersYear',
+        primaryLeague
+      );
 
-    const seasonCandidates = isSingleYearCompetition(primaryLeague)
-      ? [season - 1, season, season + 1]
-      : [season, season + 1];
+      const allPlayers = await fetchFixturePlayersForSeason(teamId, season, primaryLeague);
 
-    const pagesToFetch = [];
-    for (const apiSeason of seasonCandidates) {
-      for (let page = 1; page <= 4; page++) {
-        pagesToFetch.push(
-          apiFetch('players', {
-            team: teamId,
-            league: leagueId,
-            season: apiSeason,
-            page
-          }).catch(() => ({ response: [] }))
-        );
+      if (!allPlayers.length) {
+        c.innerHTML =
+          `<div style="margin-top:20px">` +
+            yearPickerHTML +
+            `<div style="padding:32px 20px;color:var(--text3);text-align:center">
+              <div style="font-size:32px;margin-bottom:8px">📊</div>
+              <div>No player statistics available for ${formatSeasonLabel(season, primaryLeague)}.</div>
+            </div>` +
+          `</div>`;
+        return;
       }
-    }
 
-    const pageResults = await Promise.all(pagesToFetch);
+      const sumStat = (p, fn) =>
+        (p.statistics || []).reduce((acc, s) => acc + (fn(s) || 0), 0);
 
-    const playerMap = new Map();
+      const byGoals = [...allPlayers]
+        .sort((a, b) => sumStat(b, s => s.goals?.total) - sumStat(a, s => s.goals?.total))
+        .filter(p => sumStat(p, s => s.goals?.total) > 0);
 
-    for (const res of pageResults) {
-      const rows = res.response || [];
+      const byAssists = [...allPlayers]
+        .sort((a, b) => sumStat(b, s => s.goals?.assists) - sumStat(a, s => s.goals?.assists))
+        .filter(p => sumStat(p, s => s.goals?.assists) > 0);
 
-      for (const row of rows) {
-        const player = row.player;
-        const statsList = row.statistics || [];
-        if (!player?.id || !statsList.length) continue;
+      const byApps = [...allPlayers]
+        .sort((a, b) => sumStat(b, s => s.games?.appearences) - sumStat(a, s => s.games?.appearences))
+        .filter(p => sumStat(p, s => s.games?.appearences) > 0);
 
-        if (!playerMap.has(player.id)) {
-          playerMap.set(player.id, {
-            player: {
-              id: player.id,
-              name: player.name,
-              photo: player.photo
-            },
-            statistics: []
-          });
-        }
+      const byTackles = [...allPlayers]
+        .sort((a, b) => sumStat(b, s => s.tackles?.total) - sumStat(a, s => s.tackles?.total))
+        .filter(p => sumStat(p, s => s.tackles?.total) > 0);
 
-        const existing = playerMap.get(player.id);
+      const byYellow = [...allPlayers]
+        .sort((a, b) => sumStat(b, s => s.cards?.yellow) - sumStat(a, s => s.cards?.yellow))
+        .filter(p => sumStat(p, s => s.cards?.yellow) > 0);
 
-        for (const stat of statsList) {
-          if (stat.team?.id !== teamId) continue;
-          if (stat.league?.id !== leagueId) continue;
-
-          const statSeason = stat.league?.season;
-          const validForDisplayedSeason = isSingleYearCompetition(primaryLeague)
-            ? (
-                statSeason === season ||
-                statSeason === season - 1 ||
-                statSeason === season + 1
-              )
-            : (
-                statSeason === season ||
-                statSeason === season + 1
-              );
-
-          if (!validForDisplayedSeason) continue;
-
-          const duplicate = existing.statistics.some(s =>
-            s.league?.id === stat.league?.id &&
-            s.league?.season === stat.league?.season &&
-            s.games?.appearences === stat.games?.appearences &&
-            s.goals?.total === stat.goals?.total &&
-            s.goals?.assists === stat.goals?.assists
-          );
-
-          if (!duplicate) {
-            existing.statistics.push(stat);
-          }
-        }
-      }
-    }
-
-    const allPlayers = Array.from(playerMap.values()).filter(p => (p.statistics || []).length > 0);
-
-    if (!allPlayers.length) {
-      c.innerHTML =
-        yearPickerHTML +
-        `<div style="padding:32px 20px;color:var(--text3);text-align:center">
-          <div style="font-size:32px;margin-bottom:8px">📊</div>
-          <div>No player statistics available yet.</div>
+      const pRow = (p, i, val) => `
+        <div class="scorer-row" onclick="showPlayer(${p.player.id})" style="cursor:pointer">
+          <div class="scorer-rank ${i < 3 ? 'top' : ''}">${i + 1}</div>
+          <div class="scorer-img">
+            ${p.player.photo
+              ? `<img src="${p.player.photo}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`
+              : '⚽'}
+          </div>
+          <div class="scorer-info">
+            <div class="scorer-name">${fixEncoding(p.player.name)}</div>
+            <div class="scorer-club">${p.statistics?.[0]?.games?.position || ''}</div>
+          </div>
+          <div class="scorer-goals">${val}</div>
         </div>`;
-      return;
+
+      const card = (title, emoji, players, valFn) => {
+        if (!players.length) return '';
+        return `
+          <div class="sidebar-card">
+            <div class="sidebar-title">${emoji} ${title}</div>
+            ${players.slice(0, 8).map((p, i) => pRow(p, i, valFn(p))).join('')}
+          </div>`;
+      };
+
+      c.innerHTML =
+        `<div style="margin-top:20px">` +
+          yearPickerHTML +
+          `<div style="color:var(--text3);font-size:12px;margin-bottom:16px">
+            Season ${formatSeasonLabel(season, primaryLeague)}
+          </div>` +
+          `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">` +
+            card('Goals', '⚽', byGoals, p => sumStat(p, s => s.goals?.total)) +
+            card('Assists', '🅰️', byAssists, p => sumStat(p, s => s.goals?.assists)) +
+            card('Appearances', '📋', byApps, p => sumStat(p, s => s.games?.appearences)) +
+            card('Tackles', '🛡️', byTackles, p => sumStat(p, s => s.tackles?.total)) +
+            card('Yellow Cards', '🟨', byYellow, p => sumStat(p, s => s.cards?.yellow)) +
+          `</div>` +
+        `</div>`;
+
+    } catch (e) {
+      console.error('Top players error:', e);
+      c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda spelarstatistik.</div>`;
     }
-
-    const sumStat = (p, fn) =>
-      (p.statistics || []).reduce((acc, s) => acc + (fn(s) || 0), 0);
-
-    const byGoals = [...allPlayers]
-      .sort((a, b) => sumStat(b, s => s.goals?.total) - sumStat(a, s => s.goals?.total))
-      .filter(p => sumStat(p, s => s.goals?.total) > 0);
-
-    const byAssists = [...allPlayers]
-      .sort((a, b) => sumStat(b, s => s.goals?.assists) - sumStat(a, s => s.goals?.assists))
-      .filter(p => sumStat(p, s => s.goals?.assists) > 0);
-
-    const byApps = [...allPlayers]
-      .sort((a, b) => sumStat(b, s => s.games?.appearences) - sumStat(a, s => s.games?.appearences))
-      .filter(p => sumStat(p, s => s.games?.appearences) > 0);
-
-    const byTackles = [...allPlayers]
-      .sort((a, b) => sumStat(b, s => s.tackles?.total) - sumStat(a, s => s.tackles?.total))
-      .filter(p => sumStat(p, s => s.tackles?.total) > 0);
-
-    const byYellow = [...allPlayers]
-      .sort((a, b) => sumStat(b, s => s.cards?.yellow) - sumStat(a, s => s.cards?.yellow))
-      .filter(p => sumStat(p, s => s.cards?.yellow) > 0);
-
-    const pRow = (p, i, val) => `
-      <div class="scorer-row" onclick="showPlayer(${p.player.id})" style="cursor:pointer">
-        <div class="scorer-rank ${i < 3 ? 'top' : ''}">${i + 1}</div>
-        <div class="scorer-img">
-          ${p.player.photo
-            ? `<img src="${p.player.photo}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`
-            : '⚽'}
-        </div>
-        <div class="scorer-info">
-          <div class="scorer-name">${fixEncoding(p.player.name)}</div>
-          <div class="scorer-club">${p.statistics[0]?.games?.position || ''}</div>
-        </div>
-        <div class="scorer-goals">${val}</div>
-      </div>`;
-
-    const card = (title, emoji, players, valFn) => !players.length ? '' : `
-      <div class="sidebar-card">
-        <div class="sidebar-title">${emoji} ${title}</div>
-        ${players.slice(0, 8).map((p, i) => pRow(p, i, valFn(p))).join('')}
-      </div>`;
-
-    c.innerHTML =
-      '<div style="margin-top:20px">' +
-        yearPickerHTML +
-        '<div style="color:var(--text3);font-size:12px;margin-bottom:16px">Season ' +
-          formatSeasonLabel(season, primaryLeague) +
-        '</div>' +
-        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">' +
-          card('Goals', 'Goals', byGoals, p => sumStat(p, s => s.goals?.total)) +
-          card('Assists', 'Assists', byAssists, p => sumStat(p, s => s.goals?.assists)) +
-          card('Appearances', 'Apps', byApps, p => sumStat(p, s => s.games?.appearences)) +
-          card('Tackles', 'Tackles', byTackles, p => sumStat(p, s => s.tackles?.total)) +
-          card('Yellow Cards', 'Yellow', byYellow, p => sumStat(p, s => s.cards?.yellow)) +
-        '</div>' +
-      '</div>';
-
-  } catch (e) {
-    console.error('Top players error:', e);
-    c.innerHTML = `<div style="padding:20px;color:var(--text3)">Kunde inte ladda spelarstatistik.</div>`;
   }
-}
-  
+
   if (tab === 'fixtures') {
     c.innerHTML = `<div class="skeleton" style="height:300px;border-radius:10px;margin-top:20px"></div>`;
     try {
