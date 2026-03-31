@@ -1114,10 +1114,23 @@ function showToast(msg) {
 
 let _currentTeamId = null;
 
+function getSeasonYearsFromLeague(leagueLike, fallbackCount = 7) {
+  const seasons = (leagueLike?.seasons || [])
+    .map(s => Number(s.year))
+    .filter(y => Number.isFinite(y))
+    .sort((a, b) => b - a);
+
+  if (seasons.length) return seasons.slice(0, fallbackCount);
+
+  const thisYear = new Date().getFullYear();
+  return Array.from({ length: fallbackCount }, (_, i) => thisYear - i);
+}
+
 function buildYearPicker(activeSeason, teamId, tab, globalVar, leagueLike = window._currentTeamPrimaryLeague) {
   const el = document.createElement('div');
   el.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px';
-  for (let y = new Date().getFullYear(); y >= new Date().getFullYear() - 7; y--) {
+  const years = getSeasonYearsFromLeague(leagueLike, 7);
+  for (const y of years) {
     const btn = document.createElement('button');
     btn.className = 'filter-btn' + (activeSeason === y ? ' active' : '');
     btn.style.cssText = 'padding:4px 12px;font-size:12px';
@@ -1622,18 +1635,31 @@ async function showTeamTab(tab, btn) {
       const primaryLeague = leagues.find(l => !cupKeywords.some(k => (l.league.name || '').toLowerCase().includes(k))) || leagues[0] || null;
       window._currentTeamPrimaryLeague = primaryLeague;
 
-      const thisYear = new Date().getFullYear();
-      const defaultSeason = statsYear || primaryLeague?.seasons?.find(s => s.current)?.year || thisYear;
-      const season = statsYear || defaultSeason;
+      const years = getSeasonYearsFromLeague(primaryLeague, 7);
+      let season = statsYear || years[0] || new Date().getFullYear();
+      let fixturesData = await apiFetch('fixtures', { team: teamId, season }).catch(() => ({ response: [] }));
+      let seasonAggregate = aggregateTeamSeason(fixturesData.response || [], teamId);
 
-      const yearBtns = Array.from({length: 7}, (_, i) => thisYear - i).map(y =>
+      if (!statsYear && (!seasonAggregate.played || seasonAggregate.played === 0)) {
+        for (const y of years.slice(1)) {
+          const tryFixtures = await apiFetch('fixtures', { team: teamId, season: y }).catch(() => ({ response: [] }));
+          const tryAggregate = aggregateTeamSeason(tryFixtures.response || [], teamId);
+          if (tryAggregate.played && tryAggregate.played > 0) {
+            season = y;
+            fixturesData = tryFixtures;
+            seasonAggregate = tryAggregate;
+            window._statsYear = y;
+            break;
+          }
+        }
+      }
+
+      const yearBtns = years.map(y =>
         '<button onclick="window._statsYear=' + y + ';showTeamTab(\'stats\',null,' + teamId + ')" ' +
         'class="filter-btn ' + (season === y ? 'active' : '') + '" style="padding:4px 12px;font-size:12px">' + formatSeasonLabel(y, primaryLeague) + '</button>'
       ).join('');
       const yearPickerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">' + yearBtns + '</div>';
 
-      const fixturesData = await apiFetch('fixtures', { team: teamId, season }).catch(() => ({ response: [] }));
-      const seasonAggregate = aggregateTeamSeason(fixturesData.response || [], teamId);
       const played = seasonAggregate.played || 0;
 
       if (!played) {
@@ -1753,10 +1779,9 @@ async function showTeamTab(tab, btn) {
       const season = primaryLeague?.seasons?.find(s => s.current)?.year ?? new Date().getFullYear() - 1;
       const leagueId = primaryLeague?.league?.id;
       if (!leagueId) throw new Error('no league');
-      const thisYear = new Date().getFullYear();
       let activeSeason = season;
       let allPlayers = [];
-      const yearsToTry = [season, season-1, season-2, thisYear-1, thisYear-2].filter((v,i,a)=>a.indexOf(v)===i);
+      const yearsToTry = getSeasonYearsFromLeague(primaryLeague, 7).filter((v,i,a)=>a.indexOf(v)===i);
       for (const yr of yearsToTry) {
         try {
           const test = await apiFetch('players', { team: teamId, season: yr, page: 1 });
