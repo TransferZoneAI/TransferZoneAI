@@ -1145,9 +1145,16 @@ function getCurrentCompetitionSeasonYear(leagueLike) {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
+
+  // Single-year competitions should follow the calendar year.
+  // Example: Allsvenskan/Svenska Cupen matches played in March 2026 belong to 2026,
+  // not to 2025.
   if (isSingleYearCompetition(leagueLike)) {
-    return month < 4 ? year - 1 : year;
+    return year;
   }
+
+  // Split-year competitions use the start year of the season.
+  // Example: March 2026 belongs to 2025/26 => start year 2025.
   return month >= 7 ? year : year - 1;
 }
 
