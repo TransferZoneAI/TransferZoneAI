@@ -1431,6 +1431,34 @@ function aggregateTeamSeason(fixtures, teamId, seasonYear, leagueLike) {
   }
 
   return out;
+
+function getFixtureSeasonCandidates(seasonYear, leagueLike) {
+  const y = Number(seasonYear);
+  if (!Number.isFinite(y)) return [];
+  if (isSingleYearCompetition(leagueLike)) {
+    return [y - 1, y, y + 1];
+  }
+  return [y, y + 1];
+}
+
+async function fetchTeamFixturesForDisplayedSeason(teamId, seasonYear, leagueLike) {
+  const candidates = [...new Set(getFixtureSeasonCandidates(seasonYear, leagueLike))];
+  const results = await Promise.all(
+    candidates.map(s => apiFetch('fixtures', { team: teamId, season: s }).catch(() => ({ response: [] })))
+  );
+  const seen = new Set();
+  const fixtures = [];
+  for (const res of results) {
+    for (const f of (res?.response || [])) {
+      const id = f?.fixture?.id;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      fixtures.push(f);
+    }
+  }
+  return fixtures;
+}
+
 }
 
 // ═══════════════════════════════════════════
@@ -1548,12 +1576,12 @@ async function showTeamTab(tab, btn) {
       if (!primaryLeague) { c.innerHTML = `<div style="padding:20px;color:var(--text3)">Ingen aktiv liga hittades.</div>`; return; }
       const season = getSeasonYearsFromLeague(primaryLeague, 7)[0] ?? new Date().getFullYear() - 1;
 
-      const [seasonFixturesData, playersPage1] = await Promise.all([
-        apiFetch('fixtures', { team: teamId, season }).catch(() => ({ response:[] })),
+      const [seasonFixtures, playersPage1] = await Promise.all([
+        fetchTeamFixturesForDisplayedSeason(teamId, season, primaryLeague),
         apiFetch('players', { team: teamId, season, page: 1 }).catch(() => ({ response:[], paging:{ total:1 } }))
       ]);
 
-      const seasonAggregate = aggregateTeamSeason(seasonFixturesData?.response || [], teamId, season, primaryLeague);
+      const seasonAggregate = aggregateTeamSeason(seasonFixtures || [], teamId, season, primaryLeague);
       let players = playersPage1?.response || [];
       const totalPages = Math.min(playersPage1?.paging?.total || 1, 3);
       if (totalPages > 1) {
@@ -1714,8 +1742,8 @@ async function showTeamTab(tab, btn) {
 
       const years = getSeasonYearsFromLeague(primaryLeague, 7);
       const season = years.includes(statsYear) ? statsYear : (years[0] || new Date().getFullYear());
-      const fixturesData = await apiFetch('fixtures', { team: teamId, season }).catch(() => ({ response: [] }));
-      const seasonAggregate = aggregateTeamSeason(fixturesData.response || [], teamId, season, primaryLeague);
+      const fixtures = await fetchTeamFixturesForDisplayedSeason(teamId, season, primaryLeague);
+      const seasonAggregate = aggregateTeamSeason(fixtures || [], teamId, season, primaryLeague);
 
       const yearBtns = years.map(y =>
         '<button onclick="window._statsYear=' + y + ';showTeamTab(\'stats\',null,' + teamId + ')" ' +
