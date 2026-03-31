@@ -490,6 +490,40 @@ header { position: sticky; top: 0; z-index: 100; background: rgba(10,10,15,0.92)
 .player-two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
 @media (max-width: 900px) { .player-overview-grid, .player-two-col { grid-template-columns:1fr; } }
 
+.club-overview-grid { display:grid; grid-template-columns:1.4fr 1fr; gap:16px; margin-top:20px; }
+.club-two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.club-panel { background:linear-gradient(180deg, rgba(30,30,46,0.92), rgba(24,24,36,0.92)); border:1px solid var(--border2); border-radius:18px; padding:16px; }
+.club-panel-title { font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:var(--gold); margin-bottom:12px; }
+.club-kv { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid var(--border2); font-size:13px; }
+.club-kv:last-child { border-bottom:none; }
+.club-kv .k { color:var(--text3); }
+.club-kv .v { color:var(--text); font-weight:600; text-align:right; }
+.club-highlight-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px; margin-bottom:16px; }
+.club-highlight { background:rgba(255,255,255,0.03); border:1px solid var(--border2); border-radius:14px; padding:12px; text-align:center; }
+.club-highlight .label { font-size:11px; color:var(--text3); text-transform:uppercase; letter-spacing:0.6px; }
+.club-highlight .value { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:900; color:var(--text); margin-top:4px; }
+.club-highlight .value.gold { color:var(--gold); }
+.club-insight { font-size:14px; line-height:1.7; color:var(--text2); }
+.club-insight strong { color:var(--text); }
+.club-form-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.club-form-pill { min-width:46px; text-align:center; padding:8px 10px; border-radius:12px; font-family:'Barlow Condensed',sans-serif; font-size:14px; font-weight:800; letter-spacing:0.5px; }
+.club-form-pill.w { background:rgba(34,197,94,0.16); color:var(--green); border:1px solid rgba(34,197,94,0.25); }
+.club-form-pill.d { background:rgba(201,168,76,0.16); color:var(--gold); border:1px solid rgba(201,168,76,0.25); }
+.club-form-pill.l { background:rgba(239,68,68,0.16); color:var(--red); border:1px solid rgba(239,68,68,0.25); }
+.club-mini-list { display:flex; flex-direction:column; gap:10px; }
+.club-mini-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--border2); }
+.club-mini-row:last-child { border-bottom:none; }
+.club-mini-left { display:flex; align-items:center; gap:10px; min-width:0; }
+.club-mini-avatar { width:34px; height:34px; border-radius:50%; background:var(--bg3); display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; }
+.club-mini-name { font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.club-mini-sub { font-size:11px; color:var(--text3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.club-mini-val { font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:900; color:var(--gold); }
+.club-roster-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:16px; }
+.club-roster-box { background:rgba(255,255,255,0.03); border:1px solid var(--border2); border-radius:14px; padding:12px; text-align:center; }
+.club-roster-box .n { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:900; color:var(--gold); }
+.club-roster-box .t { font-size:11px; color:var(--text3); text-transform:uppercase; letter-spacing:0.6px; margin-top:4px; }
+@media (max-width: 900px) { .club-overview-grid, .club-two-col { grid-template-columns:1fr; } }
+
 @media (max-width: 768px) {
   .header-inner { padding: 0 12px; gap: 10px; }
   .logo-text { font-size: 16px; }
@@ -1145,7 +1179,8 @@ async function showTeam(id, opts = {}) {
     </div>`;
 
   document.getElementById('teamTabs').innerHTML = `
-    <button class="tab-btn active" onclick="showTeamTab('squad',this)">Squad</button>
+    <button class="tab-btn active" onclick="showTeamTab('overview',this)">Overview</button>
+    <button class="tab-btn" onclick="showTeamTab('squad',this)">Squad</button>
     <button class="tab-btn" onclick="showTeamTab('stats',this)">Statistics</button>
     <button class="tab-btn" onclick="showTeamTab('toplayers',this)">Top Players</button>
     <button class="tab-btn" onclick="showTeamTab('transfers',this)">Transfers</button>
@@ -1206,7 +1241,7 @@ async function showTeam(id, opts = {}) {
         : `<button class="btn-follow" onclick="followTeam(${id})">☆ Follow</button>`;
     }
 
-    showTeamTab('squad');
+    showTeamTab('overview');
   } catch(e) {
     document.getElementById('teamHero').innerHTML =
       `<div style="padding:20px;color:var(--text3)">Kunde inte ladda laginfo.</div>`;
@@ -1223,6 +1258,7 @@ async function showTeamTab(tab, btn) {
     const squad = window._currentSquad || [];
     if (!squad.length) { c.innerHTML = `<div style="padding:20px;color:var(--text3);font-size:13px">Truppen laddas…</div>`; return; }
     const groups = groupByPos(squad);
+    const avgAge = clubAgeAverage(squad);
     const section = (title, players) => !players.length ? '' : `
       <div class="squad-section">
         <div class="squad-section-title">${title}</div>
@@ -1234,11 +1270,19 @@ async function showTeamTab(tab, btn) {
               </div>
               <div class="player-number">${p.number || '—'}</div>
               <div class="player-card-name">${fixEncoding(p.name)}</div>
-              <div class="player-card-pos">${p.position || ''}</div>
+              <div class="player-card-pos">${p.position || ''}${p.age ? ` · ${p.age}` : ''}</div>
             </div>`).join('')}
         </div>
       </div>`;
-    c.innerHTML = Object.entries(groups).map(([g, ps]) => section(g, ps)).join('');
+    c.innerHTML = `
+      <div class="club-roster-summary" style="margin-top:20px">
+        <div class="club-roster-box"><div class="n">${squad.length}</div><div class="t">Squad Size</div></div>
+        <div class="club-roster-box"><div class="n">${avgAge}</div><div class="t">Average Age</div></div>
+        <div class="club-roster-box"><div class="n">${groups.Goalkeepers.length}</div><div class="t">Goalkeepers</div></div>
+        <div class="club-roster-box"><div class="n">${groups.Defenders.length}</div><div class="t">Defenders</div></div>
+        <div class="club-roster-box"><div class="n">${groups.Midfielders.length}</div><div class="t">Midfielders</div></div>
+        <div class="club-roster-box"><div class="n">${groups.Forwards.length}</div><div class="t">Forwards</div></div>
+      </div>` + Object.entries(groups).map(([g, ps]) => section(g, ps)).join('');
   }
 
   if (tab === 'stats') {
@@ -1305,6 +1349,14 @@ async function showTeamTab(tab, btn) {
       const avg = (v, g) => (v && g) ? (v/g).toFixed(1) : '—';
       c.innerHTML = `<div style="margin-top:20px">
         ${yearPickerHTML}${formHTML}
+        <div class="club-highlight-row" style="margin-bottom:16px">
+          <div class="club-highlight"><div class="label">Season</div><div class="value gold">${season}</div></div>
+          <div class="club-highlight"><div class="label">Matches</div><div class="value">${played||'—'}</div></div>
+          <div class="club-highlight"><div class="label">Wins</div><div class="value">${totalWins||'—'}</div></div>
+          <div class="club-highlight"><div class="label">Goals</div><div class="value gold">${totalGoalsFor||'—'}</div></div>
+          <div class="club-highlight"><div class="label">Conceded</div><div class="value">${totalGoalsAgainst||'—'}</div></div>
+          <div class="club-highlight"><div class="label">Clean Sheets</div><div class="value">${cleanSheets}</div></div>
+        </div>
         <div class="section-title" style="margin-bottom:12px;font-size:16px">Season Overview — ${season}</div>
         <div class="stats-grid" style="margin-bottom:24px">
           <div class="stat-box"><div class="stat-box-val">${played||'—'}</div><div class="stat-box-lbl">Matches</div></div>
@@ -1437,7 +1489,11 @@ async function showTeamTab(tab, btn) {
           ${players.slice(0,8).map((p,i) => pRow(p, i, valFn(p))).join('')}
         </div>`;
       c.innerHTML = '<div style="margin-top:20px">' + yearPickerHTML +
-        '<div style="color:var(--text3);font-size:12px;margin-bottom:16px">Season ' + activeSeason + '</div>' +
+        '<div class="club-highlight-row" style="margin-bottom:16px">' +
+          '<div class="club-highlight"><div class="label">Season</div><div class="value gold">' + activeSeason + '</div></div>' +
+          '<div class="club-highlight"><div class="label">Players</div><div class="value">' + allPlayers.length + '</div></div>' +
+          '<div class="club-highlight"><div class="label">League</div><div class="value">' + (primaryLeague?.league?.name || '—') + '</div></div>' +
+        '</div>' +
         '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">' +
         card('Goals', 'Goals', byGoals, p => sumStat(p, s => s.goals?.total)) +
         card('Assists', 'Assists', byAssists, p => sumStat(p, s => s.goals?.assists)) +
@@ -1540,6 +1596,28 @@ function filterTeamTransfers(type, btn, teamId) {
   const tableContainer = document.getElementById('teamContent');
   const table = tableContainer.querySelector('.table-wrap');
   if (table) table.outerHTML = renderTeamTransferTable(type === 'all' ? rows : filteredRows);
+}
+
+
+function clubStatPercent(num, den) {
+  if (!den || den <= 0 || num === null || num === undefined) return '—';
+  return Math.round((num / den) * 100) + '%';
+}
+
+function clubAgeAverage(players) {
+  const ages = (players || []).map(p => Number(p.age)).filter(v => Number.isFinite(v) && v > 0);
+  if (!ages.length) return '—';
+  return (ages.reduce((a,b)=>a+b,0) / ages.length).toFixed(1);
+}
+
+function clubTopRows(players, pickFn, labelFn) {
+  return [...players].sort((a,b) => pickFn(b) - pickFn(a)).filter(p => pickFn(p) > 0).slice(0,5).map(p => ({
+    id: p.player.id,
+    name: fixEncoding(p.player.name),
+    photo: p.player.photo || '',
+    sub: labelFn(p),
+    val: pickFn(p)
+  }));
 }
 
 // ═══════════════════════════════════════════
