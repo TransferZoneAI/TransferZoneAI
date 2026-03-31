@@ -1176,17 +1176,15 @@ function getSeasonYearsFromLeague(leagueLike, fallbackCount = 7) {
   return years;
 }
 
-function buildYearPicker(activeSeason, teamId, tab, globalVar, leagueLike = window._currentTeamPrimaryLeague) {
-  const years = (getSeasonYearsFromLeague(leagueLike, 7) || [])
-    .map(y => Number(y))
-    .filter(Boolean);
+function buildYearPicker(activeSeason, teamId, tab, globalVar, primaryLeague) {
+  const years = (getSeasonYearsFromLeague(primaryLeague, 7) || []).map(y => Number(y)).filter(Boolean);
   const currentActive = Number(activeSeason);
 
   return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">' +
     years.map(y =>
       '<button onclick="window.' + globalVar + '=' + y + ';showTeamTab(\'' + tab + '\', null)" ' +
       'class="filter-btn ' + (currentActive === y ? 'active' : '') + '" style="padding:4px 12px;font-size:12px">' +
-      formatSeasonLabel(y, leagueLike) +
+      formatSeasonLabel(y, primaryLeague) +
       '</button>'
     ).join('') +
   '</div>';
@@ -1499,30 +1497,51 @@ async function fetchPlayersMultiSeason(teamId, seasonYear, leagueLike) {
   return results;
 }
 
+function statBelongsToDisplayedSeason(stat, displayedSeason, leagueLike) {
+  const statSeason = Number(stat?.league?.season);
+  if (!statSeason) return false;
+
+  if (isSingleYearCompetition(leagueLike)) {
+    return statSeason === Number(displayedSeason);
+  }
+
+  return statSeason === Number(displayedSeason);
+}
+
 function mergePlayersForDisplayedSeason(players, seasonYear, leagueLike) {
   const merged = new Map();
-  const targetLeagueId = leagueLike?.league?.id || leagueLike?.id || null;
+  const targetSeason = Number(seasonYear);
 
   for (const entry of (players || [])) {
     const player = entry?.player;
     if (!player?.id) continue;
 
     const stats = (entry.statistics || []).filter(st => {
-      if (targetLeagueId && st?.league?.id && st.league.id !== targetLeagueId) return false;
       const statSeason = Number(st?.league?.season);
-      if (!Number.isFinite(statSeason)) return true;
-      if (isSingleYearCompetition(leagueLike)) return statSeason === Number(seasonYear);
-      return statSeason === Number(seasonYear);
+      if (!Number.isFinite(statSeason)) return false;
+
+      // Alla tävlingar för vald säsong/år
+      if (isSingleYearCompetition(leagueLike)) {
+        return statSeason === targetSeason;
+      }
+
+      // För höst/vår-ligor använder API normalt startåret för säsongen
+      return statSeason === targetSeason;
     });
 
     if (!stats.length) continue;
 
     if (!merged.has(player.id)) {
       merged.set(player.id, {
-        player: { ...player },
+        player: {
+          id: player.id,
+          name: player.name || '—',
+          photo: player.photo || ''
+        },
         statistics: []
       });
     }
+
     const target = merged.get(player.id);
     target.statistics.push(...stats);
   }
@@ -1543,87 +1562,53 @@ async function fetchFixturePlayersCached(fixtureId) {
 }
 
 async function fetchFixturePlayersForSeason(teamId, seasonYear, leagueLike) {
-  const displayedSeason = Number(seasonYear);
+  const rawPlayers = await fetchPlayersMultiSeason(teamId, seasonYear, leagueLike);
+  const mergedPlayers = mergePlayersForDisplayedSeason(rawPlayers, seasonYear, leagueLike);
 
-  const apiSeasons = isSingleYearCompetition(leagueLike)
-    ? [displayedSeason, displayedSeason - 1]
-    : [displayedSeason, displayedSeason + 1];
+  const out = [];
+  const seen = new Set();
 
-  const uniqueApiSeasons = [...new Set(apiSeasons)].filter(Boolean);
+  for (const entry of (mergedPlayers || [])) {
+    const player = entry?.player;
+    if (!player?.id || seen.has(player.id)) continue;
+    seen.add(player.id);
 
-  const requests = [];
-  for (const apiSeason of uniqueApiSeasons) {
-    for (let page = 1; page <= 4; page++) {
-      requests.push(
-        apiFetch('players', {
-          team: teamId,
-          season: apiSeason,
-          page
-        }).catch(() => ({ response: [] }))
-      );
+    const statsList = Array.isArray(entry.statistics) ? entry.statistics : [];
+    const totals = {
+      games: { appearences: 0, position: '' },
+      goals: { total: 0, assists: 0 },
+      tackles: { total: 0 },
+      cards: { yellow: 0 }
+    };
+
+    for (const s of statsList) {
+      totals.games.appearences += Number(s?.games?.appearences || 0);
+      if (!totals.games.position && s?.games?.position) totals.games.position = s.games.position;
+      totals.goals.total += Number(s?.goals?.total || 0);
+      totals.goals.assists += Number(s?.goals?.assists || 0);
+      totals.tackles.total += Number(s?.tackles?.total || 0);
+      totals.cards.yellow += Number(s?.cards?.yellow || 0);
     }
-  }
 
-  const responses = await Promise.all(requests);
-  const playerMap = new Map();
-
-  for (const res of responses) {
-    const rows = res?.response || [];
-
-    for (const row of rows) {
-      const player = row?.player;
-      const statsList = Array.isArray(row?.statistics) ? row.statistics : [];
-      if (!player?.id || !statsList.length) continue;
-
-      const filteredStats = statsList.filter(stat => {
-        if (Number(stat?.team?.id) !== Number(teamId)) return false;
-        return statBelongsToDisplayedSeason(stat, displayedSeason, leagueLike);
+    if (
+      totals.games.appearences > 0 ||
+      totals.goals.total > 0 ||
+      totals.goals.assists > 0 ||
+      totals.tackles.total > 0 ||
+      totals.cards.yellow > 0
+    ) {
+      out.push({
+        player: {
+          id: player.id,
+          name: player.name || '—',
+          photo: player.photo || ''
+        },
+        statistics: [totals]
       });
-
-      if (!filteredStats.length) continue;
-
-      if (!playerMap.has(player.id)) {
-        playerMap.set(player.id, {
-          player: {
-            id: player.id,
-            name: player.name || '—',
-            photo: player.photo || ''
-          },
-          statistics: [{
-            games: { appearences: 0, position: '' },
-            goals: { total: 0, assists: 0 },
-            tackles: { total: 0 },
-            cards: { yellow: 0 }
-          }]
-        });
-      }
-
-      const existing = playerMap.get(player.id);
-      const total = existing.statistics[0];
-
-      for (const stat of filteredStats) {
-        total.games.appearences += Number(stat?.games?.appearences || 0);
-        if (!total.games.position && stat?.games?.position) {
-          total.games.position = stat.games.position;
-        }
-        total.goals.total += Number(stat?.goals?.total || 0);
-        total.goals.assists += Number(stat?.goals?.assists || 0);
-        total.tackles.total += Number(stat?.tackles?.total || 0);
-        total.cards.yellow += Number(stat?.cards?.yellow || 0);
-      }
     }
   }
 
-  return Array.from(playerMap.values()).filter(p => {
-    const s = p.statistics?.[0];
-    return s && (
-      Number(s.games?.appearences || 0) > 0 ||
-      Number(s.goals?.total || 0) > 0 ||
-      Number(s.goals?.assists || 0) > 0 ||
-      Number(s.tackles?.total || 0) > 0 ||
-      Number(s.cards?.yellow || 0) > 0
-    );
-  });
+  return out;
 }
 
 // ═══════════════════════════════════════════
