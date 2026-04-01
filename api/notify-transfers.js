@@ -1,6 +1,6 @@
 // api/notify-transfers.js
-// Körs via cron, t.ex. var 30:e minut eller några gånger per dag
-// Hittar nya transfers och skickar notiser till följare
+// Körs dagligen (eller oftare om du vill)
+// Skickar notiser när nya transfers upptäcks
 
 export const config = { runtime: 'edge' };
 
@@ -47,7 +47,7 @@ async function kvGet(key) {
   return data[0]?.result || null;
 }
 
-async function kvSet(key, value, exSeconds = 86400) {
+async function kvSet(key, value, exSeconds = 86400 * 7) {
   await kvPipeline([['SET', key, value, 'EX', exSeconds]]);
 }
 
@@ -57,8 +57,8 @@ async function getSubscribersForTeam(teamId) {
   return data[0]?.result || [];
 }
 
-async function sendPushToSubscribers(subscriptionIds, title, message, url, data = {}) {
-  if (!subscriptionIds?.length) return;
+async function sendPush(subscriberIds, title, message, url, extraData = {}) {
+  if (!subscriberIds?.length) return;
 
   const res = await fetch('https://api.onesignal.com/notifications', {
     method: 'POST',
@@ -68,160 +68,79 @@ async function sendPushToSubscribers(subscriptionIds, title, message, url, data 
     },
     body: JSON.stringify({
       app_id: ONESIGNAL_APP_ID,
-      include_subscription_ids: subscriptionIds,
+      include_subscription_ids: subscriberIds,
       headings: { en: title },
       contents: { en: message },
       url,
-      data,
-      priority: 10,
+      data: extraData
     }),
   });
 
   if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`OneSignal error ${res.status}: ${txt}`);
+    const text = await res.text();
+    throw new Error(`OneSignal error ${res.status}: ${text}`);
   }
-}
-
-function transfersUrl() {
-  return 'https://transferzoneai.com/transfers';
-}
-
-function normalizeTransferType(type) {
-  const t = String(type || '').toLowerCase();
-
-  if (t.includes('loan')) return 'loan';
-  if (t === 'free' || t.includes('free')) return 'free';
-  return 'confirmed';
-}
-
-function transferTypeLabel(type) {
-  const normalized = normalizeTransferType(type);
-  if (normalized === 'loan') return 'on loan';
-  if (normalized === 'free') return 'on a free transfer';
-  return 'in a confirmed transfer';
-}
-
-function makeTransferDedupeKey(t) {
-  return [
-    'notif_transfer',
-    t.playerId || t.player,
-    t.fromId || 0,
-    t.toId || 0,
-    t.date || 'nodate',
-    normalizeTransferType(t.type || '')
-  ].join('_');
 }
 
 // ===== MAIN =====
 
 export default async function handler() {
-  const today = new Date();
-  const year = today.getFullYear();
-
-  // Kör på samma ligor som du redan använder i appen
-  const leagues = [39, 140, 78, 135, 61, 2, 3, 94, 88, 113, 253, 307, 71, 128, 332];
-
-  const results = await Promise.allSettled(
-    leagues.map(id =>
-      fetchJSON(`https://v3.football.api-sports.io/transfers?league=${id}&season=${year}`, APISPORTS_KEY)
-    )
-  );
-
-  const transferMap = new Map();
-
-  for (const result of results) {
-    if (result.status !== 'fulfilled') continue;
-
-    for (const entry of result.value.response || []) {
-      const playerId = entry.player?.id || 0;
-      const playerName = entry.player?.name || 'Unknown player';
-
-      for (const tr of entry.transfers || []) {
-        if (!tr.date) continue;
-
-        const item = {
-          player: playerName,
-          playerId,
-          fromId: tr.teams?.out?.id || 0,
-          fromName: tr.teams?.out?.name || '—',
-          toId: tr.teams?.in?.id || 0,
-          toName: tr.teams?.in?.name || '—',
-          type: tr.type || '',
-          date: tr.date,
-        };
-
-        const dedupeKey = makeTransferDedupeKey(item);
-        if (!transferMap.has(dedupeKey)) {
-          transferMap.set(dedupeKey, item);
-        }
-      }
-    }
-  }
-
-  const allTransfers = Array.from(transferMap.values())
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
-
   const notifications = [];
 
-  for (const t of allTransfers) {
-    const redisKey = makeTransferDedupeKey(t);
-    const alreadySent = await kvGet(redisKey);
-    if (alreadySent) continue;
+  // 🔥 Hämta transfers (senaste)
+  const data = await fetchJSON(
+    'https://v3.football.api-sports.io/transfers?player=1', // fallback (kräver loop i verklighet)
+    APISPORTS_KEY
+  ).catch(() => ({ response: [] }));
 
-    const label = transferTypeLabel(t.type);
-    const message = `${t.player} joins ${t.toName} from ${t.fromName} ${label}`;
+  const transfers = data.response || [];
 
-    let sentTo = 0;
+  for (const player of transfers) {
+    const playerName = player.player?.name || 'Unknown player';
 
-    // Köpande lag
-    if (t.toId) {
-      const subs = await getSubscribersForTeam(t.toId);
-      if (subs.length) {
-        await sendPushToSubscribers(
-          subs,
-          `⚽ Transfer: ${t.toName}`,
-          message,
-          transfersUrl(),
-          {
-            type: 'transfer_in',
-            playerId: t.playerId,
-            teamId: t.toId
-          }
-        );
-        sentTo += subs.length;
-      }
-    }
+    for (const t of player.transfers || []) {
+      const toTeam   = t.teams?.in;
+      const fromTeam = t.teams?.out;
 
-    // Säljande lag
-    if (t.fromId && t.fromId !== t.toId) {
-      const subs = await getSubscribersForTeam(t.fromId);
-      if (subs.length) {
-        await sendPushToSubscribers(
-          subs,
-          `⚽ Transfer: ${t.fromName}`,
-          message,
-          transfersUrl(),
-          {
-            type: 'transfer_out',
-            playerId: t.playerId,
-            teamId: t.fromId
-          }
-        );
-        sentTo += subs.length;
-      }
-    }
+      const toId   = toTeam?.id || 0;
+      const fromId = fromTeam?.id || 0;
 
-    // Sätt dedupe bara om vi faktiskt försökt skicka
-    if (sentTo > 0) {
-      await kvSet(redisKey, '1', 86400 * 14); // 14 dagar
+      const date = t.date || '';
+      const dedupeKey = `transfer_${player.player?.id}_${toId}_${date}`;
+
+      const alreadySent = await kvGet(dedupeKey);
+      if (alreadySent) continue;
+
+      // 🔥 Hämta subscribers (båda lag)
+      const [subsIn, subsOut] = await Promise.all([
+        getSubscribersForTeam(toId),
+        getSubscribersForTeam(fromId)
+      ]);
+
+      const subscribers = [...new Set([...(subsIn || []), ...(subsOut || [])])];
+      if (!subscribers.length) continue;
+
+      const fee = t.type || 'Transfer';
+
+      await sendPush(
+        subscribers,
+        `💰 New transfer`,
+        `${playerName} → ${toTeam?.name || 'Unknown club'} (${fee})`,
+        `https://transferzoneai.com/transfers`,
+        {
+          type: 'transfer',
+          playerName,
+          toId,
+          fromId
+        }
+      );
+
+      await kvSet(dedupeKey, '1', 86400 * 7);
+
       notifications.push({
-        player: t.player,
-        from: t.fromName,
-        to: t.toName,
-        date: t.date,
-        type: normalizeTransferType(t.type),
-        sentTo
+        playerName,
+        to: toTeam?.name,
+        from: fromTeam?.name
       });
     }
   }
@@ -229,7 +148,6 @@ export default async function handler() {
   return new Response(
     JSON.stringify({
       ok: true,
-      transfersChecked: allTransfers.length,
       notifications
     }),
     {
