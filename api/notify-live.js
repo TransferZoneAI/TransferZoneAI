@@ -62,8 +62,8 @@ async function getSubscribersForTeam(teamId) {
   return data[0]?.result || [];
 }
 
-async function sendPushToSubscribers(subscriptionIds, title, message, url, data = {}) {
-  if (!subscriptionIds?.length) return;
+async function sendPush(subscriberIds, title, message, url, extraData = {}) {
+  if (!subscriberIds?.length) return;
 
   const res = await fetch('https://api.onesignal.com/notifications', {
     method: 'POST',
@@ -73,44 +73,22 @@ async function sendPushToSubscribers(subscriptionIds, title, message, url, data 
     },
     body: JSON.stringify({
       app_id: ONESIGNAL_APP_ID,
-      include_subscription_ids: subscriptionIds,
+      include_subscription_ids: subscriberIds,
       headings: { en: title },
       contents: { en: message },
       url,
-      data,
-      priority: 10,
+      data: extraData
     }),
   });
 
   if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`OneSignal error ${res.status}: ${txt}`);
+    const text = await res.text();
+    throw new Error(`OneSignal error ${res.status}: ${text}`);
   }
 }
 
 function matchUrl(fixtureId) {
   return `https://transferzoneai.com/match/${fixtureId}`;
-}
-
-async function notifyTeams(homeId, awayId, fixtureId, title, message, data = {}) {
-  const [homeSubs, awaySubs] = await Promise.all([
-    getSubscribersForTeam(homeId),
-    getSubscribersForTeam(awayId),
-  ]);
-
-  const allSubs = [...new Set([...(homeSubs || []), ...(awaySubs || [])])];
-
-  if (!allSubs.length) return 0;
-
-  await sendPushToSubscribers(
-    allSubs,
-    title,
-    message,
-    matchUrl(fixtureId),
-    data
-  );
-
-  return allSubs.length;
 }
 
 function isLiveStatus(status) {
@@ -133,6 +111,15 @@ function getEventDedupeKey(fixtureId, e) {
   const teamId = e?.team?.id || 0;
   const player = e?.player?.id || e?.player?.name || 'unknown';
   return `notif_event_${fixtureId}_${minute}_${extra}_${type}_${detail}_${teamId}_${player}`;
+}
+
+async function getMatchSubscribers(homeId, awayId) {
+  const [homeSubs, awaySubs] = await Promise.all([
+    getSubscribersForTeam(homeId),
+    getSubscribersForTeam(awayId),
+  ]);
+
+  return [...new Set([...(homeSubs || []), ...(awaySubs || [])])];
 }
 
 // ===== MAIN =====
@@ -163,18 +150,20 @@ export default async function handler() {
     const scoreA = f.goals?.away ?? 0;
     const league = f.league?.name || '';
 
+    const subscribers = await getMatchSubscribers(homeId, awayId);
+    if (!subscribers.length) continue;
+
     // ===== MATCHSTART =====
     if (isKickoffWindow(status, elapsed)) {
       const key = `notif_start_${fixtureId}`;
       const alreadySent = await kvGet(key);
 
       if (!alreadySent) {
-        const count = await notifyTeams(
-          homeId,
-          awayId,
-          fixtureId,
+        await sendPush(
+          subscribers,
           `🟢 KICK OFF — ${home} vs ${away}`,
           `${league} has started! Follow it live on TransferZoneAI.`,
+          matchUrl(fixtureId),
           {
             type: 'kickoff',
             fixtureId,
@@ -183,10 +172,8 @@ export default async function handler() {
           }
         );
 
-        if (count > 0) {
-          await kvSet(key, '1', 86400);
-          notifications.push({ type: 'kickoff', fixtureId, home, away, subscribers: count });
-        }
+        await kvSet(key, '1', 86400);
+        notifications.push({ type: 'kickoff', fixtureId, home, away });
       }
     }
 
@@ -196,12 +183,11 @@ export default async function handler() {
       const alreadySent = await kvGet(key);
 
       if (!alreadySent) {
-        const count = await notifyTeams(
-          homeId,
-          awayId,
-          fixtureId,
-          `⏸ HALF TIME — ${home} ${scoreH}–${scoreA} ${away}`,
+        await sendPush(
+          subscribers,
+          `⏸ HALF TIME — ${home} ${scoreH}-${scoreA} ${away}`,
           `${league} — half time score.`,
+          matchUrl(fixtureId),
           {
             type: 'halftime',
             fixtureId,
@@ -210,10 +196,8 @@ export default async function handler() {
           }
         );
 
-        if (count > 0) {
-          await kvSet(key, '1', 86400);
-          notifications.push({ type: 'halftime', fixtureId, home, away, subscribers: count });
-        }
+        await kvSet(key, '1', 86400);
+        notifications.push({ type: 'halftime', fixtureId, home, away });
       }
     }
 
@@ -228,12 +212,11 @@ export default async function handler() {
           : scoreA > scoreH ? `${away} win!`
           : 'Draw!';
 
-        const count = await notifyTeams(
-          homeId,
-          awayId,
-          fixtureId,
-          `🏁 FULL TIME — ${home} ${scoreH}–${scoreA} ${away}`,
+        await sendPush(
+          subscribers,
+          `🏁 FULL TIME — ${home} ${scoreH}-${scoreA} ${away}`,
           `${resultLabel} — ${league}`,
+          matchUrl(fixtureId),
           {
             type: 'fulltime',
             fixtureId,
@@ -242,10 +225,8 @@ export default async function handler() {
           }
         );
 
-        if (count > 0) {
-          await kvSet(key, '1', 172800);
-          notifications.push({ type: 'fulltime', fixtureId, home, away, subscribers: count });
-        }
+        await kvSet(key, '1', 172800);
+        notifications.push({ type: 'fulltime', fixtureId, home, away });
       }
     }
 
@@ -274,12 +255,11 @@ export default async function handler() {
           const isPenalty = e.detail === 'Penalty';
           const emoji = isOwnGoal ? '🔴⚽' : isPenalty ? '⚽🎯' : '⚽';
 
-          const count = await notifyTeams(
-            homeId,
-            awayId,
-            fixtureId,
-            `${emoji} GOAL! ${home} ${scoreH}–${scoreA} ${away}`,
+          await sendPush(
+            subscribers,
+            `${emoji} GOAL! ${home} ${scoreH}-${scoreA} ${away}`,
             `${minute}' ${playerName} scores for ${scorerTeam}${isOwnGoal ? ' (own goal)' : ''} — ${league}`,
+            matchUrl(fixtureId),
             {
               type: 'goal',
               fixtureId,
@@ -289,18 +269,15 @@ export default async function handler() {
             }
           );
 
-          if (count > 0) {
-            await kvSet(eventKey, '1', 259200);
-            notifications.push({
-              type: 'goal',
-              fixtureId,
-              home,
-              away,
-              playerName,
-              minute,
-              subscribers: count
-            });
-          }
+          await kvSet(eventKey, '1', 259200);
+          notifications.push({
+            type: 'goal',
+            fixtureId,
+            home,
+            away,
+            playerName,
+            minute
+          });
         }
 
         // RÖTT KORT
@@ -308,12 +285,11 @@ export default async function handler() {
           e.type === 'Card' &&
           (e.detail === 'Red Card' || e.detail === 'Second Yellow card')
         ) {
-          const count = await notifyTeams(
-            homeId,
-            awayId,
-            fixtureId,
+          await sendPush(
+            subscribers,
             `🔴 RED CARD — ${home} vs ${away}`,
             `${minute}' ${playerName} (${scorerTeam}) is sent off — ${league}`,
+            matchUrl(fixtureId),
             {
               type: 'redcard',
               fixtureId,
@@ -323,18 +299,15 @@ export default async function handler() {
             }
           );
 
-          if (count > 0) {
-            await kvSet(eventKey, '1', 259200);
-            notifications.push({
-              type: 'redcard',
-              fixtureId,
-              home,
-              away,
-              playerName,
-              minute,
-              subscribers: count
-            });
-          }
+          await kvSet(eventKey, '1', 259200);
+          notifications.push({
+            type: 'redcard',
+            fixtureId,
+            home,
+            away,
+            playerName,
+            minute
+          });
         }
       }
     }
