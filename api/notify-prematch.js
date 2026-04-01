@@ -1,5 +1,6 @@
 // api/notify-prematch.js
-// Körs var 5:e minut – skickar notiser 1h och 30 min innan match
+// Körs var 5:e minut
+// Skickar notiser 1h och 30m innan matchstart
 
 export const config = { runtime: 'edge' };
 
@@ -12,28 +13,54 @@ const KV_TOKEN          = process.env.KV_REST_API_TOKEN;
 // ===== HELPERS =====
 
 async function fetchJSON(url, key) {
-  const res = await fetch(url, { headers: { 'x-apisports-key': key } });
+  const res = await fetch(url, {
+    headers: { 'x-apisports-key': key }
+  });
+
+  if (!res.ok) {
+    throw new Error(`API error ${res.status} for ${url}`);
+  }
+
   const buf = await res.arrayBuffer();
   return JSON.parse(new TextDecoder('utf-8').decode(buf));
 }
 
-async function getSubscribersForTeam(teamId) {
+async function kvPipeline(commands) {
   const res = await fetch(`${KV_URL}/pipeline`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${KV_TOKEN}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify([['SMEMBERS', `team:${teamId}:subscribers`]]),
+    body: JSON.stringify(commands),
   });
-  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(`KV error ${res.status}`);
+  }
+
+  return res.json();
+}
+
+async function kvGet(key) {
+  const data = await kvPipeline([['GET', key]]);
+  return data[0]?.result || null;
+}
+
+async function kvSet(key, value, exSeconds = 7200) {
+  await kvPipeline([['SET', key, value, 'EX', exSeconds]]);
+}
+
+async function getSubscribersForTeam(teamId) {
+  if (!teamId) return [];
+  const data = await kvPipeline([['SMEMBERS', `team:${teamId}:subscribers`]]);
   return data[0]?.result || [];
 }
 
-async function sendPushToSubscribers(subscriberIds, title, message, url) {
-  if (!subscriberIds.length) return;
+async function sendPush(subscriberIds, title, message, url, extraData = {}) {
+  if (!subscriberIds?.length) return;
 
-  await fetch('https://api.onesignal.com/notifications', {
+  const res = await fetch('https://api.onesignal.com/notifications', {
     method: 'POST',
     headers: {
       'Authorization': `Basic ${ONESIGNAL_API_KEY}`,
@@ -45,34 +72,27 @@ async function sendPushToSubscribers(subscriberIds, title, message, url) {
       headings: { en: title },
       contents: { en: message },
       url,
+      data: extraData
     }),
   });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`OneSignal error ${res.status}: ${text}`);
+  }
 }
 
-// ===== KV DEDUPE =====
-
-async function kvGet(key) {
-  const res = await fetch(`${KV_URL}/pipeline`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${KV_TOKEN}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify([['GET', key]]),
-  });
-  const data = await res.json();
-  return data[0]?.result || null;
+function matchUrl(fixtureId) {
+  return `https://transferzoneai.com/match/${fixtureId}`;
 }
 
-async function kvSet(key, value, ex = 3600) {
-  await fetch(`${KV_URL}/pipeline`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${KV_TOKEN}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify([['SET', key, value, 'EX', ex]]),
-  });
+async function getMatchSubscribers(homeId, awayId) {
+  const [homeSubs, awaySubs] = await Promise.all([
+    getSubscribersForTeam(homeId),
+    getSubscribersForTeam(awayId),
+  ]);
+
+  return [...new Set([...(homeSubs || []), ...(awaySubs || [])])];
 }
 
 // ===== MAIN =====
@@ -81,45 +101,79 @@ export default async function handler() {
   const now = new Date();
 
   const fixturesData = await fetchJSON(
-    `https://v3.football.api-sports.io/fixtures?next=50`,
+    'https://v3.football.api-sports.io/fixtures?next=50',
     APISPORTS_KEY
   );
 
   const fixtures = fixturesData.response || [];
+  const notifications = [];
 
   for (const f of fixtures) {
-    const fixtureId = f.fixture.id;
+    const fixtureId = f.fixture?.id;
+    if (!fixtureId) continue;
+
     const start = new Date(f.fixture.date);
     const diffMin = Math.floor((start - now) / 60000);
 
     let label = null;
+    let title = '';
+    let message = '';
 
-    if (diffMin <= 60 && diffMin > 55) label = '1h';
-    if (diffMin <= 30 && diffMin > 25) label = '30m';
+    if (diffMin <= 60 && diffMin > 55) {
+      label = '1h';
+      title = `⏰ Match starts in 1 hour`;
+      message = `${f.teams.home.name} vs ${f.teams.away.name} starts in 1 hour.`;
+    }
+
+    if (diffMin <= 30 && diffMin > 25) {
+      label = '30m';
+      title = `⏰ Match starts in 30 minutes`;
+      message = `${f.teams.home.name} vs ${f.teams.away.name} starts in 30 minutes.`;
+    }
 
     if (!label) continue;
 
-    const homeId = f.teams.home.id;
-    const awayId = f.teams.away.id;
+    const homeId = f.teams?.home?.id || 0;
+    const awayId = f.teams?.away?.id || 0;
 
-    const homeSubs = await getSubscribersForTeam(homeId);
-    const awaySubs = await getSubscribersForTeam(awayId);
-
-    const allSubs = [...new Set([...homeSubs, ...awaySubs])];
-
-    const title = '⚽ Match Starting Soon';
-    const message = `${f.teams.home.name} vs ${f.teams.away.name} starts in ${label === '1h' ? '1 hour' : '30 minutes'}`;
-    const url = `https://transferzoneai.com/#/fixture/${fixtureId}`;
+    const subscribers = await getMatchSubscribers(homeId, awayId);
+    if (!subscribers.length) continue;
 
     const dedupeKey = `prematch_${fixtureId}_${label}`;
+    const alreadySent = await kvGet(dedupeKey);
+    if (alreadySent) continue;
 
-    if (!(await kvGet(dedupeKey)) && allSubs.length) {
-      await sendPushToSubscribers(allSubs, title, message, url);
-      await kvSet(dedupeKey, '1', 7200); // 2h
-    }
+    await sendPush(
+      subscribers,
+      title,
+      message,
+      matchUrl(fixtureId),
+      {
+        type: 'prematch',
+        fixtureId,
+        homeId,
+        awayId,
+        label
+      }
+    );
+
+    await kvSet(dedupeKey, '1', 7200);
+
+    notifications.push({
+      fixtureId,
+      home: f.teams.home.name,
+      away: f.teams.away.name,
+      label
+    });
   }
 
-  return new Response(JSON.stringify({ ok: true }), {
-    headers: { 'Content-Type': 'application/json' }
-  });
+  return new Response(
+    JSON.stringify({
+      ok: true,
+      notifications
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' }
+    }
+  );
 }
