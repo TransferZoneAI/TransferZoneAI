@@ -1080,12 +1080,21 @@ function pickBestStat(stats) {
 
 async function fetchPlayer(playerId) {
   return cached(`player_${playerId}`, async () => {
-    const thisYear = new Date().getFullYear();
-    for (const yr of [thisYear, thisYear - 1, thisYear - 2]) {
-      const data = await apiFetch('players', { id: playerId, season: yr });
+    const seasonsData = await apiFetch('players/seasons', { player: playerId }).catch(() => ({ response: [] }));
+    const seasons = (seasonsData.response || [])
+      .map(Number)
+      .filter(Boolean)
+      .sort((a, b) => b - a);
+
+    for (const season of seasons) {
+      const data = await apiFetch('players', { id: playerId, season });
       const player = data.response?.[0];
-      if (player?.statistics?.length) return player;
+      if (player?.statistics?.length) {
+        player._fetchedSeason = season;
+        return player;
+      }
     }
+
     return null;
   });
 }
@@ -2327,8 +2336,8 @@ async function showPlayer(id, opts = {}) {
     const transferData = await apiFetch('transfers', { player: id });
     const allTransfers = transferData.response?.[0]?.transfers || [];
     const latestTransfer = allTransfers.filter(t => t.date).sort((a,b) => new Date(b.date) - new Date(a.date))[0];
-    const currentTeam = latestTransfer?.teams?.in?.name || s?.team?.name || '';
-    const currentTeamId = latestTransfer?.teams?.in?.id || s?.team?.id || 0;
+    Team = latestTransfer?.teams?.in?.name || s?.team?.name || '';
+    TeamId = latestTransfer?.teams?.in?.id || s?.team?.id || 0;
     window._currentPlayerTransfers = allTransfers;
 
     const seasonsData = await apiFetch('players/seasons', { player: id }).catch(() => ({ response: [] }));
