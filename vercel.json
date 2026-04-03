@@ -9,23 +9,5 @@
     { "source": "/live", "destination": "/" },
     { "source": "/toplists", "destination": "/" },
     { "source": "/myclubs", "destination": "/" }
-  ],
-  "crons": [
-    {
-      "path": "/api/transfers-daily",
-      "schedule": "0 3 * * *"
-    },
-    {
-      "path": "/api/notify-transfers",
-      "schedule": "30 3 * * *"
-    },
-    {
-      "path": "/api/notify-prematch",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/notify-live",
-      "schedule": "*/1 * * * *"
-    }
   ]
 }
