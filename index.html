@@ -1047,37 +1047,6 @@ async function fetchTeam(teamId) {
   });
 }
 
-function pickBestStat(stats) {
-  if (!Array.isArray(stats) || !stats.length) return null;
-
-  const scored = stats
-    .filter(Boolean)
-    .map(stat => {
-      const leagueName = String(stat?.league?.name || '').toLowerCase();
-      const isCup = /cup|copa|coppa|pokal|trophy/.test(leagueName);
-      const isFriendly = /friendly/.test(leagueName);
-      const appearances = Number(stat?.games?.appearences || 0);
-      const minutes = Number(stat?.games?.minutes || 0);
-      const goals = Number(stat?.goals?.total || 0);
-      const assists = Number(stat?.goals?.assists || 0);
-      const rating = Number.parseFloat(stat?.games?.rating || 0) || 0;
-
-      const score =
-        (isCup ? 0 : 1000) +
-        (isFriendly ? -500 : 0) +
-        (appearances * 10) +
-        Math.floor(minutes / 10) +
-        (goals * 3) +
-        (assists * 2) +
-        rating;
-
-      return { stat, score };
-    })
-    .sort((a, b) => b.score - a.score);
-
-  return scored[0]?.stat || stats[0] || null;
-}
-
 async function fetchPlayer(playerId) {
   return cached(`player_${playerId}`, async () => {
     const seasonsData = await apiFetch('players/seasons', { player: playerId }).catch(() => ({ response: [] }));
@@ -1097,6 +1066,37 @@ async function fetchPlayer(playerId) {
 
     return null;
   });
+}
+
+function pickBestPlayerStat(stats, preferredSeason = null) {
+  if (!Array.isArray(stats) || !stats.length) return null;
+
+  let rows = [...stats];
+
+  if (preferredSeason) {
+    const sameSeason = rows.filter(s => Number(s?.league?.season) === Number(preferredSeason));
+    if (sameSeason.length) rows = sameSeason;
+  }
+
+  const scored = rows.map(stat => {
+    const leagueName = (stat?.league?.name || '').toLowerCase();
+    const appearances = Number(stat?.games?.appearences || 0);
+    const minutes = Number(stat?.games?.minutes || 0);
+
+    let score = 0;
+
+    if (!leagueName.includes('cup')) score += 20;
+    if (!leagueName.includes('friendly')) score += 10;
+    if (!leagueName.includes('women')) score += 1;
+
+    score += appearances * 3;
+    score += Math.floor(minutes / 30);
+
+    return { stat, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0]?.stat || rows[0] || null;
 }
 
 async function fetchTransfers(teamId) {
@@ -2323,7 +2323,8 @@ async function showPlayer(id, opts = {}) {
     const data = await fetchPlayer(id);
     if (!data) throw new Error('no player');
     const p = data.player;
-    const s = pickBestStat(data.statistics);
+    const currentSeasonFromData = window._playerYear || data._fetchedSeason || null;
+    const s = pickBestPlayerStat(data.statistics, currentSeasonFromData);
     window._currentPlayerData = data;
     if (!opts.skipHistory) setHash('player/' + slugify(fixEncoding(p.name)));
     applySeo({
@@ -2336,8 +2337,8 @@ async function showPlayer(id, opts = {}) {
     const transferData = await apiFetch('transfers', { player: id });
     const allTransfers = transferData.response?.[0]?.transfers || [];
     const latestTransfer = allTransfers.filter(t => t.date).sort((a,b) => new Date(b.date) - new Date(a.date))[0];
-    Team = latestTransfer?.teams?.in?.name || s?.team?.name || '';
-    TeamId = latestTransfer?.teams?.in?.id || s?.team?.id || 0;
+    const currentTeam = latestTransfer?.teams?.in?.name || s?.team?.name || '';
+    const currentTeamId = latestTransfer?.teams?.in?.id || s?.team?.id || 0;
     window._currentPlayerTransfers = allTransfers;
 
     const seasonsData = await apiFetch('players/seasons', { player: id }).catch(() => ({ response: [] }));
