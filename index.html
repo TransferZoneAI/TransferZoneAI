@@ -3624,5 +3624,45 @@ initOneSignalSubscriber();
     </ul>
   </div>
 </noscript>
+... hela din sida ...
+
+<!-- 🔔 NOTIFICATION BUTTON -->
+<button onclick="enableNotifications()" style="
+position:fixed;
+bottom:100px;
+right:20px;
+z-index:9999;
+padding:10px 16px;
+background:#c9a84c;
+border:none;
+border-radius:8px;
+font-weight:bold;
+cursor:pointer;
+">
+🔔 Enable Notifications
+</button>
+
+<script>
+async function enableNotifications() {
+  const OneSignal = window.OneSignal;
+
+  try {
+    await OneSignal.Notifications.requestPermission();
+
+    const permission = OneSignal.Notifications.permission;
+    const subId = OneSignal.User.PushSubscription.id;
+
+    console.log("Permission:", permission);
+    console.log("Subscription ID:", subId);
+
+    alert("Permission: " + permission + "\nID: " + subId);
+
+  } catch (err) {
+    console.error("OneSignal error:", err);
+    alert("Error: " + err.message);
+  }
+}
+</script>
+
 </body>
 </html>
