@@ -1047,10 +1047,41 @@ async function fetchTeam(teamId) {
   });
 }
 
+function pickBestStat(stats) {
+  if (!Array.isArray(stats) || !stats.length) return null;
+
+  const scored = stats
+    .filter(Boolean)
+    .map(stat => {
+      const leagueName = String(stat?.league?.name || '').toLowerCase();
+      const isCup = /cup|copa|coppa|pokal|trophy/.test(leagueName);
+      const isFriendly = /friendly/.test(leagueName);
+      const appearances = Number(stat?.games?.appearences || 0);
+      const minutes = Number(stat?.games?.minutes || 0);
+      const goals = Number(stat?.goals?.total || 0);
+      const assists = Number(stat?.goals?.assists || 0);
+      const rating = Number.parseFloat(stat?.games?.rating || 0) || 0;
+
+      const score =
+        (isCup ? 0 : 1000) +
+        (isFriendly ? -500 : 0) +
+        (appearances * 10) +
+        Math.floor(minutes / 10) +
+        (goals * 3) +
+        (assists * 2) +
+        rating;
+
+      return { stat, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  return scored[0]?.stat || stats[0] || null;
+}
+
 async function fetchPlayer(playerId) {
   return cached(`player_${playerId}`, async () => {
     const thisYear = new Date().getFullYear();
-    for (const yr of [thisYear - 1, thisYear - 2, thisYear]) {
+    for (const yr of [thisYear, thisYear - 1, thisYear - 2]) {
       const data = await apiFetch('players', { id: playerId, season: yr });
       const player = data.response?.[0];
       if (player?.statistics?.length) return player;
@@ -2283,7 +2314,7 @@ async function showPlayer(id, opts = {}) {
     const data = await fetchPlayer(id);
     if (!data) throw new Error('no player');
     const p = data.player;
-    const s = data.statistics?.[0];
+    const s = pickBestStat(data.statistics);
     window._currentPlayerData = data;
     if (!opts.skipHistory) setHash('player/' + slugify(fixEncoding(p.name)));
     applySeo({
