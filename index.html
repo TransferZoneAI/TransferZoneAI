@@ -96,86 +96,39 @@ async function fetchTeamTransfers(teamId){return cached(`teamTransfers:${teamId}
 async function renderClubBySlug(){const page=document.getElementById('page-club');page.innerHTML='<div class="loading">Loading club...</div>';try{const teamId=Number(window.__routeClubId);if(!teamId) throw new Error('Missing team id from search or navigation context.');const bundle=await fetchTeamInfo(teamId);if(!bundle?.info?.team) throw new Error('Club not found.');state.club.id=teamId;state.club.data=bundle;state.club.leagues=bundle.leagues||[];const primaryLeague=choosePrimaryLeague(bundle.leagues||[]);state.club.season=Number(state.club.season||new Date().getFullYear()-1);const fixtures=await fetchTeamSeasonFixtures(teamId,state.club.season);const transfers=await fetchTeamTransfers(teamId);page.innerHTML=renderClubPage(bundle,fixtures,transfers,primaryLeague);setTitle(`${bundle.info.team.name} — TransferZoneAI`,`Club page for ${bundle.info.team.name} with squad, fixtures, competitions and transfers.`)}catch(e){page.innerHTML=`<div class="error">${escapeHtml(e.message||'Could not load club.')}</div>`}}
 function renderClubPage(bundle,fixtures,transfers,primaryLeague){const t=bundle.info.team||{};const v=bundle.info.venue||{};const squad=bundle.squad||[];const grouped=Object.entries(groupBy(fixtures,f=>f.league?.name||'Other')).sort((a,b)=>b[1].length-a[1].length);const summary=grouped.map(([name,rows])=>{const played=rows.filter(r=>['FT','AET','PEN'].includes(r?.fixture?.status?.short)).length;const wins=rows.filter(r=>['FT','AET','PEN'].includes(r?.fixture?.status?.short)&&((r.teams.home.id===t.id&&r.goals.home>r.goals.away)||(r.teams.away.id===t.id&&r.goals.away>r.goals.home))).length;return {name,played,wins,rows}});return `<div class="entity-hero"><div class="entity-head"><div class="entity-logo">${imgOrFallback(t.logo,t.name)}</div><div><div class="entity-kicker">Club profile</div><h1 class="entity-title">${escapeHtml(t.name||'Club')}</h1><div class="entity-meta"><span class="tag">${escapeHtml(t.country||'—')}</span><span class="tag">Founded: ${escapeHtml(num(t.founded))}</span><span class="tag">Stadium: ${escapeHtml(v.name||'—')}</span><span class="tag">Capacity: ${escapeHtml(money(v.capacity))}</span>${primaryLeague?.league?.id?`<a class="tag" href="/league/${slugify(primaryLeague.league.name)}" onclick="event.preventDefault(); openLeague(${primaryLeague.league.id}, ${JSON.stringify(primaryLeague.league.name)}, ${state.club.season});">${escapeHtml(primaryLeague.league.name)}</a>`:''}</div></div><div class="toolbar-right"><select class="select" onchange="changeClubSeason(this.value)">${Array.from({length:7},(_,i)=>(new Date().getFullYear()-1)-i).map(y=>`<option value="${y}" ${Number(y)===Number(state.club.season)?'selected':''}>${formatSeasonLabel(y,primaryLeague)}</option>`).join('')}</select></div></div><div class="panel-grid"><div class="stack"><div class="card"><h2 class="section-title">Overview <span>& structure</span></h2><div class="info-grid"><div class="info-item"><label>League</label><div class="strong">${escapeHtml(primaryLeague?.league?.name||'—')}</div></div><div class="info-item"><label>Squad size</label><div class="strong">${escapeHtml(num(squad.length))}</div></div><div class="info-item"><label>City</label><div class="strong">${escapeHtml(v.city||'—')}</div></div><div class="info-item"><label>Country</label><div class="strong">${escapeHtml(t.country||'—')}</div></div></div></div><div class="card"><div class="toolbar"><h2 class="section-title" style="margin:0">Competitions <span>${escapeHtml(formatSeasonLabel(state.club.season,primaryLeague))}</span></h2></div><div class="table-wrap"><table><thead><tr><th>Competition</th><th class="align-center">Matches</th><th class="align-center">Wins</th><th class="align-center">Upcoming</th></tr></thead><tbody>${summary.map(c=>`<tr><td>${escapeHtml(c.name)}</td><td class="align-center">${c.rows.length}</td><td class="align-center">${c.wins}</td><td class="align-center">${c.rows.filter(r=>!['FT','AET','PEN'].includes(r?.fixture?.status?.short)).length}</td></tr>`).join('')||'<tr><td colspan="4" class="align-center subtle">No fixtures found.</td></tr>'}</tbody></table></div></div><div class="card"><h2 class="section-title">Recent <span>fixtures</span></h2><div class="list">${fixtures.slice(0,12).map(renderMatchCard).join('')||'<div class="empty">No fixtures found.</div>'}</div></div></div><div class="stack"><div class="card"><h2 class="section-title">Squad <span>list</span></h2><div class="squad-grid">${squad.map(p=>`<div class="player-row" onclick="openPlayer(${p.id}, ${JSON.stringify(p.name)});"><div class="avatar">${imgOrFallback('',p.name)}</div><div><div class="strong">${escapeHtml(p.name)}</div><div class="mini">${escapeHtml(p.position||'—')}</div></div><div class="mini">#${escapeHtml(num(p.number))}</div></div>`).join('')||'<div class="empty">No squad found.</div>'}</div></div><div class="card"><h2 class="section-title">Transfers <span>market</span></h2><div class="list">${transfers.slice(0,12).map(renderTransferCardForTeamSearch).join('')||'<div class="empty">No transfers found.</div>'}</div></div></div></div></div>`}
 async function changeClubSeason(season){state.club.season=Number(season);renderClubBySlug()}
-
-async function fetchLeagueDirectory(){
-  return cached('leagueDirectory:all', async ()=>{
-    const data = await apiFetch('leagues', {}).catch(()=>({response:[]}));
-    const rows = (data.response || []).filter(Boolean);
-    return rows;
-  });
-}
-function normalizeRegionName(raw){
-  const v = String(raw||'').trim().toLowerCase();
-  if (v.includes('europe')) return 'Europe';
-  if (v.includes('south america')) return 'South America';
-  if (v.includes('north america')) return 'North America';
-  if (v.includes('asia')) return 'Asia';
-  if (v.includes('africa')) return 'Africa';
-  if (v.includes('oceania')) return 'Oceania';
-  if (v.includes('world')) return 'World';
-  return 'Other';
-}
-function isWomenCompetition(row){
-  const league = String(row?.league?.name || '').toLowerCase();
-  const country = String(row?.country?.name || '').toLowerCase();
-  return league.includes('women') || league.includes('feminine') || league.includes('ladies') || country.includes('women');
-}
-function isYouthOrReserveCompetition(row){
-  const name = String(row?.league?.name || '').toLowerCase();
-  return /u\d{1,2}\b|youth|reserve|reserves|reserve league/.test(name);
-}
-function getLeagueSeasonForRow(row){
-  const seasons = row?.seasons || [];
-  const current = seasons.find(s => s.current);
-  const latest = [...seasons].map(s=>Number(s.year)).filter(Boolean).sort((a,b)=>b-a)[0];
-  return Number(current?.year || latest || new Date().getFullYear()-1);
-}
-function makeLeagueSlugMap(rows){
-  const map = new Map();
-  (rows||[]).forEach(r=>{
-    const slug = slugify(r?.league?.name || '');
-    if (slug && !map.has(slug)) map.set(slug, r);
-  });
-  return map;
-}
-async function resolveLeagueContextFromSlug(slug){
-  const all = await fetchLeagueDirectory();
-  const map = makeLeagueSlugMap(all);
-  return map.get(slug) || null;
-}
-
-async function renderLeagueBySlug(slugFromRoute){
+async function renderLeagueBySlug(slug){
   const page=document.getElementById('page-league');
   page.innerHTML='<div class="loading">Loading league...</div>';
   try{
-    let leagueId=Number(window.__routeLeagueId || state.league.id || 0);
-    let season=Number(window.__routeLeagueSeason || state.league.season || 0);
-    let leagueInfo=null;
+    let leagueId=Number(window.__routeLeagueId||state.league.id||0);
+    let season=Number(window.__routeLeagueSeason||state.league.season||new Date().getFullYear()-1);
 
-    if(!leagueId){
-      const resolved = await resolveLeagueContextFromSlug(slugFromRoute || '');
-      if(!resolved?.league?.id) throw new Error('Missing league id from search or navigation context.');
-      leagueId = Number(resolved.league.id);
-      season = Number(season || getLeagueSeasonForRow(resolved));
-      leagueInfo = resolved;
-      window.__routeLeagueId = leagueId;
-      window.__routeLeagueSeason = season;
+    if(!leagueId && slug){
+      const dirRows=await fetchLeagueDirectoryRows();
+      const hit=(dirRows||[]).find(r=>slugify(r?.league?.name)===slug);
+      if(hit){
+        leagueId=Number(hit.league?.id||0);
+        season=Number(pickLeagueSeason(hit)||season);
+        window.__routeLeagueId=leagueId;
+        window.__routeLeagueSeason=season;
+      }
     }
 
-    if(!season) season = new Date().getFullYear()-1;
+    if(!leagueId) throw new Error('Missing league id from search or navigation context.');
 
     state.league.id=leagueId;
     state.league.season=season;
 
-    const [freshLeagueInfo,standings,scorers,assists,fixtures]=await Promise.all([
-      leagueInfo ? Promise.resolve(leagueInfo) : apiFetch('leagues',{id:leagueId,current:'true'}).then(r=>r.response?.[0]||null).catch(()=>null),
+    const [leagueInfo,standings,scorers,assists,fixtures]=await Promise.all([
+      apiFetch('leagues',{id:leagueId,current:'true'}).then(r=>r.response?.[0]||null),
       apiFetch('standings',{league:leagueId,season}).then(r=>r.response?.[0]?.league?.standings?.[0]||[]).catch(()=>[]),
       apiFetch('players/topscorers',{league:leagueId,season}).then(r=>r.response||[]).catch(()=>[]),
       apiFetch('players/topassists',{league:leagueId,season}).then(r=>r.response||[]).catch(()=>[]),
       apiFetch('fixtures',{league:leagueId,season,next:12}).then(r=>r.response||[]).catch(()=>[])
     ]);
-    page.innerHTML=renderLeaguePage(freshLeagueInfo,season,standings,scorers,assists,fixtures);
-    setTitle(`${freshLeagueInfo?.league?.name||'League'} — TransferZoneAI`,'League page with standings, scorers, assists and upcoming fixtures.');
+
+    page.innerHTML=renderLeaguePage(leagueInfo,season,standings,scorers,assists,fixtures);
+    setTitle(`${leagueInfo?.league?.name||'League'} — TransferZoneAI`,'League page with standings, scorers, assists and upcoming fixtures.');
   }catch(e){
     page.innerHTML=`<div class="error">${escapeHtml(e.message||'Could not load league.')}</div>`;
   }
@@ -185,82 +138,82 @@ async function renderMatch(matchId){const page=document.getElementById('page-mat
 function renderFixtureStats(statsData){if(!statsData?.length) return '<div class="empty">No statistics found.</div>';const home=statsData[0], away=statsData[1];const homeMap=Object.fromEntries((home.statistics||[]).map(x=>[x.type,x.value]));const awayMap=Object.fromEntries((away.statistics||[]).map(x=>[x.type,x.value]));const keys=Array.from(new Set([...Object.keys(homeMap),...Object.keys(awayMap)]));return keys.map(k=>`<div class="row-link" style="grid-template-columns:80px 1fr 80px"><div class="strong align-center">${escapeHtml(num(homeMap[k]))}</div><div class="align-center">${escapeHtml(k)}</div><div class="strong align-center">${escapeHtml(num(awayMap[k]))}</div></div>`).join('')}
 async function renderTransfersPage(){const page=document.getElementById('page-transfers');page.innerHTML='<div class="loading">Loading transfers...</div>';try{const sampleTeams=[33,34,40,541,50,529,49,47];const batches=await Promise.all(sampleTeams.map(id=>fetchTeamTransfers(id).catch(()=>[])));const rows=batches.flat().slice(0,60);page.innerHTML=`<div class="card"><h2 class="section-title">Transfer <span>market</span></h2><div class="list">${rows.map(renderTransferCardForTeamSearch).join('')||'<div class="empty">No transfers found.</div>'}</div></div>`;setTitle('Transfers — TransferZoneAI','Transfer market overview.')}catch(e){page.innerHTML='<div class="error">Could not load transfers.</div>'}}
 async function renderLivePage(){const page=document.getElementById('page-live');page.innerHTML='<div class="loading">Loading live matches...</div>';try{const [live,upcoming]=await Promise.all([apiFetch('fixtures',{live:'all'}).then(r=>r.response||[]).catch(()=>[]),apiFetch('fixtures',{next:40}).then(r=>r.response||[]).catch(()=>[])]);const rows=[...live,...upcoming];page.innerHTML=`<div class="card"><div class="toolbar"><h2 class="section-title" style="margin:0">Live & <span>upcoming</span></h2><div class="pill">${rows.length} matches</div></div><div class="list">${rows.map(renderMatchCard).join('')||'<div class="empty">No matches found.</div>'}</div></div>`;setTitle('Live matches — TransferZoneAI','Live football fixtures and upcoming matches.')}catch(e){page.innerHTML='<div class="error">Could not load live page.</div>'}}
+
+let _leagueDirectoryRowsCache=null;
+function isWomenCompetitionRow(row){
+  const leagueName=String(row?.league?.name||'').toLowerCase();
+  const countryName=String(row?.country?.name||'').toLowerCase();
+  return /women|feminine|femenina|feminin|frauen|damallsvenskan|dames|féminine/.test(leagueName+' '+countryName);
+}
+function normalizeLeagueRegion(row){
+  const continent=String(row?.country?.continent||'').trim();
+  if(continent) return continent;
+  const country=String(row?.country?.name||'').trim();
+  const map={
+    Europe:['England','Spain','Germany','France','Italy','Portugal','Netherlands','Belgium','Sweden','Norway','Denmark','Finland','Scotland','Wales','Ireland','Iceland','Turkey','Greece','Poland','Croatia','Serbia','Switzerland','Austria','Romania','Ukraine','Czech Republic','Slovakia','Slovenia','Hungary'],
+    'South America':['Argentina','Brazil','Uruguay','Chile','Colombia','Paraguay','Peru','Bolivia','Ecuador','Venezuela'],
+    'North America':['USA','United States','Canada','Mexico','Costa Rica','Honduras','Panama','Jamaica','El Salvador','Guatemala'],
+    Asia:['Japan','China','South Korea','Saudi Arabia','Qatar','UAE','Iran','Iraq','India','Indonesia','Thailand','Vietnam','Malaysia','Australia'],
+    Africa:['Morocco','Egypt','Tunisia','Algeria','Nigeria','South Africa','Ghana','Cameroon','Ivory Coast','Senegal'],
+    Oceania:['New Zealand','Fiji','Papua New Guinea'],
+    World:['World']
+  };
+  for(const [region,countries] of Object.entries(map)){ if(countries.includes(country)) return region; }
+  return 'Other';
+}
+function pickLeagueSeason(row){
+  const seasons=(row?.seasons||[]).filter(s=>s?.current)||[];
+  const current=seasons[0];
+  if(current?.year) return Number(current.year);
+  const allYears=(row?.seasons||[]).map(s=>Number(s?.year)).filter(Boolean).sort((a,b)=>b-a);
+  return allYears[0] || (new Date().getFullYear()-1);
+}
+async function fetchLeagueDirectoryRows(){
+  return cached('leagueDirectoryRows', async()=>{
+    const data=await apiFetch('leagues').catch(()=>({response:[]}));
+    return data.response||[];
+  });
+}
+function leagueDirectoryLeagueCard(row){
+  const season=pickLeagueSeason(row);
+  return `<a class="league-card" href="/league/${slugify(row?.league?.name||'league')}" onclick="event.preventDefault(); openLeague(${Number(row?.league?.id||0)}, ${JSON.stringify(row?.league?.name||'League')}, ${season});"><div class="search-avatar">${imgOrFallback(row?.league?.logo,row?.league?.name)}</div><div><div class="strong">${escapeHtml(row?.league?.name||'League')}</div><div class="mini">${escapeHtml(row?.league?.type||'Competition')}</div></div><div class="mini gold">${escapeHtml(formatSeasonLabel(season,row))}</div></a>`;
+}
+function renderLeaguesCountryDirectory(rows, region, selectedCountry=''){
+  const regionRows=(rows||[]).filter(r=>normalizeLeagueRegion(r)===region);
+  const grouped=groupBy(regionRows, r=>String(r?.country?.name||'Other'));
+  const countries=Object.entries(grouped).map(([country,rs])=>({country,rows:rs,count:rs.length,flag:rs?.[0]?.country?.flag||''})).sort((a,b)=>a.country.localeCompare(b.country));
+  const selected=selectedCountry && countries.find(c=>c.country===selectedCountry) ? selectedCountry : (countries[0]?.country||'');
+
+  const countryListHtml=countries.length
+    ? countries.map(c=>`<button class="row-link" style="width:100%;text-align:left;grid-template-columns:auto 1fr auto" onclick="window._leagueDirCountry=${JSON.stringify(c.country)};renderLeaguesPage()">${c.flag?`<img src="${c.flag}" alt="" style="width:22px;height:16px;object-fit:cover;border-radius:3px">`:''}<div class="strong">${escapeHtml(c.country)}</div><div class="mini">${c.count} competitions</div></button>`).join('')
+    : '<div class="empty">No countries found.</div>';
+
+  const selectedRows=(selected ? grouped[selected]||[] : []).slice().sort((a,b)=>String(a?.league?.name||'').localeCompare(String(b?.league?.name||'')));
+  const men=selectedRows.filter(r=>!isWomenCompetitionRow(r));
+  const women=selectedRows.filter(r=>isWomenCompetitionRow(r));
+
+  const detailHtml=selected
+    ? `<div class="card"><div class="toolbar"><h2 class="section-title" style="margin:0">${escapeHtml(selected)}</h2><div class="mini">${selectedRows.length} competitions</div></div><div class="split"><div><h3 class="section-title" style="font-size:22px;margin-bottom:10px">Men</h3><div class="list">${men.length?men.map(leagueDirectoryLeagueCard).join(''):'<div class="empty">No men competitions.</div>'}</div></div><div><h3 class="section-title" style="font-size:22px;margin-bottom:10px">Women</h3><div class="list">${women.length?women.map(leagueDirectoryLeagueCard).join(''):'<div class="empty">No women competitions.</div>'}</div></div></div></div>`
+    : '<div class="empty">No countries found.</div>';
+
+  return `<div class="split"><div class="card"><div class="toolbar"><h2 class="section-title" style="margin:0">Countries</h2><div class="mini">${countries.length}</div></div><div class="list">${countryListHtml}</div></div>${detailHtml}</div>`;
+}
+
 async function renderLeaguesPage(){
   const page=document.getElementById('page-leagues');
   page.innerHTML='<div class="loading">Loading leagues...</div>';
   try{
-    const all = (await fetchLeagueDirectory()).filter(r=>!isYouthOrReserveCompetition(r));
-    const regions = ['Europe','South America','North America','Asia','Africa','Oceania','World','Other'];
-    const currentRegion = state.leaguesRegion || 'Europe';
-    const currentCountry = state.leaguesCountry || '';
+    const rows=await fetchLeagueDirectoryRows();
+    const regions=['Europe','South America','North America','Asia','Africa','Oceania','World','Other'];
+    const activeRegion=window._leagueDirRegion || 'Europe';
 
-    const groupedByRegion = {};
-    all.forEach(row=>{
-      const region = normalizeRegionName(row?.country?.continent);
-      (groupedByRegion[region] ||= []).push(row);
-    });
+    const counts=Object.fromEntries(regions.map(r=>[r,(rows||[]).filter(x=>normalizeLeagueRegion(x)===r).length]));
+    const regionButtons=regions.map(region=>`<button class="filter-btn ${activeRegion===region?'active':''}" onclick="window._leagueDirRegion=${JSON.stringify(region)};window._leagueDirCountry='';renderLeaguesPage()">${escapeHtml(region)}</button>`).join('');
 
-    const regionRows = groupedByRegion[currentRegion] || [];
-    const countryMap = {};
-    regionRows.forEach(row=>{
-      const country = String(row?.country?.name || 'Unknown');
-      (countryMap[country] ||= []).push(row);
-    });
-
-    const sortedCountries = Object.keys(countryMap).sort((a,b)=>a.localeCompare(b));
-    const selectedCountry = currentCountry && countryMap[currentCountry] ? currentCountry : (sortedCountries[0] || '');
-    state.leaguesCountry = selectedCountry;
-
-    const countryCards = sortedCountries.map(country=>{
-      const active = country === selectedCountry;
-      const count = countryMap[country].length;
-      return `<button class="row-link" style="grid-template-columns:1fr auto;cursor:pointer;${active?'border-color:rgba(215,174,66,.35);background:rgba(215,174,66,.06)':''}" onclick="state.leaguesCountry=${JSON.stringify(country)};renderLeaguesPage()"><div class="strong">${escapeHtml(country)}</div><div class="mini">${count} competitions</div></button>`;
-    }).join('');
-
-    let detailHtml = '<div class="empty">No countries found.</div>';
-    if(selectedCountry){
-      const rows = [...countryMap[selectedCountry]];
-      const men = rows.filter(r=>!isWomenCompetition(r)).sort((a,b)=>String(a.league?.name||'').localeCompare(String(b.league?.name||'')));
-      const women = rows.filter(r=>isWomenCompetition(r)).sort((a,b)=>String(a.league?.name||'').localeCompare(String(b.league?.name||'')));
-
-      const renderLeagueLink = (l)=>`<a class="league-card" href="/league/${slugify(l.league?.name||'league')}" onclick="event.preventDefault(); openLeague(${Number(l.league?.id||0)}, ${JSON.stringify(l.league?.name||'League')}, ${getLeagueSeasonForRow(l)});"><div class="search-avatar">${imgOrFallback(l.league?.logo,l.league?.name)}</div><div><div class="strong">${escapeHtml(l.league?.name||'League')}</div><div class="mini">${escapeHtml(l.league?.type||'Competition')}</div></div><div class="mini gold">${escapeHtml(formatSeasonLabel(getLeagueSeasonForRow(l), l))}</div></a>`;
-
-      detailHtml = `
-        <div class="card">
-          <div class="toolbar">
-            <h3 class="section-title" style="margin:0">${escapeHtml(selectedCountry)}</h3>
-            <div class="pill">${rows.length} competitions</div>
-          </div>
-          <div class="split">
-            <div>
-              <h4 class="section-title" style="font-size:18px;margin-bottom:12px">Men</h4>
-              <div class="list">${men.length ? men.map(renderLeagueLink).join('') : '<div class="empty">No men competitions.</div>'}</div>
-            </div>
-            <div>
-              <h4 class="section-title" style="font-size:18px;margin-bottom:12px">Women</h4>
-              <div class="list">${women.length ? women.map(renderLeagueLink).join('') : '<div class="empty">No women competitions.</div>'}</div>
-            </div>
-          </div>
-        </div>`;
-    }
-
-    page.innerHTML = `
-      <div class="card">
-        <div class="toolbar">
-          <h2 class="section-title" style="margin:0">League <span>directory</span></h2>
-          <div class="pill">${all.length} competitions</div>
-        </div>
-        <div class="tabs" style="margin-bottom:18px">
-          ${regions.map(region=>`<button class="filter-btn ${region===currentRegion?'active':''}" onclick="state.leaguesRegion=${JSON.stringify(region)};state.leaguesCountry='';renderLeaguesPage()">${escapeHtml(region)}</button>`).join('')}
-        </div>
-        <div class="panel-grid" style="grid-template-columns:320px minmax(0,1fr)">
-          <div class="stack">${countryCards || '<div class="empty">No countries found.</div>'}</div>
-          <div>${detailHtml}</div>
-        </div>
-      </div>`;
-    setTitle('Leagues — TransferZoneAI','Browse leagues by continent, country, and men/women competitions.');
+    page.innerHTML=`<div class="card"><div class="toolbar"><h2 class="section-title" style="margin:0">League <span>directory</span></h2><div class="pill">${rows.length} competitions</div></div><div class="toolbar"><div class="toolbar-right">${regionButtons}</div></div>${renderLeaguesCountryDirectory(rows, activeRegion, window._leagueDirCountry||'')}</div>`;
+    setTitle('Leagues — TransferZoneAI','Browse football leagues by continent, country and men/women structure.');
   }catch(e){
-    page.innerHTML = `<div class="error">${escapeHtml(e.message||'Could not load leagues.')}</div>`;
+    page.innerHTML=`<div class="error">${escapeHtml(e.message||'Could not load leagues.')}</div>`;
   }
 }
 resolveRoute(location.pathname);
