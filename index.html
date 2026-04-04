@@ -100,166 +100,92 @@ async function renderLeagueBySlug(){const page=document.getElementById('page-lea
 function renderLeaguePage(info,season,standings,scorers,assists,fixtures){const league=info?.league||{};const country=info?.country||{};return `<div class="entity-hero"><div class="entity-head"><div class="entity-logo">${imgOrFallback(league.logo,league.name)}</div><div><div class="entity-kicker">League profile</div><h1 class="entity-title">${escapeHtml(league.name||'League')}</h1><div class="entity-meta"><span class="tag">${escapeHtml(country.name||'—')}</span><span class="tag">Season ${escapeHtml(formatSeasonLabel(season,info))}</span><span class="tag">${escapeHtml(league.type||'League')}</span></div></div></div><div class="panel-grid"><div class="stack"><div class="card"><h2 class="section-title">Standings <span>table</span></h2><div class="table-wrap"><table><thead><tr><th>#</th><th>Club</th><th class="align-center">P</th><th class="align-center">W</th><th class="align-center">D</th><th class="align-center">L</th><th class="align-center">GD</th><th class="align-center">Pts</th></tr></thead><tbody>${standings.map(r=>`<tr onclick="openClub(${r.team.id}, ${JSON.stringify(r.team.name)})" style="cursor:pointer"><td>${r.rank}</td><td><div class="strong">${escapeHtml(r.team.name)}</div></td><td class="align-center">${r.all?.played}</td><td class="align-center">${r.all?.win}</td><td class="align-center">${r.all?.draw}</td><td class="align-center">${r.all?.lose}</td><td class="align-center">${r.goalsDiff}</td><td class="align-center strong">${r.points}</td></tr>`).join('')||'<tr><td colspan="8" class="align-center subtle">No standings found.</td></tr>'}</tbody></table></div></div><div class="card"><h2 class="section-title">Upcoming <span>fixtures</span></h2><div class="list">${fixtures.map(renderMatchCard).join('')||'<div class="empty">No fixtures found.</div>'}</div></div></div><div class="stack"><div class="card"><h2 class="section-title">Top <span>scorers</span></h2><div class="list">${scorers.slice(0,10).map((p,i)=>`<div class="player-row" onclick="openPlayer(${p.player.id}, ${JSON.stringify(p.player.name)})"><div class="avatar">${imgOrFallback(p.player.photo,p.player.name)}</div><div><div class="strong">${i+1}. ${escapeHtml(p.player.name)}</div><div class="mini">${escapeHtml(p.statistics?.[0]?.team?.name||'—')}</div></div><div class="strong gold">${num(p.statistics?.[0]?.goals?.total)}</div></div>`).join('')||'<div class="empty">No scorers found.</div>'}</div></div><div class="card"><h2 class="section-title">Top <span>assists</span></h2><div class="list">${assists.slice(0,10).map((p,i)=>`<div class="player-row" onclick="openPlayer(${p.player.id}, ${JSON.stringify(p.player.name)})"><div class="avatar">${imgOrFallback(p.player.photo,p.player.name)}</div><div><div class="strong">${i+1}. ${escapeHtml(p.player.name)}</div><div class="mini">${escapeHtml(p.statistics?.[0]?.team?.name||'—')}</div></div><div class="strong gold">${num(p.statistics?.[0]?.goals?.assists)}</div></div>`).join('')||'<div class="empty">No assists found.</div>'}</div></div></div></div></div>`}
 async function renderMatch(matchId){const page=document.getElementById('page-match');page.innerHTML='<div class="loading">Loading match...</div>';try{const id=Number(window.__routeMatchId||matchId);const [fixtureData,eventsData,statsData,lineupsData]=await Promise.all([apiFetch('fixtures',{id}).then(r=>r.response?.[0]||null),apiFetch('fixtures/events',{fixture:id}).then(r=>r.response||[]).catch(()=>[]),apiFetch('fixtures/statistics',{fixture:id}).then(r=>r.response||[]).catch(()=>[]),apiFetch('fixtures/lineups',{fixture:id}).then(r=>r.response||[]).catch(()=>[])]);if(!fixtureData) throw new Error('Match not found.');const f=fixtureData;page.innerHTML=`<div class="entity-hero"><div class="entity-head"><div class="entity-logo">${imgOrFallback(f.teams?.home?.logo,f.teams?.home?.name)}</div><div><div class="entity-kicker">${escapeHtml(f.league?.name||'Match')}</div><h1 class="entity-title">${escapeHtml(f.teams?.home?.name||'Home')} <span>${num(f.goals?.home)} - ${num(f.goals?.away)}</span> ${escapeHtml(f.teams?.away?.name||'Away')}</h1><div class="entity-meta"><span class="tag">${escapeHtml(f.fixture?.status?.long||'—')}</span><span class="tag">${escapeHtml(formatKickoff(f.fixture?.date))}</span><span class="tag">Venue: ${escapeHtml(f.fixture?.venue?.name||'—')}</span></div></div><div class="entity-logo">${imgOrFallback(f.teams?.away?.logo,f.teams?.away?.name)}</div></div><div class="panel-grid"><div class="stack"><div class="card"><h2 class="section-title">Match <span>events</span></h2><div class="table-wrap"><table><thead><tr><th>Min</th><th>Type</th><th>Team</th><th>Player</th><th>Detail</th></tr></thead><tbody>${eventsData.map(e=>`<tr><td>${num(e.time?.elapsed)}'</td><td>${escapeHtml(e.type||'—')}</td><td>${escapeHtml(e.team?.name||'—')}</td><td>${escapeHtml(e.player?.name||'—')}</td><td>${escapeHtml(e.detail||'—')}</td></tr>`).join('')||'<tr><td colspan="5" class="align-center subtle">No events found.</td></tr>'}</tbody></table></div></div></div><div class="stack"><div class="card"><h2 class="section-title">Match <span>stats</span></h2><div class="list">${renderFixtureStats(statsData)}</div></div><div class="card"><h2 class="section-title">Lineups <span>summary</span></h2><div class="list">${lineupsData.map(l=>`<div class="row-link"><div class="strong">${escapeHtml(l.team?.name||'Team')}</div><div class="mini">Formation ${escapeHtml(l.formation||'—')}</div></div>`).join('')||'<div class="empty">No lineups found.</div>'}</div></div></div></div></div>`;setTitle(`${f.teams?.home?.name} vs ${f.teams?.away?.name} — TransferZoneAI`,`Match page for ${f.teams?.home?.name} vs ${f.teams?.away?.name}.`)}catch(e){page.innerHTML=`<div class="error">${escapeHtml(e.message||'Could not load match.')}</div>`}}
 function renderFixtureStats(statsData){if(!statsData?.length) return '<div class="empty">No statistics found.</div>';const home=statsData[0], away=statsData[1];const homeMap=Object.fromEntries((home.statistics||[]).map(x=>[x.type,x.value]));const awayMap=Object.fromEntries((away.statistics||[]).map(x=>[x.type,x.value]));const keys=Array.from(new Set([...Object.keys(homeMap),...Object.keys(awayMap)]));return keys.map(k=>`<div class="row-link" style="grid-template-columns:80px 1fr 80px"><div class="strong align-center">${escapeHtml(num(homeMap[k]))}</div><div class="align-center">${escapeHtml(k)}</div><div class="strong align-center">${escapeHtml(num(awayMap[k]))}</div></div>`).join('')}
-
-const LEAGUES_STATE = { continent: 'Europe', rows: [] };
-const TRANSFERS_STATE = { rows: [] };
-
-const COUNTRY_TO_CONTINENT = new Map(Object.entries({
-  'England':'Europe','Spain':'Europe','Germany':'Europe','Italy':'Europe','France':'Europe','Portugal':'Europe','Netherlands':'Europe','Belgium':'Europe','Turkey':'Europe','Sweden':'Europe','Norway':'Europe','Denmark':'Europe','Scotland':'Europe','Wales':'Europe','Ireland':'Europe','Northern Ireland':'Europe','Iceland':'Europe','Poland':'Europe','Austria':'Europe','Switzerland':'Europe','Croatia':'Europe','Serbia':'Europe','Romania':'Europe','Hungary':'Europe','Greece':'Europe','Ukraine':'Europe','Czech Republic':'Europe','Slovakia':'Europe','Slovenia':'Europe','Finland':'Europe','Russia':'Europe','Bosnia':'Europe','Bulgaria':'Europe',
-  'Brazil':'South America','Argentina':'South America','Uruguay':'South America','Colombia':'South America','Chile':'South America','Peru':'South America','Paraguay':'South America','Ecuador':'South America','Bolivia':'South America','Venezuela':'South America',
-  'United States':'North America','USA':'North America','Mexico':'North America','Canada':'North America','Costa Rica':'North America','Honduras':'North America','Jamaica':'North America','Panama':'North America',
-  'Japan':'Asia','South Korea':'Asia','Saudi Arabia':'Asia','Qatar':'Asia','United Arab Emirates':'Asia','China':'Asia','India':'Asia','Iran':'Asia','Iraq':'Asia','Uzbekistan':'Asia',
-  'Australia':'Oceania','New Zealand':'Oceania',
-  'Morocco':'Africa','Egypt':'Africa','Tunisia':'Africa','Algeria':'Africa','South Africa':'Africa','Nigeria':'Africa','Ghana':'Africa','Senegal':'Africa','Ivory Coast':'Africa','Cameroon':'Africa',
-  'World':'World','Europe':'Europe'
-}));
-function continentOfCountry(country){
-  const c = String(country || '').trim();
-  return COUNTRY_TO_CONTINENT.get(c) || (c === 'World' ? 'World' : 'Other');
-}
-const WOMEN_LEAGUE_IDS = new Set([8,44,64,74,82,91,139,142,146,190,254,484,524,525,549,638,649,660,666,669,670,671,673,697,698,699,712,725,733,736,737,739,743,854,880,897,912,915,918,922,926,947,948,949,950]);
-const WOMEN_KEYWORDS = ['women','woman','female','ladies','damen','feminin','femenin','naisten','kvinner','kvinde','femenino','feminino','mulheres','mujer','dam'];
-function isWomenLeague(name, leagueId){
-  if (leagueId && WOMEN_LEAGUE_IDS.has(Number(leagueId))) return true;
-  const n = String(name || '').toLowerCase();
-  return WOMEN_KEYWORDS.some(k => n.includes(k));
-}
-function leagueRank(name){
-  const n = String(name || '').toLowerCase();
-  if (/^(premier league|la liga|bundesliga|serie a|ligue 1|eredivisie|primeira liga|pro league|j1 league|mls|série a|liga profesional|eliteserien|superliga|allsvenskan|champions league)$/i.test(n)) return 1;
-  if (/(championship|segunda|2\. bundesliga|ligue 2|serie b|eerste divisie|segunda liga|1\. division|superettan)/.test(n)) return 2;
-  if (/(cup|pokal|coupe|copa|coppa|trophy|shield|supercup|friendly|u18|u21|u23|youth|reserve)/.test(n)) return 40;
-  return 10;
-}
-function sortCountryLeagues(ls){
-  const men = ls.filter(l => !isWomenLeague(l?.league?.name, l?.league?.id)).sort((a,b) => leagueRank(a?.league?.name) - leagueRank(b?.league?.name) || String(a?.league?.name||'').localeCompare(String(b?.league?.name||'')));
-  const women = ls.filter(l => isWomenLeague(l?.league?.name, l?.league?.id)).sort((a,b) => leagueRank(a?.league?.name) - leagueRank(b?.league?.name) || String(a?.league?.name||'').localeCompare(String(b?.league?.name||'')));
-  return { men, women };
-}
-function toggleAccordion(id, header){
-  const body = document.getElementById(id);
-  if (!body) return;
-  const open = body.classList.contains('open');
-  body.classList.toggle('open', !open);
-  if (header) header.classList.toggle('open', !open);
-  body.style.display = open ? 'none' : 'block';
-}
-function openLeagueContinent(continent, btn){
-  LEAGUES_STATE.continent = continent;
-  document.querySelectorAll('#leagueContinentTabs .filter-btn').forEach(b => b.classList.remove('active'));
-  btn?.classList.add('active');
-  const mount = document.getElementById('leagueCountriesMount');
-  if (mount) mount.innerHTML = buildLeaguesCountryDirectory(LEAGUES_STATE.rows, continent);
-}
-function mapTransferRows(teamTransferBundles){
-  const raw = [];
-  for (const bundle of (teamTransferBundles || [])) {
-    const player = bundle?.player || {};
-    for (const tr of (bundle?.transfers || [])) {
-      raw.push({
-        key: [player.id || player.name, tr?.date || '', tr?.teams?.out?.id || tr?.teams?.out?.name || '', tr?.teams?.in?.id || tr?.teams?.in?.name || ''].join('|'),
-        playerId: player.id || 0,
-        playerName: player.name || 'Unknown player',
-        fromId: tr?.teams?.out?.id || 0,
-        fromName: tr?.teams?.out?.name || 'Unknown',
-        toId: tr?.teams?.in?.id || 0,
-        toName: tr?.teams?.in?.name || 'Unknown',
-        type: tr?.type || 'Transfer',
-        date: tr?.date || '',
-      });
-    }
-  }
-  const dedup = new Map();
-  for (const row of raw) if (!dedup.has(row.key)) dedup.set(row.key, row);
-  return [...dedup.values()].sort((a,b) => String(b.date).localeCompare(String(a.date))).slice(0, 250);
-}
-function renderTransferTable(rows){
-  if (!rows.length) return '<div class="empty">No transfers found.</div>';
-  return `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Player</th><th>From</th><th>To</th><th class="align-center">Type</th></tr></thead><tbody>${
-    rows.map(r => `<tr>
-      <td>${escapeHtml(formatDate(r.date))}</td>
-      <td><a href="/player/${slugify(r.playerName)}" onclick="event.preventDefault(); openPlayer(${Number(r.playerId)||0}, ${JSON.stringify(r.playerName)});" class="strong" style="text-decoration:none">${escapeHtml(r.playerName)}</a></td>
-      <td>${r.fromId ? `<a href="/club/${slugify(r.fromName)}" onclick="event.preventDefault(); openClub(${Number(r.fromId)||0}, ${JSON.stringify(r.fromName)});" style="text-decoration:none">${escapeHtml(r.fromName)}</a>` : escapeHtml(r.fromName)}</td>
-      <td>${r.toId ? `<a href="/club/${slugify(r.toName)}" onclick="event.preventDefault(); openClub(${Number(r.toId)||0}, ${JSON.stringify(r.toName)});" style="text-decoration:none">${escapeHtml(r.toName)}</a>` : escapeHtml(r.toName)}</td>
-      <td class="align-center">${escapeHtml(r.type)}</td>
-    </tr>`).join('')
-  }</tbody></table></div>`;
-}
-async function renderTransfersPage(){
-  const page=document.getElementById('page-transfers');
-  page.innerHTML='<div class="loading">Loading transfers...</div>';
-  try{
-    const teamIds=[33,34,40,42,47,48,49,50,51,52,85,157,165,529,530,541,489,505,496,211];
-    const batches=await Promise.all(teamIds.map(id=>fetchTeamTransfers(id).catch(()=>[])));
-    const rows=mapTransferRows(batches.flat());
-    TRANSFERS_STATE.rows = rows;
-    page.innerHTML=`<div class="card"><div class="toolbar"><h2 class="section-title" style="margin:0">Transfer <span>market</span></h2><div class="pill">${rows.length} entries</div></div>${renderTransferTable(rows)}</div>`;
-    setTitle('Transfers — TransferZoneAI','Transfer market overview with recent incoming and outgoing moves.');
-  }catch(e){
-    page.innerHTML='<div class="error">Could not load transfers.</div>';
-  }
-}
+async function renderTransfersPage(){const page=document.getElementById('page-transfers');page.innerHTML='<div class="loading">Loading transfers...</div>';try{const sampleTeams=[33,34,40,541,50,529,49,47];const batches=await Promise.all(sampleTeams.map(id=>fetchTeamTransfers(id).catch(()=>[])));const rows=batches.flat().slice(0,60);page.innerHTML=`<div class="card"><h2 class="section-title">Transfer <span>market</span></h2><div class="list">${rows.map(renderTransferCardForTeamSearch).join('')||'<div class="empty">No transfers found.</div>'}</div></div>`;setTitle('Transfers — TransferZoneAI','Transfer market overview.')}catch(e){page.innerHTML='<div class="error">Could not load transfers.</div>'}}
 async function renderLivePage(){const page=document.getElementById('page-live');page.innerHTML='<div class="loading">Loading live matches...</div>';try{const [live,upcoming]=await Promise.all([apiFetch('fixtures',{live:'all'}).then(r=>r.response||[]).catch(()=>[]),apiFetch('fixtures',{next:40}).then(r=>r.response||[]).catch(()=>[])]);const rows=[...live,...upcoming];page.innerHTML=`<div class="card"><div class="toolbar"><h2 class="section-title" style="margin:0">Live & <span>upcoming</span></h2><div class="pill">${rows.length} matches</div></div><div class="list">${rows.map(renderMatchCard).join('')||'<div class="empty">No matches found.</div>'}</div></div>`;setTitle('Live matches — TransferZoneAI','Live football fixtures and upcoming matches.')}catch(e){page.innerHTML='<div class="error">Could not load live page.</div>'}}
-function buildLeaguesCountryDirectory(rows, continent){
-  const filtered = (rows || []).filter(l => continentOfCountry(l?.country?.name) === continent);
-  if (!filtered.length) return '<div class="empty">No leagues found for this region.</div>';
-  const byCountry = groupBy(filtered, l => String(l?.country?.name || 'World'));
-  const priority = ['England','Spain','Germany','Italy','France','Portugal','Netherlands','Belgium','Turkey','Brazil','Argentina','United States','Japan','Saudi Arabia','Sweden','Norway','Denmark','Scotland','Greece','Mexico'];
-  const sorted = Object.entries(byCountry).sort(([a],[b]) => {
-    const ai = priority.indexOf(a), bi = priority.indexOf(b);
-    if (ai !== -1 && bi !== -1) return ai - bi;
-    if (ai !== -1) return -1;
-    if (bi !== -1) return 1;
-    return a.localeCompare(b);
+
+const LEAGUE_REGIONS=[
+  {key:'europe',label:'Europe'},
+  {key:'south-america',label:'South America'},
+  {key:'north-america',label:'North America'},
+  {key:'asia',label:'Asia'},
+  {key:'africa',label:'Africa'},
+  {key:'oceania',label:'Oceania'},
+  {key:'world',label:'World'},
+  {key:'other',label:'Other'}
+];
+const LEAGUE_REGION_COUNTRIES={
+  'europe':['England','Spain','Germany','Italy','France','Portugal','Netherlands','Belgium','Sweden','Norway','Denmark','Scotland','Turkey','Greece','Poland','Austria','Switzerland','Croatia','Serbia','Czech Republic','Slovakia','Slovenia','Romania','Hungary','Ukraine','Ireland','Wales','Northern Ireland','Iceland','Finland'],
+  'south-america':['Brazil','Argentina','Uruguay','Chile','Colombia','Paraguay','Peru','Ecuador','Bolivia','Venezuela'],
+  'north-america':['United States','Canada','Mexico','Costa Rica','Honduras','Guatemala','Panama','Jamaica','Trinidad And Tobago','El Salvador'],
+  'asia':['Japan','South Korea','China','Saudi Arabia','Qatar','United Arab Emirates','Iran','Iraq','Jordan','Uzbekistan','Thailand','Indonesia','Malaysia','Vietnam','India','Australia'],
+  'africa':['Egypt','Morocco','Tunisia','Algeria','South Africa','Nigeria','Ghana','Senegal','Cameroon','Ivory Coast','Kenya','Tanzania'],
+  'oceania':['New Zealand','Fiji','Papua New Guinea','Solomon Islands']
+};
+function getLeagueRegion(countryName){
+  const c=String(countryName||'').trim();
+  if(!c || c==='World' || c==='UEFA' || c==='FIFA') return 'world';
+  for(const [region,countries] of Object.entries(LEAGUE_REGION_COUNTRIES)){
+    if(countries.includes(c)) return region;
+  }
+  return 'other';
+}
+const WOMEN_LEAGUE_IDS=new Set([8,44,64,74,82,91,139,142,146,190,254,484,524,525,549,638,649,660,666,669,670,671,673,697,698,699,712,725,733,736,737,739,743,854,880,897,912,915,918,922,926,947,948,949,950]);
+const WOMEN_KEYWORDS=['women','woman','female','ladies','damen','feminin','femenin','naisten','kvinner','kvinde','femenino','feminino','mulheres','mujer'];
+function isWomenLeague(name, leagueId){
+  const n=String(name||'').toLowerCase();
+  return WOMEN_LEAGUE_IDS.has(Number(leagueId)) || WOMEN_KEYWORDS.some(k=>n.includes(k));
+}
+function getLeagueSeasonForOpen(leagueLike){
+  const seasons=(leagueLike?.seasons||[]).map(s=>Number(s.year)).filter(Boolean).sort((a,b)=>b-a);
+  if(seasons.length) return seasons[0];
+  return new Date().getFullYear()-1;
+}
+function sortLeagueRows(rows){
+  const byTypeScore=row=>{
+    const type=String(row?.league?.type||'').toLowerCase();
+    if(type==='league') return 0;
+    if(type==='cup') return 1;
+    return 2;
+  };
+  return [...rows].sort((a,b)=>{
+    const t=byTypeScore(a)-byTypeScore(b);
+    if(t!==0) return t;
+    return String(a?.league?.name||'').localeCompare(String(b?.league?.name||''));
   });
-  return sorted.map(([country, ls], idx) => {
-    const { men, women } = sortCountryLeagues(ls);
-    const accId = `lg_acc_${slugify(continent)}_${idx}`;
-    const leagueLink = l => `<a class="league-card" href="/league/${slugify(l.league?.name)}" onclick="event.preventDefault(); openLeague(${Number(l.league?.id)||0}, ${JSON.stringify(l.league?.name||'League')}, ${Number(new Date().getFullYear()-1)});"><div class="search-avatar">${imgOrFallback(l.league?.logo, l.league?.name)}</div><div><div class="strong">${escapeHtml(l.league?.name||'League')}</div><div class="mini">${escapeHtml(l.league?.type||'League')}</div></div><div class="mini">${escapeHtml(formatSeasonLabel(new Date().getFullYear()-1, l))}</div></a>`;
-    return `<div class="card" style="padding:0;overflow:hidden">
-      <div onclick="toggleAccordion('${accId}', this)" class="toolbar" style="padding:14px 16px;cursor:pointer;margin:0">
-        <div class="strong">${escapeHtml(country)}</div>
-        <div class="mini">${ls.length} competitions</div>
-      </div>
-      <div id="${accId}" style="display:none;padding:0 16px 16px">
-        <div class="split" style="margin-top:8px">
-          <div>
-            ${men.length ? '<div class="pill" style="margin-bottom:10px">Men</div>' : '<div class="mini subtle" style="margin-bottom:10px">No men competitions</div>'}
-            <div class="list">${men.map(leagueLink).join('')}</div>
-          </div>
-          <div>
-            ${women.length ? '<div class="pill" style="margin-bottom:10px">Women</div>' : '<div class="mini subtle" style="margin-bottom:10px">No women competitions</div>'}
-            <div class="list">${women.map(leagueLink).join('')}</div>
-          </div>
-        </div>
-      </div>
-    </div>`;
+}
+function renderCountryLeagueDirectory(allLeagues, regionKey){
+  const filtered=(allLeagues||[]).filter(l=>getLeagueRegion(l?.country?.name)===regionKey);
+  const byCountry={};
+  filtered.forEach(l=>{
+    const country=l?.country?.name||'World';
+    if(!byCountry[country]) byCountry[country]={flag:l?.country?.flag||'', rows:[]};
+    byCountry[country].rows.push(l);
+  });
+  const countries=Object.entries(byCountry).sort((a,b)=>a[0].localeCompare(b[0]));
+  if(!countries.length) return '<div class="empty">No competitions found in this region.</div>';
+  return countries.map(([country,data],idx)=>{
+    const men=sortLeagueRows(data.rows.filter(r=>!isWomenLeague(r?.league?.name,r?.league?.id)));
+    const women=sortLeagueRows(data.rows.filter(r=>isWomenLeague(r?.league?.name,r?.league?.id)));
+    const menHtml=men.length?men.map(l=>`<a class="league-card" href="/league/${slugify(l.league.name)}" onclick="event.preventDefault(); openLeague(${l.league.id}, ${JSON.stringify(l.league.name)}, ${getLeagueSeasonForOpen(l)});"><div class="search-avatar">${imgOrFallback(l.league?.logo,l.league?.name)}</div><div><div class="strong">${escapeHtml(l.league?.name||'League')}</div><div class="mini">${escapeHtml(l.league?.type||'League')}</div></div><div class="mini gold">${escapeHtml(formatSeasonLabel(getLeagueSeasonForOpen(l),l))}</div></a>`).join(''):'<div class="empty">No men competitions.</div>';
+    const womenHtml=women.length?women.map(l=>`<a class="league-card" href="/league/${slugify(l.league.name)}" onclick="event.preventDefault(); openLeague(${l.league.id}, ${JSON.stringify(l.league.name)}, ${getLeagueSeasonForOpen(l)});"><div class="search-avatar">${imgOrFallback(l.league?.logo,l.league?.name)}</div><div><div class="strong">${escapeHtml(l.league?.name||'League')}</div><div class="mini">${escapeHtml(l.league?.type||'League')}</div></div><div class="mini gold">${escapeHtml(formatSeasonLabel(getLeagueSeasonForOpen(l),l))}</div></a>`).join(''):'<div class="empty">No women competitions.</div>';
+    return `<div class="card" style="padding:0;overflow:hidden"><div style="padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:space-between;gap:12px"><div style="display:flex;align-items:center;gap:10px"><div class="search-avatar" style="width:30px;height:30px">${data.flag?`<img src="${data.flag}" alt="${escapeHtml(country)} flag" onerror="this.style.display='none';this.parentElement.innerHTML='🏳️'">`:'🏳️'}</div><div class="strong">${escapeHtml(country)}</div></div><div class="mini">${data.rows.length} competitions</div></div><div class="split" style="padding:18px"><div><h3 class="section-title" style="font-size:20px;margin-bottom:10px">Men</h3><div class="list">${menHtml}</div></div><div><h3 class="section-title" style="font-size:20px;margin-bottom:10px">Women</h3><div class="list">${womenHtml}</div></div></div></div>`;
   }).join('');
 }
-async function renderLeaguesPage(){
+async function renderLeaguesPage(regionKey){
   const page=document.getElementById('page-leagues');
   page.innerHTML='<div class="loading">Loading leagues...</div>';
   try{
-    const data=await apiFetch('leagues',{current:'true'}).catch(()=>({response:[]}));
-    const rows=(data.response||[])
-      .filter(l => l?.league?.id && l?.league?.name)
-      .filter(l => !/(reserve|reserves|u\d{1,2}|youth)/i.test(String(l?.league?.name||'')));
-    LEAGUES_STATE.rows = rows;
-    const continents = ['Europe','South America','North America','Asia','Africa','Oceania','World','Other']
-      .filter(c => rows.some(l => continentOfCountry(l?.country?.name) === c));
-    const active = continents.includes(LEAGUES_STATE.continent) ? LEAGUES_STATE.continent : (continents[0] || 'Europe');
-    LEAGUES_STATE.continent = active;
-    page.innerHTML=`<div class="card">
-      <div class="toolbar">
-        <h2 class="section-title" style="margin:0">League <span>directory</span></h2>
-        <div class="pill">${rows.length} competitions</div>
-      </div>
-      <div id="leagueContinentTabs" class="toolbar-right" style="margin-bottom:14px">
-        ${continents.map(c => `<button class="filter-btn ${c===active?'active':''}" onclick="openLeagueContinent(${JSON.stringify(c)}, this)">${escapeHtml(c)}</button>`).join('')}
-      </div>
-      <div id="leagueCountriesMount">${buildLeaguesCountryDirectory(rows, active)}</div>
-    </div>`;
-    setTitle('Leagues — TransferZoneAI','Browse leagues by continent, country, and men/women competitions.');
+    if(!window.__allLeagueDirectoryRows){
+      const data=await apiFetch('leagues',{current:'true'}).catch(()=>({response:[]}));
+      window.__allLeagueDirectoryRows=(data.response||[]).filter(Boolean);
+    }
+    const allRows=window.__allLeagueDirectoryRows||[];
+    const activeRegion=regionKey||window.__leagueRegion||'europe';
+    window.__leagueRegion=activeRegion;
+    const tabs=LEAGUE_REGIONS.map(r=>`<button class="filter-btn ${activeRegion===r.key?'active':''}" onclick="renderLeaguesPage('${r.key}')">${escapeHtml(r.label)}</button>`).join('');
+    const body=renderCountryLeagueDirectory(allRows, activeRegion);
+    page.innerHTML=`<div class="card"><div class="toolbar"><h2 class="section-title" style="margin:0">League <span>directory</span></h2><div class="pill">${allRows.length} competitions</div></div><div class="toolbar-right" style="margin-bottom:14px">${tabs}</div>${body}</div>`;
+    setTitle('Leagues — TransferZoneAI','Browse leagues by continent, country, and men or women competitions.');
   }catch(e){
     page.innerHTML='<div class="error">Could not load leagues.</div>';
   }
