@@ -102,8 +102,31 @@
 
     .league-card > .league-table-wrap,.league-card > .league-side-list,.league-card > .list{margin-top:0;position:relative;z-index:1}
     .league-section .section-title,.league-card .section-title{float:none;clear:both}
+    .live-match-card{display:grid;gap:14px;padding:16px 18px;border-radius:20px;background:linear-gradient(180deg, rgba(31,45,70,.92), rgba(20,30,48,.96));border:1px solid rgba(255,255,255,.08);box-shadow:0 14px 30px rgba(2,8,18,.18);text-decoration:none;color:inherit;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+    .live-match-card:hover{transform:translateY(-2px);border-color:rgba(227,184,87,.34);box-shadow:0 18px 36px rgba(2,8,18,.24)}
+    .live-card-top{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;color:var(--muted)}
+    .live-card-top .league-line{font-weight:700}
+    .live-status-pill{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.05);font-weight:800;color:#dfe7f7}
+    .live-status-pill.live{color:var(--gold);border-color:rgba(227,184,87,.28);background:rgba(227,184,87,.1)}
+    .live-dot{width:8px;height:8px;border-radius:999px;background:currentColor;box-shadow:0 0 10px currentColor;animation:pulseLive 1.2s ease-in-out infinite}
+    .live-teams{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:16px}
+    .live-team{display:flex;align-items:center;gap:12px;min-width:0}
+    .live-team.away{justify-content:flex-end;text-align:right}
+    .live-team-logo{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);overflow:hidden;flex:0 0 40px}
+    .live-team-logo img{width:28px;height:28px;object-fit:contain}
+    .live-team-name{font-weight:800;font-size:18px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .live-team-name a{text-decoration:none}
+    .live-team-name a:hover{text-decoration:underline}
+    .live-scorebox{display:grid;justify-items:center;gap:6px;min-width:112px}
+    .live-score{font-family:var(--font-heading);font-size:38px;line-height:.95;letter-spacing:.4px;color:#fff}
+    .live-score.live{color:var(--gold)}
+    .live-score-sep{opacity:.9;padding:0 4px}
+    .live-score-note{font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.7px}
+    .live-meta{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;color:var(--muted)}
+    .live-meta strong{color:#eef3fb}
+    @keyframes pulseLive{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.82)}}
 @media (max-width:1100px){.main-grid,.panel-grid,.split,.club-layout,.league-grid{grid-template-columns:1fr}.stats-row{grid-template-columns:repeat(2,1fr)}.kpi-grid{grid-template-columns:repeat(3,1fr)}.squad-grid{grid-template-columns:1fr}.club-summary{grid-template-columns:repeat(2,1fr)}.league-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.league-card-title{flex-direction:column;align-items:flex-start}.league-card-head{flex-direction:column;align-items:flex-start}}
-    @media (max-width:760px){.topbar-inner{grid-template-columns:1fr;padding:10px 0}.entity-head{grid-template-columns:1fr}.entity-title{font-size:40px}.stats-row{grid-template-columns:1fr}.kpi-grid{grid-template-columns:repeat(2,1fr)}.club-summary{grid-template-columns:repeat(2,1fr)}.transfer-item,.fixture-compact{grid-template-columns:1fr}.transfer-extra,.fixture-compact .status{text-align:left}.transfer-arrow{display:none}.league-hero{padding:20px}.league-topline{flex-direction:column}.league-logo-box{width:90px;height:90px;flex-basis:90px}.league-title{font-size:46px}.league-stats{grid-template-columns:1fr}.league-player-card{grid-template-columns:1fr auto}.league-player-main{grid-template-columns:auto 1fr}.league-player-rank{display:none}}
+    @media (max-width:760px){.topbar-inner{grid-template-columns:1fr;padding:10px 0}.live-teams{grid-template-columns:1fr;justify-items:center;text-align:center}.live-team,.live-team.away{justify-content:center;text-align:center}.live-team.away{flex-direction:row-reverse}.live-scorebox{min-width:0}.live-team-name{white-space:normal}.entity-head{grid-template-columns:1fr}.entity-title{font-size:40px}.stats-row{grid-template-columns:1fr}.kpi-grid{grid-template-columns:repeat(2,1fr)}.club-summary{grid-template-columns:repeat(2,1fr)}.transfer-item,.fixture-compact{grid-template-columns:1fr}.transfer-extra,.fixture-compact .status{text-align:left}.transfer-arrow{display:none}.league-hero{padding:20px}.league-topline{flex-direction:column}.league-logo-box{width:90px;height:90px;flex-basis:90px}.league-title{font-size:46px}.league-stats{grid-template-columns:1fr}.league-player-card{grid-template-columns:1fr auto}.league-player-main{grid-template-columns:auto 1fr}.league-player-rank{display:none}}
       html{scroll-behavior:smooth}
   </style>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -215,11 +238,20 @@ function showPage(id){document.querySelectorAll('.page').forEach(el=>el.classLis
 function routeTo(path,replace=false){if(!replace) history.pushState({},'',path);resolveRoute(path)}
 window.addEventListener('popstate',()=>resolveRoute(location.pathname));
 function resolveRoute(pathname){const parts=pathname.replace(/^\/+|\/+$/g,'').split('/').filter(Boolean);if(!parts.length){updateNav('/');showPage('page-home');renderHome();return}if(parts[0]==='player'&&parts[1]){updateNav('');showPage('page-player');renderPlayerBySlug(parts[1]);return}if(parts[0]==='club'&&parts[1]){updateNav('');showPage('page-club');renderClubBySlug(parts[1]);return}if(parts[0]==='league'&&parts[1]){updateNav('');showPage('page-league');renderLeagueBySlug(parts[1]);return}if(parts[0]==='match'&&parts[1]){updateNav('');showPage('page-match');renderMatch(parts[1]);return}if(parts[0]==='transfers'){updateNav('/transfers');showPage('page-transfers');renderTransfersPage();return}if(parts[0]==='live'){updateNav('/live');showPage('page-live');renderLivePage();return}if(parts[0]==='leagues'){updateNav('/leagues');showPage('page-leagues');renderLeaguesPage();return}routeTo('/',true)}
-function renderMatchCard(f){const live=['1H','HT','2H','ET','P'].includes(f?.fixture?.status?.short);const finished=['FT','AET','PEN'].includes(f?.fixture?.status?.short);const status=live?(f.fixture.status.elapsed?`${f.fixture.status.elapsed}'`:'LIVE'):finished?'FT':formatKickoff(f.fixture.date);const score=finished||live?`${num(f.goals?.home)} - ${num(f.goals?.away)}`:'vs';return `<a class="row-link" href="/match/${f.fixture.id}" onclick="event.preventDefault(); openMatch(${f.fixture.id});"><div class="mini">${escapeHtml(f.league?.name||'')}</div><div class="match-card"><div><div class="strong">${escapeHtml(f.teams?.home?.name||'Home')}</div><div class="mini">${escapeHtml(f.teams?.away?.name||'Away')}</div></div><div class="strong ${live?'gold':''}" style="font-family:var(--font-heading);font-size:28px">${escapeHtml(score)}</div><div class="align-right"><div class="strong">${escapeHtml(status)}</div><div class="mini">${live?'Live':finished?'Finished':'Kickoff'}</div></div></div></a>`}
-function normalizeTransferType(raw=''){const v=String(raw||'').toLowerCase();if(v.includes('loan')) return 'Loan';if(v.includes('free')) return 'Bosman';if(v.includes('return')) return 'Return';if(v.includes('prom')) return 'Promotion';if(v.includes('release')) return 'Released';return 'Transfer'}
-function transferFeeLabel(tr){const direct=tr?.fee||tr?.amount||tr?.transfer?.fee||tr?.transfer?.amount||null;if(direct==null||direct==='') return '';if(typeof direct==='number') return money(direct);return String(direct)}
-function getLatestTransfer(row){return [...(row?.transfers||[])].filter(t=>t?.date).sort((a,b)=>new Date(b.date)-new Date(a.date))[0]||row?.transfers?.[0]||null}
-function getTransferTypeLabel(tr, isIn){const base=normalizeTransferType(tr?.type);if(base==='Loan') return 'Loan';if(base==='Bosman') return 'Bosman';if(base==='Return') return 'Return';if(base==='Promotion') return 'Promotion';if(base==='Released') return 'Released';return 'Transfer'}
+function renderMatchCard(f){
+  const live=['1H','HT','2H','ET','P'].includes(f?.fixture?.status?.short);
+  const finished=['FT','AET','PEN'].includes(f?.fixture?.status?.short);
+  const status=live?(f.fixture.status.elapsed?`${f.fixture.status.elapsed}'`:'LIVE'):finished?'FT':formatKickoff(f.fixture.date);
+  const stage=live?'Live':finished?'Finished':'Kickoff';
+  const homeName=fixName(f?.teams?.home?.name||'Home');
+  const awayName=fixName(f?.teams?.away?.name||'Away');
+  const homeId=Number(f?.teams?.home?.id||0);
+  const awayId=Number(f?.teams?.away?.id||0);
+  const homeGoals=num(f?.goals?.home);
+  const awayGoals=num(f?.goals?.away);
+  const score=(finished||live)?`${homeGoals} <span class="live-score-sep">-</span> ${awayGoals}`:'VS';
+  return `<a class="live-match-card" href="/match/${f.fixture.id}" onclick="event.preventDefault(); openMatch(${f.fixture.id});"><div class="live-card-top"><div class="league-line">${escapeHtml(fixName(f?.league?.name||''))} • ${escapeHtml(fixName(f?.league?.country||''))}</div><div class="live-status-pill ${live?'live':''}">${live?'<span class="live-dot"></span>':''}${escapeHtml(status)}</div></div><div class="live-teams"><div class="live-team"><div class="live-team-logo">${imgOrFallback(f?.teams?.home?.logo,homeName)}</div><div class="live-team-name">${homeId?`<a href="${clubPath(homeId,homeName)}" onclick="event.preventDefault(); event.stopPropagation(); openClub(${homeId}, ${jsa(homeName)});">${escapeHtml(homeName)}</a>`:escapeHtml(homeName)}</div></div><div class="live-scorebox"><div class="live-score ${live?'live':''}">${score}</div><div class="live-score-note">${escapeHtml(stage)}</div></div><div class="live-team away"><div class="live-team-name">${awayId?`<a href="${clubPath(awayId,awayName)}" onclick="event.preventDefault(); event.stopPropagation(); openClub(${awayId}, ${jsa(awayName)});">${escapeHtml(awayName)}</a>`:escapeHtml(awayName)}</div><div class="live-team-logo">${imgOrFallback(f?.teams?.away?.logo,awayName)}</div></div></div></a>`
+}
 function renderTransferCardForTeamSearch(row){const player=row.player||{};const latest=getLatestTransfer(row);if(!latest) return '';return `<a class="transfer-card" href="${playerPath(player.id,player.name||'player')}" onclick="event.preventDefault(); openPlayer(${player.id}, ${jsa(player.name||'Player')});"><div class="avatar">${imgOrFallback(player.photo, player.name)}</div><div><div class="strong">${escapeHtml(fixName(player.name||'Player'))}</div><div class="mini">${escapeHtml(fixName(latest.teams?.out?.name||'Unknown'))} → <span class="gold">${escapeHtml(fixName(latest.teams?.in?.name||'Unknown'))}</span></div></div><div class="mini">${escapeHtml(getTransferTypeLabel(latest, true))}</div></a>`}
 function renderClubTransferCard(row, clubId){const player=row?.player||{};const tr=getLatestTransfer(row);if(!tr) return '';const isIn=Number(tr?.teams?.in?.id)===Number(clubId);const outName=fixName(tr?.teams?.out?.name||'—');const inName=fixName(tr?.teams?.in?.name||'—');const type=getTransferTypeLabel(tr,isIn);const date=tr?.date?formatDate(tr.date):'—';const fee=transferFeeLabel(tr);const contractEnd=tr?.contract?.end||tr?.end||'';const extra=[fee,contractEnd?`Until ${contractEnd}`:''].filter(Boolean).join(' • ');return `<div class="transfer-item"><div class="transfer-date">${escapeHtml(date)}</div><div class="transfer-arrow">${isIn?'←':'→'}</div><div class="transfer-meta"><div class="transfer-topline"><div class="strong">${escapeHtml(fixName(player.name||'Unknown player'))}</div><span class="transfer-type ${isIn?'in':'out'}">${escapeHtml(type)}</span></div><div class="mini">${escapeHtml(outName)} → <span class="gold">${escapeHtml(inName)}</span></div></div><div class="transfer-extra">${escapeHtml(extra||'—')}</div></div>`}
 function renderCompactFixture(f){const live=['1H','HT','2H','ET','P'].includes(f?.fixture?.status?.short);const finished=isFinishedFixture(f);const status=live?(f.fixture.status.elapsed?`${f.fixture.status.elapsed}'`:'LIVE'):finished?'FT':formatKickoff(f.fixture.date);const score=finished||live?`${num(f.goals?.home)} - ${num(f.goals?.away)}`:'vs';return `<a class="fixture-compact" href="/match/${f.fixture.id}" onclick="event.preventDefault(); openMatch(${f.fixture.id});"><div class="mini">${escapeHtml(fixName(f.league?.name||''))}</div><div class="teams"><div class="strong">${escapeHtml(fixName(f.teams?.home?.name||'Home'))}</div><div class="mini">${escapeHtml(fixName(f.teams?.away?.name||'Away'))}</div></div><div class="status"><div class="score ${live?'gold':''}">${escapeHtml(score)}</div><div class="mini">${escapeHtml(status)}</div></div></a>`}
@@ -390,52 +422,18 @@ function renderGlobalTransferCard(row){
 }
 function renderLiveFixtureCard(f){
   const live=['1H','HT','2H','ET','P'].includes(f?.fixture?.status?.short);
-  const finished=isFinishedFixture(f);
+  const finished=['FT','AET','PEN'].includes(f?.fixture?.status?.short);
   const status=live?(f.fixture.status.elapsed?`${f.fixture.status.elapsed}'`:'LIVE'):finished?'FT':formatKickoff(f.fixture.date);
-  const score=finished||live?`${num(f.goals?.home)} - ${num(f.goals?.away)}`:'VS';
-  const homeId=Number(f?.teams?.home?.id||0), awayId=Number(f?.teams?.away?.id||0);
-  const homeName=fixName(f?.teams?.home?.name||'Home'), awayName=fixName(f?.teams?.away?.name||'Away');
-  return `<a class="row-link" href="/match/${f.fixture.id}" onclick="event.preventDefault(); openMatch(${f.fixture.id});"><div class="mini">${escapeHtml(fixName(f?.league?.name||''))} • ${escapeHtml(fixName(f?.league?.country||''))}</div><div class="match-card"><div><div class="strong">${homeId?`<a href="${clubPath(homeId,homeName)}" onclick="event.preventDefault(); event.stopPropagation(); openClub(${homeId}, ${jsa(homeName)});">${escapeHtml(homeName)}</a>`:escapeHtml(homeName)}</div><div class="mini">${awayId?`<a href="${clubPath(awayId,awayName)}" onclick="event.preventDefault(); event.stopPropagation(); openClub(${awayId}, ${jsa(awayName)});">${escapeHtml(awayName)}</a>`:escapeHtml(awayName)}</div></div><div class="strong ${live?'gold':''}" style="font-family:var(--font-heading);font-size:28px">${escapeHtml(score)}</div><div class="align-right"><div class="strong">${escapeHtml(status)}</div><div class="mini">${live?'Live':finished?'Finished':'Kickoff'}</div></div></div></a>`;
-}
-async function fetchTransferPageRows(){
-  const tries=[
-    ()=>apiFetch('transfers',{season:CURRENT_SEASON}).then(r=>r.response||[]),
-    ()=>apiFetch('transfers',{}).then(r=>r.response||[])
-  ];
-  for(const fn of tries){
-    try{
-      const rows=await fn();
-      if(Array.isArray(rows)&&rows.length) return flattenTransferRows(rows);
-    }catch(e){}
-  }
-  const leagueIds=[39,140,135,78,61,179,94,203,113,71,88,253];
-  const standings=await Promise.all(leagueIds.map(id=>apiFetch('standings',{league:id,season:CURRENT_SEASON}).then(r=>r.response?.[0]?.league?.standings?.[0]||[]).catch(()=>[])));
-  const teamIds=[];
-  standings.flat().forEach(r=>{ const id=Number(r?.team?.id||0); if(id) teamIds.push(id); });
-  const unique=[...new Set(teamIds)].slice(0,120);
-  const transferResponses=await Promise.all(unique.map(id=>fetchTeamTransfers(id).catch(()=>[])));
-  return flattenTransferRows(transferResponses.flat());
-}
-async function renderTransfersPage(){
-  const page=document.getElementById('page-transfers');
-  page.innerHTML='<div class="loading">Loading transfers...</div>';
-  setTitle('Transfers — TransferZoneAI','Latest football transfers, loans and Bosman deals.');
-  try{
-    const rows=await fetchTransferPageRows();
-    const pageRows=rows.slice(0,250);
-    const stats={
-      total: pageRows.length,
-      loans: pageRows.filter(r=>getTransferTypeLabel(getLatestTransfer(r),false)==='Loan').length,
-      bosman: pageRows.filter(r=>getTransferTypeLabel(getLatestTransfer(r),false)==='Bosman').length,
-      today: pageRows.filter(r=>{
-        const d=new Date(getLatestTransfer(r)?.date||0); const now=new Date();
-        return !Number.isNaN(d.getTime()) && d.toISOString().slice(0,10)===now.toISOString().slice(0,10);
-      }).length
-    };
-    page.innerHTML=`<section class="hero"><div class="hero-card"><h1 class="hero-title">Transfer <span>market</span></h1><div class="hero-sub">Latest deals available from the API, sorted newest first. Opens players and clubs directly from each move.</div><div class="stats-row"><div class="stat-card"><div class="stat-label">Shown</div><div class="stat-value">${stats.total}</div><div class="mini">Newest transfers</div></div><div class="stat-card"><div class="stat-label">Loans</div><div class="stat-value">${stats.loans}</div><div class="mini">Temporary moves</div></div><div class="stat-card"><div class="stat-label">Bosman</div><div class="stat-value">${stats.bosman}</div><div class="mini">Free exits</div></div><div class="stat-card"><div class="stat-label">Today</div><div class="stat-value">${stats.today}</div><div class="mini">Dated today</div></div></div></div></section><section class="card"><div class="section-header"><h2 class="section-title">All <span>transfers</span></h2><div class="mini">Valid dated transfers only</div></div><div class="transfer-list">${pageRows.map(renderGlobalTransferCard).join('') || '<div class="empty">No transfers found.</div>'}</div></section>`;
-  }catch(e){
-    page.innerHTML=`<div class="error">${escapeHtml(e.message||'Could not load transfers.')}</div>`;
-  }
+  const stage=live?'Live':finished?'Finished':'Kickoff';
+  const homeName=fixName(f?.teams?.home?.name||'Home');
+  const awayName=fixName(f?.teams?.away?.name||'Away');
+  const homeId=Number(f?.teams?.home?.id||0);
+  const awayId=Number(f?.teams?.away?.id||0);
+  const homeGoals=num(f?.goals?.home);
+  const awayGoals=num(f?.goals?.away);
+  const score=(finished||live)?`${homeGoals} <span class="live-score-sep">-</span> ${awayGoals}`:'VS';
+  const venue=fixName(f?.fixture?.venue?.name||'');
+  return `<a class="live-match-card" href="/match/${f.fixture.id}" onclick="event.preventDefault(); openMatch(${f.fixture.id});"><div class="live-card-top"><div class="league-line">${escapeHtml(fixName(f?.league?.name||''))} • ${escapeHtml(fixName(f?.league?.country||''))}</div><div class="live-status-pill ${live?'live':''}">${live?'<span class="live-dot"></span>':''}${escapeHtml(status)}</div></div><div class="live-teams"><div class="live-team"><div class="live-team-logo">${imgOrFallback(f?.teams?.home?.logo,homeName)}</div><div class="live-team-name">${homeId?`<a href="${clubPath(homeId,homeName)}" onclick="event.preventDefault(); event.stopPropagation(); openClub(${homeId}, ${jsa(homeName)});">${escapeHtml(homeName)}</a>`:escapeHtml(homeName)}</div></div><div class="live-scorebox"><div class="live-score ${live?'live':''}">${score}</div><div class="live-score-note">${escapeHtml(stage)}</div></div><div class="live-team away"><div class="live-team-name">${awayId?`<a href="${clubPath(awayId,awayName)}" onclick="event.preventDefault(); event.stopPropagation(); openClub(${awayId}, ${jsa(awayName)});">${escapeHtml(awayName)}</a>`:escapeHtml(awayName)}</div><div class="live-team-logo">${imgOrFallback(f?.teams?.away?.logo,awayName)}</div></div></div><div class="live-meta"><span>${venue?`Venue: <strong>${escapeHtml(venue)}</strong>`:''}</span><span>${!live&&!finished?`<strong>${escapeHtml(formatKickoff(f?.fixture?.date))}</strong>`:''}</span></div></a>`;
 }
 async function renderLivePage(){
   const page=document.getElementById('page-live');
