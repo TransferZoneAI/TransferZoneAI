@@ -132,7 +132,57 @@
 @media (max-width:1100px){.main-grid,.panel-grid,.split,.club-layout,.league-grid{grid-template-columns:1fr}.stats-row{grid-template-columns:repeat(2,1fr)}.kpi-grid{grid-template-columns:repeat(3,1fr)}.squad-grid{grid-template-columns:1fr}.club-summary{grid-template-columns:repeat(2,1fr)}.league-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.league-card-title{flex-direction:column;align-items:flex-start}.league-card-head{flex-direction:column;align-items:flex-start}}
     @media (max-width:760px){.topbar-inner{grid-template-columns:1fr;padding:10px 0}.live-main{grid-template-columns:1fr;gap:14px}.live-side,.live-side.away{justify-content:flex-start;text-align:left}.live-side.away .live-side-text{align-items:flex-start}.live-scorebox{min-width:0}.live-team-name{white-space:normal}.live-footer{flex-direction:column;align-items:flex-start}.entity-head{grid-template-columns:1fr}.entity-title{font-size:40px}.stats-row{grid-template-columns:1fr}.kpi-grid{grid-template-columns:repeat(2,1fr)}.club-summary{grid-template-columns:repeat(2,1fr)}.transfer-item,.fixture-compact{grid-template-columns:1fr}.transfer-extra,.fixture-compact .status{text-align:left}.transfer-arrow{display:none}.league-hero{padding:20px}.league-topline{flex-direction:column}.league-logo-box{width:90px;height:90px;flex-basis:90px}.league-title{font-size:46px}.league-stats{grid-template-columns:1fr}.league-player-card{grid-template-columns:1fr auto}.league-player-main{grid-template-columns:auto 1fr}.league-player-rank{display:none}}
       html{scroll-behavior:smooth}
-  </style>
+  
+    .score-match-card{display:grid;gap:12px;padding:16px 18px;border-radius:20px;background:linear-gradient(180deg, rgba(24,36,58,.96), rgba(17,26,43,.98));border:1px solid rgba(255,255,255,.09);box-shadow:0 14px 30px rgba(2,8,18,.18);text-decoration:none;color:inherit;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+    .score-match-card:hover{transform:translateY(-2px);border-color:rgba(227,184,87,.34);box-shadow:0 18px 36px rgba(2,8,18,.24)}
+    .score-top{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;color:var(--muted)}
+    .score-top .league-line{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .score-status{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.05);font-weight:800;color:#dfe7f7;white-space:nowrap}
+    .score-status.live{color:var(--gold);border-color:rgba(227,184,87,.28);background:rgba(227,184,87,.1)}
+    .blink-live{width:8px;height:8px;border-radius:999px;background:currentColor;box-shadow:0 0 12px currentColor;animation:pulseLive 1s ease-in-out infinite}
+    .score-body{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:16px;align-items:center}
+    .score-team{display:flex;align-items:center;gap:12px;min-width:0}
+    .score-team.away{justify-content:flex-end;text-align:right}
+    .score-team.away .score-team-meta{align-items:flex-end}
+    .score-logo{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);overflow:hidden;flex:0 0 52px}
+    .score-logo img{width:34px;height:34px;object-fit:contain}
+    .score-team-meta{display:flex;flex-direction:column;gap:4px;min-width:0}
+    .score-team-name{font-weight:800;font-size:20px;line-height:1.08;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .score-team-name a{text-decoration:none}
+    .score-team-name a:hover{text-decoration:underline}
+    .score-team-note{font-size:12px;color:var(--muted)}
+    .score-center{text-align:center;min-width:110px}
+    .score-center-main{font-family:var(--font-heading);font-size:44px;line-height:.9;letter-spacing:.5px;color:#fff}
+    .score-center-main.live{color:var(--gold)}
+    .score-center-sub{font-size:12px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.8px;margin-top:6px}
+    .score-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;color:var(--muted);padding-top:2px;border-top:1px solid rgba(255,255,255,.06)}
+    .score-footer strong{color:#eef3fb}
+    .event-list{display:grid;gap:10px}
+    .event-row{display:grid;grid-template-columns:54px 1fr auto;gap:12px;align-items:center;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)}
+    .event-minute{font-weight:900;color:var(--gold)}
+    .event-type{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}
+    .event-badge{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);font-size:12px;font-weight:800}
+    .event-badge.goal{color:#6ae0a0;border-color:rgba(106,224,160,.28);background:rgba(106,224,160,.09)}
+    .event-badge.card{color:#ffd45f;border-color:rgba(255,212,95,.28);background:rgba(255,212,95,.09)}
+    .event-badge.sub{color:#8eb8ff;border-color:rgba(142,184,255,.28);background:rgba(142,184,255,.09)}
+    .mini-stat-grid{display:grid;gap:14px}
+    .mini-stat-row{display:grid;gap:8px}
+    .mini-stat-head{display:flex;justify-content:space-between;gap:12px;font-size:13px}
+    .mini-bar{position:relative;height:10px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden;border:1px solid rgba(255,255,255,.06)}
+    .mini-bar-home,.mini-bar-away{position:absolute;top:0;bottom:0}
+    .mini-bar-home{left:0;background:linear-gradient(90deg, rgba(227,184,87,.85), rgba(227,184,87,.55))}
+    .mini-bar-away{right:0;background:linear-gradient(90deg, rgba(111,163,255,.55), rgba(111,163,255,.85))}
+    .match-layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);gap:18px}
+    .match-hero{background:linear-gradient(180deg, rgba(24,35,56,.9), rgba(18,27,42,.92));border:1px solid rgba(255,255,255,.1);border-radius:28px;padding:24px;box-shadow:var(--shadow)}
+    .match-summary{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:22px;align-items:center;margin-top:16px}
+    .match-summary .score-team-name{font-size:28px}
+    .match-summary-score{font-family:var(--font-heading);font-size:68px;line-height:.9;color:#fff;text-align:center}
+    .match-summary-score.live{color:var(--gold)}
+    .match-summary-status{margin-top:8px;text-align:center;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+    .match-pill-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    @media (max-width:900px){.match-layout{grid-template-columns:1fr}.score-body,.match-summary{grid-template-columns:1fr;justify-items:center}.score-team,.score-team.away{justify-content:center;text-align:center}.score-team.away .score-team-meta{align-items:center}.score-team-meta{align-items:center}.score-footer{flex-direction:column;align-items:flex-start}.match-summary .score-team-name{font-size:22px}.match-summary-score{font-size:54px}}
+
+</style>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -464,6 +514,100 @@ async function renderLivePage(){
 function toggleLiveCountry(key,isOpen){window.__liveDirState=window.__liveDirState||{openCountries:{}};window.__liveDirState.openCountries=window.__liveDirState.openCountries||{};if(isOpen){window.__liveDirState.openCountries[key]=true}else{delete window.__liveDirState.openCountries[key]}}
 async function renderLeaguesPage(){const page=document.getElementById('page-leagues');page.innerHTML='<div class="loading">Loading leagues...</div>';try{const data=await apiFetch('leagues',{current:'true'}).catch(()=>({response:[]}));const rows=(data.response||[]).filter(r=>r?.league?.id&&r?.league?.name);const cleaned=rows.filter(r=>{const name=String(r?.league?.name||'').toLowerCase();if(name.includes('reserve')||name.includes('reserves')||name.includes('youth')||name.includes('u17')||name.includes('u19')||name.includes('u21')) return false;return true;});const continents=['europe','south_america','north_america','asia','africa','oceania','world','other'];window.__leagueDirState=window.__leagueDirState||{continent:'europe',openCountries:{}};const activeContinent=window.__leagueDirState.continent;const enriched=cleaned.map(r=>({...r,__country:normalizeCountryName(r?.country?.name),__continent:continentForCountry(r?.country?.name),__season:getLeagueRowSeason(r)}));const continentRows=enriched.filter(r=>r.__continent===activeContinent);const countries=[...new Set(continentRows.map(r=>r.__country))].filter(Boolean).sort((a,b)=>a.localeCompare(b)).map(name=>({name,rows:continentRows.filter(r=>r.__country===name)}));const womenPattern=/(women|femin|femeni|frauen|damallsvenskan|dames|feminino|liga f|wsl)/i;const sortFn=(a,b)=>String(a.league?.name||'').localeCompare(String(b.league?.name||''));page.innerHTML=`<div class="card"><div class="toolbar"><h2 class="section-title" style="margin:0">League <span>directory</span></h2><div class="pill">${enriched.length} competitions</div></div><div class="toolbar-right">${continents.map(c=>`<button class="filter-btn ${activeContinent===c?'active':''}" onclick="window.__leagueDirState={continent:'${c}',openCountries:{}}; renderLeaguesPage();">${continentLabel(c)}</button>`).join('')}</div><div class="card" style="padding:16px;margin-top:14px"><div class="toolbar"><h3 class="section-title" style="font-size:22px;margin:0">Countries</h3><div class="mini">${countries.length}</div></div>${countries.length?`<div class="list">${countries.map(country=>{const men=country.rows.filter(r=>!womenPattern.test(String(r?.league?.name||''))).sort(sortFn);const women=country.rows.filter(r=>womenPattern.test(String(r?.league?.name||''))).sort(sortFn);const key=slugify(country.name);const isOpen=!!window.__leagueDirState.openCountries?.[key];return `<details class="country-dropdown" ${isOpen?'open':''} ontoggle="toggleLeagueCountry(${jsa(key)}, this.open)"><summary class="row-link" style="grid-template-columns:1fr auto;list-style:none;cursor:pointer"><div class="strong">${escapeHtml(country.name)}</div><div class="mini">${country.rows.length} competitions</div></summary><div style="padding:12px 0 2px"><div class="split"><div><h4 class="section-title" style="font-size:18px;margin-bottom:10px">Men</h4>${men.length?`<div class="list">${men.map(l=>`<button class="league-card" type="button" style="width:100%;text-align:left;cursor:pointer" onclick='openLeague(${Number(l.league.id)}, ${jsa(l.league.name)}, ${Number(l.__season)})'><div class="search-avatar">${imgOrFallback(l.league?.logo,l.league?.name)}</div><div><div class="strong">${escapeHtml(l.league?.name||'League')}</div><div class="mini">${escapeHtml(l.league?.type||'League')}</div></div><div class="mini gold">${escapeHtml(formatSeasonLabel(l.__season,l))}</div></button>`).join('')}</div>`:'<div class="empty">No men competitions.</div>'}</div><div><h4 class="section-title" style="font-size:18px;margin-bottom:10px">Women</h4>${women.length?`<div class="list">${women.map(l=>`<button class="league-card" type="button" style="width:100%;text-align:left;cursor:pointer" onclick='openLeague(${Number(l.league.id)}, ${jsa(l.league.name)}, ${Number(l.__season)})'><div class="search-avatar">${imgOrFallback(l.league?.logo,l.league?.name)}</div><div><div class="strong">${escapeHtml(l.league?.name||'League')}</div><div class="mini">${escapeHtml(l.league?.type||'League')}</div></div><div class="mini gold">${escapeHtml(formatSeasonLabel(l.__season,l))}</div></button>`).join('')}</div>`:'<div class="empty">No women competitions.</div>'}</div></div></div></details>`}).join('')}</div>`:'<div class="empty">No countries found.</div>'}</div></div>`;setTitle('Leagues — TransferZoneAI','Browse football leagues by continent, country and competition.')}catch(e){page.innerHTML=`<div class="error">${escapeHtml(e.message||'Could not load leagues.')}</div>`}}
 function toggleLeagueCountry(key,isOpen){window.__leagueDirState=window.__leagueDirState||{continent:'europe',openCountries:{}};window.__leagueDirState.openCountries=window.__leagueDirState.openCountries||{};if(isOpen){window.__leagueDirState.openCountries[key]=true}else{delete window.__leagueDirState.openCountries[key]}}
+
+function parseStatValue(v){
+  if(v==null||v==='') return null;
+  if(typeof v==='number') return v;
+  const s=String(v).trim().replace('%','');
+  const n=Number(s.replace(/[^0-9.\-]/g,''));
+  return Number.isFinite(n)?n:null;
+}
+function findStat(teamStats, labels){
+  const arr=teamStats?.statistics||[];
+  for(const label of labels){
+    const hit=arr.find(x=>String(x?.type||'').toLowerCase()===label.toLowerCase());
+    if(hit) return parseStatValue(hit.value);
+  }
+  for(const item of arr){
+    const t=String(item?.type||'').toLowerCase();
+    if(labels.some(label=>t.includes(String(label).toLowerCase()))) return parseStatValue(item.value);
+  }
+  return null;
+}
+function extractMatchStats(stats){
+  const home=stats?.[0]||{}; const away=stats?.[1]||{};
+  return {
+    homeTeam: fixName(home?.team?.name||''), awayTeam: fixName(away?.team?.name||''),
+    possession: [findStat(home,['Ball Possession','possession']), findStat(away,['Ball Possession','possession'])],
+    shots: [findStat(home,['Total Shots','shots on goal','total shots']), findStat(away,['Total Shots','shots on goal','total shots'])],
+    xg: [findStat(home,['Expected Goals','xg','expected goals']), findStat(away,['Expected Goals','xg','expected goals'])]
+  };
+}
+function renderMiniBar(label, homeVal, awayVal, suffix=''){
+  const h=Number(homeVal||0), a=Number(awayVal||0); const total=Math.max(h+a,1); const hp=(h/total)*100; const ap=(a/total)*100;
+  return `<div class="mini-stat-row"><div class="mini-stat-head"><span><strong>${escapeHtml(num(homeVal))}${suffix}</strong></span><span class="mini">${escapeHtml(label)}</span><span><strong>${escapeHtml(num(awayVal))}${suffix}</strong></span></div><div class="mini-bar"><div class="mini-bar-home" style="width:${hp}%"></div><div class="mini-bar-away" style="width:${ap}%"></div></div></div>`;
+}
+function eventBadge(type){
+  const t=String(type||'').toLowerCase();
+  if(t.includes('goal')) return ['goal','Goal'];
+  if(t.includes('card')) return ['card',fixName(type||'Card')];
+  if(t.includes('subst')) return ['sub','Sub'];
+  return ['','Event'];
+}
+function renderEventRow(ev){
+  const [klass,label]=eventBadge(ev?.type);
+  const minute=`${ev?.time?.elapsed||0}'${ev?.time?.extra?`+${ev.time.extra}`:''}`;
+  const player=fixName(ev?.player?.name||'Unknown');
+  const detail=fixName(ev?.detail||ev?.comments||'');
+  const assist=fixName(ev?.assist?.name||'');
+  return `<div class="event-row"><div class="event-minute">${escapeHtml(minute)}</div><div><div class="strong">${escapeHtml(player)}</div><div class="mini">${escapeHtml(detail)}${assist&&assist!=='Unknown'?` • Assist: ${escapeHtml(assist)}`:''}</div></div><div class="event-badge ${klass}">${escapeHtml(label)}</div></div>`;
+}
+function renderScoreMatchCard(f){
+  const live=['1H','HT','2H','ET','P'].includes(f?.fixture?.status?.short);
+  const finished=['FT','AET','PEN'].includes(f?.fixture?.status?.short);
+  const status=live?(f?.fixture?.status?.elapsed?`${f.fixture.status.elapsed}'`:'LIVE'):finished?'FT':formatKickoff(f?.fixture?.date);
+  const stage=live?'Live':finished?'Finished':'Kickoff';
+  const homeName=fixName(f?.teams?.home?.name||'Home');
+  const awayName=fixName(f?.teams?.away?.name||'Away');
+  const homeId=Number(f?.teams?.home?.id||0); const awayId=Number(f?.teams?.away?.id||0);
+  const score=(finished||live)?`${num(f?.goals?.home)} - ${num(f?.goals?.away)}`:'VS';
+  const venue=fixName(f?.fixture?.venue?.name||'');
+  const leagueLine=`${fixName(f?.league?.name||'')} • ${fixName(f?.league?.country||'')}`;
+  return `<a class="score-match-card" href="/match/${f.fixture.id}" onclick="event.preventDefault(); openMatch(${f.fixture.id});"><div class="score-top"><div class="league-line">${escapeHtml(leagueLine)}</div><div class="score-status ${live?'live':''}">${live?'<span class="blink-live"></span>':''}${escapeHtml(status)}</div></div><div class="score-body"><div class="score-team"><div class="score-logo">${imgOrFallback(f?.teams?.home?.logo,homeName)}</div><div class="score-team-meta"><div class="score-team-name">${homeId?`<a href="${clubPath(homeId,homeName)}" onclick="event.preventDefault(); event.stopPropagation(); openClub(${homeId}, ${jsa(homeName)});">${escapeHtml(homeName)}</a>`:escapeHtml(homeName)}</div><div class="score-team-note">Home</div></div></div><div class="score-center"><div class="score-center-main ${live?'live':''}">${escapeHtml(score)}</div><div class="score-center-sub">${escapeHtml(stage)}</div></div><div class="score-team away"><div class="score-team-meta"><div class="score-team-name">${awayId?`<a href="${clubPath(awayId,awayName)}" onclick="event.preventDefault(); event.stopPropagation(); openClub(${awayId}, ${jsa(awayName)});">${escapeHtml(awayName)}</a>`:escapeHtml(awayName)}</div><div class="score-team-note">Away</div></div><div class="score-logo">${imgOrFallback(f?.teams?.away?.logo,awayName)}</div></div></div><div class="score-footer"><span>${venue?`Venue: <strong>${escapeHtml(venue)}</strong>`:''}</span><span>${!live&&!finished?`<strong>${escapeHtml(formatKickoff(f?.fixture?.date))}</strong>`:''}</span></div></a>`;
+}
+function renderMatchCard(f){ return renderScoreMatchCard(f) }
+function renderLiveFixtureCard(f){ return renderScoreMatchCard(f) }
+async function renderMatch(matchIdArg){
+  const page=document.getElementById('page-match');
+  page.innerHTML='<div class="loading">Loading match...</div>';
+  try{
+    const id=Number(matchIdArg||window.__routeMatchId||location.pathname.split('/')[2]);
+    if(!id) throw new Error('Missing match id.');
+    window.__routeMatchId=id;
+    const [fx, eventsRes, statsRes]=await Promise.all([
+      apiFetch('fixtures',{id}).catch(()=>({response:[]})),
+      apiFetch('fixtures/events',{fixture:id}).catch(()=>({response:[]})),
+      apiFetch('fixtures/statistics',{fixture:id}).catch(()=>({response:[]}))
+    ]);
+    const fixture=(fx.response||[])[0];
+    if(!fixture) throw new Error('Match not found.');
+    const live=['1H','HT','2H','ET','P'].includes(fixture?.fixture?.status?.short);
+    const finished=['FT','AET','PEN'].includes(fixture?.fixture?.status?.short);
+    const status=live?(fixture?.fixture?.status?.elapsed?`${fixture.fixture.status.elapsed}'`:'LIVE'):finished?'FT':formatKickoff(fixture?.fixture?.date);
+    const leagueName=fixName(fixture?.league?.name||'League');
+    const countryName=fixName(fixture?.league?.country||'');
+    const homeName=fixName(fixture?.teams?.home?.name||'Home');
+    const awayName=fixName(fixture?.teams?.away?.name||'Away');
+    const homeId=Number(fixture?.teams?.home?.id||0); const awayId=Number(fixture?.teams?.away?.id||0);
+    const statBlock=extractMatchStats(statsRes.response||[]);
+    const events=(eventsRes.response||[]).filter(Boolean);
+    const goalEvents=events.filter(e=>String(e?.type||'').toLowerCase().includes('goal')).slice(0,8);
+    const keyEvents=(goalEvents.length?goalEvents:events).slice(0,10);
+    setTitle(`${homeName} vs ${awayName} — TransferZoneAI`,`Live match center for ${homeName} vs ${awayName}.`);
+    page.innerHTML=`<section class="match-hero"><div class="entity-kicker">Match center</div><h1 class="entity-title">${escapeHtml(homeName)} <span>vs</span> ${escapeHtml(awayName)}</h1><div class="match-pill-row"><span class="tag">${escapeHtml(countryName)}</span><span class="tag">${escapeHtml(leagueName)}</span><span class="tag ${live?'gold':''}">${live?'<span class="blink-live"></span> ':''}${escapeHtml(status)}</span></div><div class="match-summary"><div class="score-team"><div class="score-logo">${imgOrFallback(fixture?.teams?.home?.logo,homeName)}</div><div class="score-team-meta"><div class="score-team-name">${homeId?`<a href="${clubPath(homeId,homeName)}" onclick="event.preventDefault(); openClub(${homeId}, ${jsa(homeName)});">${escapeHtml(homeName)}</a>`:escapeHtml(homeName)}</div><div class="score-team-note">Home</div></div></div><div><div class="match-summary-score ${live?'live':''}">${num(fixture?.goals?.home)} - ${num(fixture?.goals?.away)}</div><div class="match-summary-status">${live?'Live':finished?'Finished':'Kickoff'}</div></div><div class="score-team away"><div class="score-team-meta"><div class="score-team-name">${awayId?`<a href="${clubPath(awayId,awayName)}" onclick="event.preventDefault(); openClub(${awayId}, ${jsa(awayName)});">${escapeHtml(awayName)}</a>`:escapeHtml(awayName)}</div><div class="score-team-note">Away</div></div><div class="score-logo">${imgOrFallback(fixture?.teams?.away?.logo,awayName)}</div></div></div></section><section class="match-layout" style="margin-top:18px"><div class="stack"><div class="card"><div class="section-header"><h2 class="section-title">Key <span>events</span></h2><div class="mini">Livescore timeline</div></div>${keyEvents.length?`<div class="event-list">${keyEvents.map(renderEventRow).join('')}</div>`:'<div class="empty">No events found for this match.</div>'}</div><div class="card"><div class="section-header"><h2 class="section-title">Match <span>stats</span></h2><div class="mini">xG + possession</div></div><div class="mini-stat-grid">${renderMiniBar('Possession', statBlock.possession[0], statBlock.possession[1], '%')}${renderMiniBar('Expected goals', statBlock.xg[0], statBlock.xg[1])}${renderMiniBar('Total shots', statBlock.shots[0], statBlock.shots[1])}</div></div></div><div class="stack"><div class="card"><div class="section-header"><h2 class="section-title">Quick <span>info</span></h2><div class="mini">Fixture details</div></div><div class="info-grid"><div class="info-item"><label>Kickoff</label><div class="strong">${escapeHtml(formatKickoff(fixture?.fixture?.date))}</div></div><div class="info-item"><label>Venue</label><div class="strong">${escapeHtml(fixName(fixture?.fixture?.venue?.name||'—'))}</div></div><div class="info-item"><label>Referee</label><div class="strong">${escapeHtml(fixName(fixture?.fixture?.referee||'—'))}</div></div><div class="info-item"><label>Status</label><div class="strong">${escapeHtml(status)}</div></div></div></div>${goalEvents.length?`<div class="card"><div class="section-header"><h2 class="section-title">Goal <span>events</span></h2><div class="mini">Scoring moments</div></div><div class="event-list">${goalEvents.map(renderEventRow).join('')}</div></div>`:''}</div></section>`;
+  }catch(e){ page.innerHTML=`<div class="error">${escapeHtml(e.message||'Could not load match.')}</div>`; }
+}
+
 resolveRoute(location.pathname);
 
 </script>
