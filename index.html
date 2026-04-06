@@ -478,6 +478,49 @@ function renderGlobalTransferCard(row){
   const inId=Number(tr?.teams?.in?.id||0), outId=Number(tr?.teams?.out?.id||0);
   return `<div class="transfer-item transfer-item-global"><div class="transfer-date">${escapeHtml(date)}</div><div class="transfer-arrow">→</div><div class="transfer-meta"><div class="transfer-topline"><a class="strong" href="${playerPath(player.id,player.name)}" onclick="event.preventDefault(); openPlayer(${Number(player.id||0)}, ${jsa(player.name||'Player')});">${escapeHtml(fixName(player.name||'Unknown player'))}</a><span class="transfer-type ${['Loan','Return'].includes(type)?'out':'in'}">${escapeHtml(type)}</span></div><div class="mini">${outId?`<a href="${clubPath(outId,fromName)}" onclick="event.preventDefault(); openClub(${outId}, ${jsa(fromName)});">${escapeHtml(fromName)}</a>`:escapeHtml(fromName)} → <span class="gold">${inId?`<a href="${clubPath(inId,toName)}" onclick="event.preventDefault(); openClub(${inId}, ${jsa(toName)});">${escapeHtml(toName)}</a>`:escapeHtml(toName)}</span></div></div><div class="transfer-extra">${escapeHtml(extra||'—')}</div></div>`;
 }
+
+async function renderTransfersPage(){
+  const page=document.getElementById('page-transfers');
+  page.innerHTML='<div class="loading">Loading transfers...</div>';
+  setTitle('Transfers — TransferZoneAI','Latest football transfers from the API feed.');
+  try{
+    let rows=[];
+    try{
+      const globalRes=await apiFetch('transfers',{});
+      rows=flattenTransferRows(globalRes?.response||[]);
+    }catch(e){ rows=[]; }
+    if(!rows.length){
+      const major=[39,140,135,78,61,94,88,203];
+      const teamIds=[];
+      for(const leagueId of major){
+        try{
+          let st=await apiFetch('standings',{league:leagueId,season:CURRENT_SEASON}).catch(()=>({response:[]}));
+          let table=st?.response?.[0]?.league?.standings?.[0]||[];
+          if(!table.length){
+            st=await apiFetch('standings',{league:leagueId,season:CURRENT_SEASON-1}).catch(()=>({response:[]}));
+            table=st?.response?.[0]?.league?.standings?.[0]||[];
+          }
+          table.slice(0,20).forEach(r=>{ const id=Number(r?.team?.id||0); if(id) teamIds.push(id); });
+        }catch(e){}
+      }
+      const uniqueIds=[...new Set(teamIds)].slice(0,80);
+      const agg=[];
+      for(let i=0;i<uniqueIds.length;i+=8){
+        const batch=uniqueIds.slice(i,i+8);
+        const res=await Promise.all(batch.map(id=>apiFetch('transfers',{team:id}).then(r=>r?.response||[]).catch(()=>[])));
+        res.flat().forEach(r=>agg.push(r));
+      }
+      rows=flattenTransferRows(agg);
+    }
+    const cards=rows.map(renderGlobalTransferCard).filter(Boolean);
+    page.innerHTML=`<section class="card"><div class="section-header"><h2 class="section-title">All <span>transfers</span></h2><div class="mini">Sorted by date</div></div>${cards.length?`<div class="list">${cards.join('')}</div>`:'<div class="empty">No transfers returned by the API right now.</div>'}</section>`;
+  }catch(e){
+    page.innerHTML=`<div class="error">${escapeHtml(e.message||'Could not load transfers.')}</div>`;
+  }
+}
+
+function yyyyMmDd(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+
 function renderLiveFixtureCard(f){
   const live=['1H','HT','2H','ET','P'].includes(f?.fixture?.status?.short);
   const finished=['FT','AET','PEN'].includes(f?.fixture?.status?.short);
@@ -499,12 +542,20 @@ async function renderLivePage(){
   page.innerHTML='<div class="loading">Loading live matches...</div>';
   setTitle('Live — TransferZoneAI','Live football matches grouped by country with expandable fixture lists.');
   try{
-    const [liveData,nextData]=await Promise.all([
+    const today=new Date();
+    const tomorrow=new Date(today); tomorrow.setDate(today.getDate()+1);
+    const inTwoDays=new Date(today); inTwoDays.setDate(today.getDate()+2);
+    const [liveData,nextData,todayData,tomorrowData,twoDaysData]=await Promise.all([
       apiFetch('fixtures',{live:'all'}).then(r=>r.response||[]).catch(()=>[]),
-      apiFetch('fixtures',{next:120}).then(r=>r.response||[]).catch(()=>[])
+      apiFetch('fixtures',{next:120}).then(r=>r.response||[]).catch(()=>[]),
+      apiFetch('fixtures',{date:yyyyMmDd(today)}).then(r=>r.response||[]).catch(()=>[]),
+      apiFetch('fixtures',{date:yyyyMmDd(tomorrow)}).then(r=>r.response||[]).catch(()=>[]),
+      apiFetch('fixtures',{date:yyyyMmDd(inTwoDays)}).then(r=>r.response||[]).catch(()=>[])
     ]);
-    const liveRows=liveData||[];
-    const nextRows=(nextData||[]).filter(f=>!liveRows.some(l=>Number(l?.fixture?.id||0)===Number(f?.fixture?.id||0))).slice(0,120);
+    const liveRows=(liveData||[]);
+    const fallbackUpcoming=[...(todayData||[]),...(tomorrowData||[]),...(twoDaysData||[])];
+    const nextBase=(nextData&&nextData.length?nextData:fallbackUpcoming);
+    const nextRows=(nextBase||[]).filter(f=>!liveRows.some(l=>Number(l?.fixture?.id||0)===Number(f?.fixture?.id||0))).slice(0,120);
     const all=[...liveRows,...nextRows];
     const countries=[...new Set(all.map(f=>fixName(f?.league?.country||'Other')).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
     window.__liveDirState=window.__liveDirState||{openCountries:{}};
