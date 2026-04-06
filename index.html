@@ -175,7 +175,8 @@
     .mini-bar-home{left:0;background:linear-gradient(90deg, rgba(227,184,87,.85), rgba(227,184,87,.55))}
     .mini-bar-away{right:0;background:linear-gradient(90deg, rgba(111,163,255,.55), rgba(111,163,255,.85))}
     .match-layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);gap:18px}
-    .match-hero{background:linear-gradient(180deg, rgba(24,35,56,.9), rgba(18,27,42,.92));border:1px solid rgba(255,255,255,.1);border-radius:28px;padding:24px;box-shadow:var(--shadow)}
+    .match-hero{background:linear-gradient(180deg, rgba(24,35,56,.9), rgba(18,27,42,.92));border:1px solid rgba(255,255,255,.1);border-radius:28px;padding:24px;box-shadow:var(--shadow)}.match-team-link{display:flex;flex-direction:column;align-items:center;gap:10px;text-decoration:none;color:inherit}.match-team-name{font-family:var(--font-heading);font-size:28px;text-align:center}.match-big-score{font-family:var(--font-heading);font-size:64px;line-height:.9}.match-score-row{display:grid;grid-template-columns:1fr auto 1fr;gap:24px;align-items:center}.match-team-block{display:flex;justify-content:center}.match-score-center{text-align:center}.match-meta-top{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:18px}@media (max-width:760px){.match-score-row{grid-template-columns:1fr;gap:14px}.match-big-score{font-size:46px}}
+
     .match-summary{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:22px;align-items:center;margin-top:16px}
     .match-summary .score-team-name{font-size:28px}
     .match-summary-score{font-family:var(--font-heading);font-size:68px;line-height:.9;color:#fff;text-align:center}
@@ -666,6 +667,63 @@ function renderLiveFixtureCard(f){
   const venue=fixName(f?.fixture?.venue?.name||'');
   const score=(finished||live)?`${num(f?.goals?.home)} - ${num(f?.goals?.away)}`:'VS';
   return `<a class="live-simple-card" href="/match/${f?.fixture?.id}" onclick="event.preventDefault(); openMatch(${Number(f?.fixture?.id||0)});"><div class="live-simple-head"><div class="live-simple-league">${escapeHtml(fixName(f?.league?.name||''))} • ${escapeHtml(fixName(f?.league?.country||''))}</div><div class="live-simple-status">${live?'<span class="dot"></span>':''}${escapeHtml(status)}</div></div><div class="live-simple-main"><div class="live-simple-team"><img src="${escapeHtml(f?.teams?.home?.logo||'')}" alt="${escapeHtml(homeName)}" onerror="this.style.visibility='hidden'"><div><div class="live-simple-team-name">${homeId?`<a href="${clubPath(homeId,homeName)}" onclick="event.preventDefault();event.stopPropagation();openClub(${homeId}, ${jsa(homeName)});">${escapeHtml(homeName)}</a>`:escapeHtml(homeName)}</div><div class="live-simple-team-sub">Home</div></div></div><div class="live-simple-score"><div class="score">${escapeHtml(score)}</div><div class="note">${escapeHtml(stage)}</div></div><div class="live-simple-team away"><div><div class="live-simple-team-name">${awayId?`<a href="${clubPath(awayId,awayName)}" onclick="event.preventDefault();event.stopPropagation();openClub(${awayId}, ${jsa(awayName)});">${escapeHtml(awayName)}</a>`:escapeHtml(awayName)}</div><div class="live-simple-team-sub">Away</div></div><img src="${escapeHtml(f?.teams?.away?.logo||'')}" alt="${escapeHtml(awayName)}" onerror="this.style.visibility='hidden'"></div></div><div class="live-simple-footer"><span>${venue?`Venue: <strong>${escapeHtml(venue)}</strong>`:'&nbsp;'}</span><span>${!live&&!finished?`<strong>${escapeHtml(formatKickoff(f?.fixture?.date))}</strong>`:'Click for stats & events'}</span></div></a>`
+}
+
+
+
+async function renderMatch(matchIdOrSlug){
+  const page=document.getElementById('page-match');
+  page.innerHTML='<div class="loading">Loading match...</div>';
+  let id=Number(matchIdOrSlug||window.__routeMatchId||0);
+  if(!id){
+    const m=String(matchIdOrSlug||'').match(/(\d+)/);
+    if(m) id=Number(m[1]);
+  }
+  if(!id){
+    page.innerHTML='<div class="error">Missing match id from route.</div>';
+    return;
+  }
+  window.__routeMatchId=id;
+  try{
+    const [fxRes, statsRes, eventsRes, lineupsRes]=await Promise.all([
+      apiFetch('fixtures',{id}).catch(()=>({response:[]})),
+      apiFetch('fixtures/statistics',{fixture:id}).catch(()=>({response:[]})),
+      apiFetch('fixtures/events',{fixture:id}).catch(()=>({response:[]})),
+      apiFetch('fixtures/lineups',{fixture:id}).catch(()=>({response:[]}))
+    ]);
+    const f=(fxRes&&fxRes.response&&fxRes.response[0])||null;
+    if(!f){
+      page.innerHTML='<div class="error">Could not load this match from the API.</div>';
+      return;
+    }
+    const live=['1H','HT','2H','ET','P'].includes(f?.fixture?.status?.short);
+    const finished=['FT','AET','PEN'].includes(f?.fixture?.status?.short);
+    const status=live?(f?.fixture?.status?.elapsed?`${f.fixture.status.elapsed}'`:'LIVE'):finished?'FT':formatKickoff(f?.fixture?.date);
+    const homeName=fixName(f?.teams?.home?.name||'Home');
+    const awayName=fixName(f?.teams?.away?.name||'Away');
+    const homeId=Number(f?.teams?.home?.id||0);
+    const awayId=Number(f?.teams?.away?.id||0);
+    const leagueName=fixName(f?.league?.name||'League');
+    const leagueId=Number(f?.league?.id||0);
+    const leagueSeason=Number(f?.league?.season||CURRENT_SEASON);
+    const venue=fixName(f?.fixture?.venue?.name||'');
+    const score=`${num(f?.goals?.home)} - ${num(f?.goals?.away)}`;
+    const stats=extractMatchStats(statsRes?.response||[]);
+    const events=(eventsRes?.response||[]).slice().sort((a,b)=>(Number(a?.time?.elapsed||0)-Number(b?.time?.elapsed||0)));
+    const lineups=(lineupsRes?.response||[]);
+    const homeLine=lineups.find(x=>Number(x?.team?.id||0)===homeId) || lineups[0] || null;
+    const awayLine=lineups.find(x=>Number(x?.team?.id||0)===awayId) || lineups[1] || null;
+    function renderLineupTeam(line, fallbackName, fallbackId){
+      if(!line) return '<div class="empty">No lineup available.</div>';
+      const starters=(line.startXI||[]).map(x=>x.player).filter(Boolean);
+      return `<div class="list">${starters.map(pl=>`<button class="player-row" type="button" onclick="openPlayer(${Number(pl.id||0)}, ${jsa(pl.name||'Player')})"><div class="avatar">${imgOrFallback(pl.photo||'', pl.name||'Player')}</div><div><div class="strong">${escapeHtml(fixName(pl.name||'Player'))}</div><div class="mini">#${escapeHtml(num(pl.number))} ${escapeHtml(fixName(pl.pos||''))}</div></div><div class="mini">${escapeHtml(fixName(line?.formation||''))}</div></button>`).join('')}</div>`;
+    }
+    page.innerHTML=`<section class="match-hero"><div class="match-meta-top"><div class="mini">${leagueId?`<a href="${leaguePath(leagueId,leagueName)}" onclick="event.preventDefault();openLeague(${leagueId}, ${jsa(leagueName)}, ${leagueSeason});">${escapeHtml(leagueName)}</a>`:escapeHtml(leagueName)} • ${escapeHtml(fixName(f?.league?.country||''))}</div><div class="pill">${escapeHtml(status)}</div></div><div class="match-score-row"><div class="match-team-block">${homeId?`<a href="${clubPath(homeId,homeName)}" onclick="event.preventDefault();openClub(${homeId}, ${jsa(homeName)});" class="match-team-link">`:''}<div class="entity-logo" style="width:88px;height:88px">${imgOrFallback(f?.teams?.home?.logo,homeName)}</div><div class="match-team-name">${escapeHtml(homeName)}</div>${homeId?'</a>':''}</div><div class="match-score-center"><div class="match-big-score ${live?'gold':''}">${escapeHtml(score)}</div><div class="mini">${live?'Live match':finished?'Full time':'Scheduled'}</div><div class="mini">${venue?`Venue: ${escapeHtml(venue)}`:''}</div></div><div class="match-team-block">${awayId?`<a href="${clubPath(awayId,awayName)}" onclick="event.preventDefault();openClub(${awayId}, ${jsa(awayName)});" class="match-team-link">`:''}<div class="entity-logo" style="width:88px;height:88px">${imgOrFallback(f?.teams?.away?.logo,awayName)}</div><div class="match-team-name">${escapeHtml(awayName)}</div>${awayId?'</a>':''}</div></div></section>
+    <section class="main-grid" style="padding-top:18px"><div class="stack"><div class="card"><div class="section-header"><h2 class="section-title">Match <span>stats</span></h2></div>${renderMiniBar('Possession', stats.possession?.[0], stats.possession?.[1], '%')}${renderMiniBar('Shots', stats.shots?.[0], stats.shots?.[1])}${renderMiniBar('xG', stats.xg?.[0], stats.xg?.[1])}</div><div class="card"><div class="section-header"><h2 class="section-title">Key <span>events</span></h2></div>${events.length?`<div class="list">${events.map(renderEventRow).join('')}</div>`:'<div class="empty">No event feed available.</div>'}</div><div class="split"><div class="card"><div class="section-header"><h2 class="section-title">Home <span>lineup</span></h2></div>${renderLineupTeam(homeLine,homeName,homeId)}</div><div class="card"><div class="section-header"><h2 class="section-title">Away <span>lineup</span></h2></div>${renderLineupTeam(awayLine,awayName,awayId)}</div></div></div><aside class="stack"><div class="card sidebar-card"><div class="section-header"><h2 class="section-title">Fixture <span>info</span></h2></div><div class="info-grid"><div class="info-item"><label>Date</label><div>${escapeHtml(formatDate(f?.fixture?.date))}</div></div><div class="info-item"><label>Status</label><div>${escapeHtml(status)}</div></div><div class="info-item"><label>Referee</label><div>${escapeHtml(fixName(f?.fixture?.referee||'—'))}</div></div><div class="info-item"><label>Venue</label><div>${escapeHtml(venue||'—')}</div></div></div></div></aside></section>`;
+    setTitle(`${homeName} vs ${awayName} — TransferZoneAI`,`Match stats, lineups and events for ${homeName} vs ${awayName}.`);
+  }catch(e){
+    page.innerHTML=`<div class="error">${escapeHtml(e.message||'Could not load this match.')}</div>`;
+  }
 }
 
 
