@@ -214,38 +214,234 @@ async function renderHome() {
       apiFetch('players/topscorers', { league: 39, season: 2025 }).catch(() => ({ response: [] }))
     ]);
 
-    const live = (liveData.response || []).slice(0, 8);
-    const transfers = (transferData.response || []).slice(0, 8);
-    const scorers = (topScorersData.response || []).slice(0, 6);
+    const live = (liveData.response || []).slice(0, 6);
+    const transfers = (transferData.response || []).slice(0, 6);
+    const scorers = (topScorersData.response || []).slice(0, 8);
+    const featured = scorers[0] || null;
+
+    function renderLiveCards() {
+      if (!live.length) {
+        return `<div class="empty">No live matches right now.</div>`;
+      }
+
+      return `
+        <div class="list">
+          ${live.map((match) => {
+            const home = match.teams?.home || {};
+            const away = match.teams?.away || {};
+            const league = match.league || {};
+            const fixture = match.fixture || {};
+            const goals = match.goals || {};
+            const isLive = ['1H','2H','HT','ET','BT','P','LIVE'].includes(fixture.status?.short);
+
+            return `
+              <a class="row" data-link href="/match/${fixture.id}">
+                <div class="live-row-enhanced">
+                  <div class="team-line">
+                    <div class="team-logo">
+                      ${home.logo ? `<img src="${home.logo}" alt="${escapeHtml(home.name || '')}" />` : '🏠'}
+                    </div>
+                    <div class="team-copy">
+                      <div><strong>${escapeHtml(home.name || 'Home')}</strong></div>
+                      <div class="muted">${escapeHtml(league.name || '')}</div>
+                    </div>
+                  </div>
+
+                  <div class="match-middle">
+                    <div class="score">${goals.home ?? 0} - ${goals.away ?? 0}</div>
+                    <div class="status-pill ${isLive ? 'live' : ''}">
+                      ${escapeHtml(fixture.status?.short || 'LIVE')}
+                    </div>
+                  </div>
+
+                  <div class="team-line right">
+                    <div class="team-copy">
+                      <div><strong>${escapeHtml(away.name || 'Away')}</strong></div>
+                      <div class="muted">${escapeHtml(fixture.status?.elapsed ? `${fixture.status.elapsed}'` : '')}</div>
+                    </div>
+                    <div class="team-logo">
+                      ${away.logo ? `<img src="${away.logo}" alt="${escapeHtml(away.name || '')}" />` : '🚌'}
+                    </div>
+                  </div>
+                </div>
+              </a>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function renderTransfersList() {
+      if (!transfers.length) {
+        return `<div class="empty">No transfer data right now.</div>`;
+      }
+
+      return `
+        <div class="transfer-list">
+          ${transfers.map((t) => {
+            const player = t.player || {};
+            const move = t.transfers?.[0] || {};
+            const fromName = move.teams?.out?.name || 'Unknown club';
+            const toName = move.teams?.in?.name || 'Unknown club';
+            const type = move.type || 'Transfer';
+
+            const playerName =
+              player.name ||
+              t.player_name ||
+              move.player_name ||
+              'Unknown player';
+
+            const playerPhoto =
+              player.photo ||
+              t.player_photo ||
+              '';
+
+            const playerId =
+              player.id ||
+              t.player_id ||
+              '';
+
+            const playerHref = playerId
+              ? `/player/${slugify(playerName)}-${playerId}`
+              : '/transfers';
+
+            return `
+              <a class="transfer-item" data-link href="${playerHref}">
+                ${avatar(playerPhoto, playerName)}
+                <div class="transfer-copy">
+                  <div><strong>${escapeHtml(playerName)}</strong></div>
+                  <div class="transfer-route">${escapeHtml(fromName)} → ${escapeHtml(toName)}</div>
+                </div>
+                <div class="transfer-type">${escapeHtml(type)}</div>
+              </a>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function renderScorersList() {
+      if (!scorers.length) {
+        return `<div class="empty">No scorer data right now.</div>`;
+      }
+
+      return `
+        <div class="panel-list">
+          ${scorers.map((item, index) => {
+            const p = item.player || {};
+            const stats = item.statistics?.[0] || {};
+            const team = stats.team || {};
+            const goals = stats.goals?.total || 0;
+
+            return `
+              <a class="scorer-card" data-link href="/player/${slugify(p.name || 'player')}-${p.id}">
+                <div class="scorer-rank">${index + 1}</div>
+                <div>
+                  <div><strong>${escapeHtml(p.name || 'Unknown player')}</strong></div>
+                  <div class="muted">${escapeHtml(team.name || 'Unknown club')}</div>
+                </div>
+                <div class="scorer-score">${goals}</div>
+              </a>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function renderFeaturedPlayer() {
+      if (!featured) {
+        return `
+          <div class="hero-side-card">
+            <h3 class="hero-side-title">Featured <span>Player</span></h3>
+            <div class="empty">No featured player right now.</div>
+          </div>
+        `;
+      }
+
+      const p = featured.player || {};
+      const stats = featured.statistics?.[0] || {};
+      const team = stats.team || {};
+      const league = stats.league || {};
+      const goals = stats.goals?.total || 0;
+      const assists = stats.goals?.assists || 0;
+      const apps = stats.games?.appearences || 0;
+
+      return `
+        <a class="hero-side-card" data-link href="/player/${slugify(p.name || 'player')}-${p.id}">
+          <h3 class="hero-side-title">Featured <span>Player</span></h3>
+
+          <div class="featured-player">
+            <div class="featured-player-top">
+              <div class="featured-player-photo">
+                ${p.photo ? `<img src="${p.photo}" alt="${escapeHtml(p.name || '')}" />` : ''}
+              </div>
+              <div>
+                <div style="font-size:28px;font-family:'Barlow Condensed',sans-serif;line-height:.95;">
+                  ${escapeHtml(p.name || 'Unknown player')}
+                </div>
+                <div class="muted" style="margin-top:6px;">
+                  ${escapeHtml(team.name || 'Unknown club')}
+                </div>
+                <div class="muted">
+                  ${escapeHtml(league.name || 'Unknown league')}
+                </div>
+              </div>
+            </div>
+
+            <div class="featured-stats">
+              <div class="featured-stat">
+                <div class="featured-stat-label">Goals</div>
+                <div class="featured-stat-value">${goals}</div>
+              </div>
+              <div class="featured-stat">
+                <div class="featured-stat-label">Assists</div>
+                <div class="featured-stat-value">${assists}</div>
+              </div>
+              <div class="featured-stat">
+                <div class="featured-stat-label">Apps</div>
+                <div class="featured-stat-value">${apps}</div>
+              </div>
+            </div>
+          </div>
+        </a>
+      `;
+    }
 
     const content = `
       <section class="hero">
-        <div class="hero-card">
-          <div class="hero-kicker">Football intelligence</div>
-          <h1 class="hero-title">Transfermarkt style.<br><span>Cleaner. Faster. Better.</span></h1>
-          <p class="hero-sub">A rebuilt football platform with modern UI, real routing, cleaner search, better entity pages and a structure that is actually possible to grow.</p>
-          <div class="hero-actions">
-            <a href="/transfers" data-link class="btn primary">Explore transfers</a>
-            <a href="/live" data-link class="btn">Open live centre</a>
+        <div class="hero-grid">
+          <div class="hero-card">
+            <div class="hero-kicker">Football intelligence</div>
+            <h1 class="hero-title">Transfermarkt style.<br><span>Cleaner. Faster. Better.</span></h1>
+            <p class="hero-sub">A rebuilt football platform with modern UI, real routing, cleaner search, better entity pages and a structure that is actually possible to grow.</p>
+
+            <div class="hero-actions">
+              <a href="/transfers" data-link class="btn primary">Explore transfers</a>
+              <a href="/live" data-link class="btn">Open live centre</a>
+            </div>
+
+            <div class="kpis">
+              <div class="kpi">
+                <div class="kpi-label">Live matches</div>
+                <div class="kpi-value">${live.length}</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi-label">Fresh transfers</div>
+                <div class="kpi-value">${transfers.length}</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi-label">Top scorers shown</div>
+                <div class="kpi-value">${scorers.length}</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi-label">Version</div>
+                <div class="kpi-value">1.1</div>
+              </div>
+            </div>
           </div>
 
-          <div class="kpis">
-            <div class="kpi">
-              <div class="kpi-label">Live matches</div>
-              <div class="kpi-value">${live.length}</div>
-            </div>
-            <div class="kpi">
-              <div class="kpi-label">Fresh transfers</div>
-              <div class="kpi-value">${transfers.length}</div>
-            </div>
-            <div class="kpi">
-              <div class="kpi-label">Top scorers shown</div>
-              <div class="kpi-value">${scorers.length}</div>
-            </div>
-            <div class="kpi">
-              <div class="kpi-label">Version</div>
-              <div class="kpi-value">1.0</div>
-            </div>
+          <div class="hero-side">
+            ${renderFeaturedPlayer()}
           </div>
         </div>
       </section>
@@ -253,87 +449,14 @@ async function renderHome() {
       <section class="page">
         <div class="grid-home">
           <div class="stack">
-            ${card(
-              'Live <span>Matches</span>',
-              live.length
-                ? `
-                  <div class="list">
-                    ${live.map((match) => {
-                      const home = match.teams?.home;
-                      const away = match.teams?.away;
-                      const goals = match.goals || {};
-                      return `
-                        <a class="row match-row" data-link href="/match/${match.fixture?.id}">
-                          <div>
-                            <div><strong>${escapeHtml(home?.name || 'Home')}</strong></div>
-                            <div class="muted">${escapeHtml(match.league?.name || '')}</div>
-                          </div>
-                          <div class="score">${goals.home ?? 0} - ${goals.away ?? 0}</div>
-                          <div style="text-align:right">
-                            <div><strong>${escapeHtml(away?.name || 'Away')}</strong></div>
-                            <div class="muted">${escapeHtml(match.fixture?.status?.short || '')}</div>
-                          </div>
-                        </a>
-                      `;
-                    }).join('')}
-                  </div>
-                `
-                : `<div class="empty">No live matches right now.</div>`
-            )}
-
-            ${card(
-              'Top <span>Scorers</span>',
-              scorers.length
-                ? `
-                  <div class="panel-list">
-                    ${scorers.map((item) => {
-                      const p = item.player;
-                      const team = item.statistics?.[0]?.team;
-                      const goals = item.statistics?.[0]?.goals?.total || 0;
-
-                      return `
-                        <a class="player-mini" data-link href="/player/${slugify(p.name)}-${p.id}">
-                          ${avatar(p.photo, p.name)}
-                          <div>
-                            <div><strong>${escapeHtml(p.name)}</strong></div>
-                            <div class="muted">${escapeHtml(team?.name || '')}</div>
-                          </div>
-                          <div class="value-tag">${goals}</div>
-                        </a>
-                      `;
-                    }).join('')}
-                  </div>
-                `
-                : `<div class="empty">No scorer data right now.</div>`
-            )}
+            ${card('Live <span>Matches</span>', renderLiveCards())}
+            ${card('Top <span>Scorers</span>', renderScorersList())}
           </div>
 
           <div class="stack">
             ${card(
               'Latest <span>Transfers</span>',
-              transfers.length
-                ? `
-                  <div class="list">
-                    ${transfers.map((t) => {
-                      const player = t.player || {};
-                      const from = t.transfers?.[0]?.teams?.out?.name || '—';
-                      const to = t.transfers?.[0]?.teams?.in?.name || '—';
-                      const fee = t.transfers?.[0]?.type || 'Transfer';
-
-                      return `
-                        <a class="row transfer-row" data-link href="/player/${slugify(player.name)}-${player.id}">
-                          ${avatar(player.photo, player.name)}
-                          <div>
-                            <div><strong>${escapeHtml(player.name || 'Unknown player')}</strong></div>
-                            <div class="muted">${escapeHtml(from)} → ${escapeHtml(to)}</div>
-                          </div>
-                          <div class="value-tag">${escapeHtml(fee)}</div>
-                        </a>
-                      `;
-                    }).join('')}
-                  </div>
-                `
-                : `<div class="empty">No transfer data right now.</div>`,
+              renderTransfersList(),
               `<a data-link href="/transfers" class="badge">Open all</a>`
             )}
 
