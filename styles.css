@@ -233,6 +233,7 @@ button,input,select{font:inherit}
 .hero-title{
   font-family:"Barlow Condensed",sans-serif;
   font-size:clamp(50px,9vw,92px);
+  text-shadow: 0 8px 40px rgba(215,174,66,.25);
   line-height:.92;
   margin:16px 0 8px;
 }
@@ -799,4 +800,14 @@ tr:hover td{background:rgba(255,255,255,.03)}
   .hero-grid{
     grid-template-columns:1fr;
   }
+}
+
+.status-pill.live{
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse{
+  0%{opacity:1}
+  50%{opacity:.6}
+  100%{opacity:1}
 }
