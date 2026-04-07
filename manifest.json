@@ -1,0 +1,26 @@
+{
+  "name": "TransferZoneAI",
+  "short_name": "TransferZoneAI",
+  "description": "Modern football intelligence — players, clubs, leagues, transfers and live scores.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07111f",
+  "theme_color": "#07111f",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/transferzoneai-logo-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/transferzoneai-logo-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["sports", "news"],
+  "lang": "en"
+}
