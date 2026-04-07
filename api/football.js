@@ -422,176 +422,104 @@ export default async function handler(req) {
     if (endpoint === 'transfers/global') {
   try {
     const today = new Date();
-    const cutoff = new Date(today);
+    const cutoff = new Date();
     cutoff.setFullYear(today.getFullYear() - 2);
 
     const limit = Math.min(Number(searchParams.get('limit') || 200), 500);
+    const season = new Date().getFullYear();
 
-    const EUROPE_LEAGUES = [
-      39, 40, 41,
-      140, 141,
-      78, 79,
-      135, 136,
-      61, 62,
-      94, 95,
-      88, 89,
-      144, 145,
-      113, 114,
-      103, 104,
-      119, 120,
-      203, 204,
-      235,
-      179,
-      197,
-      207,
-      218,
-      333,
-      345,
-      357,
-      291,
-      244,
-      106,
-      271,
-      169,
-    ];
+    const TOP_LEAGUES = [39, 140, 78, 135, 61, 113, 94, 179]; // bra täckning
 
-    const ROTATING_REGIONS = {
-      asia: [98, 292, 169, 17, 323, 307],
-      africa: [233, 288, 200, 263, 265, 299],
-      south_america: [71, 72, 128, 239, 240, 242],
-      north_america: [253, 262, 321],
-    };
+    // =========================
+    // 1. Hämta lag från ligor
+    // =========================
+    let teams = [];
 
-    const REGION_NAMES = Object.keys(ROTATING_REGIONS);
-    const dayIndex = today.getDate() % REGION_NAMES.length;
-    const rotatingRegion = REGION_NAMES[dayIndex];
-    const rotatingLeagues = ROTATING_REGIONS[rotatingRegion] || [];
+    const leagueResponses = await Promise.all(
+      TOP_LEAGUES.map(l =>
+        fetchJSON(`https://v3.football.api-sports.io/teams?league=${l}&season=${season}`, key)
+          .catch(() => ({ response: [] }))
+      )
+    );
 
-    const allLeagues = [...new Set([...EUROPE_LEAGUES, ...rotatingLeagues])];
+    teams = leagueResponses
+      .flatMap(r => r.response || [])
+      .map(t => t.team?.id)
+      .filter(Boolean);
 
-    const TOP5_TEAMS = [
-      33, 40, 42, 47, 50,
-      529, 530, 532, 541, 548,
-      157, 165, 168, 173, 161,
-      489, 492, 496, 488, 487,
-      85, 81, 80, 84, 91,
-    ];
+    // limitera så vi inte dödar API
+    teams = [...new Set(teams)].slice(0, 80);
 
-    function validTransferDate(dateStr) {
-      if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return false;
-      if (d > today) return false;
-      if (d < cutoff) return false;
+    // =========================
+    // 2. Hämta transfers per team
+    // =========================
+    const teamResponses = await Promise.all(
+      teams.map(id =>
+        fetchJSON(`https://v3.football.api-sports.io/transfers?team=${id}`, key)
+          .catch(() => ({ response: [] }))
+      )
+    );
+
+    // =========================
+    // 3. Normalisera
+    // =========================
+    function validDate(d) {
+      if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+      const date = new Date(d);
+      if (isNaN(date)) return false;
+      if (date > today) return false;
+      if (date < cutoff) return false;
       return true;
     }
 
-    function normalizeTransfer(entry, tr) {
-      return {
-        player: entry.player?.name ?? '',
-        playerId: entry.player?.id ?? 0,
-        photo: entry.player?.photo ?? '',
-        from: tr.teams?.out?.name ?? '',
-        fromId: tr.teams?.out?.id ?? 0,
-        fromLogo: tr.teams?.out?.logo ?? '',
-        to: tr.teams?.in?.name ?? '',
-        toId: tr.teams?.in?.id ?? 0,
-        toLogo: tr.teams?.in?.logo ?? '',
-        type: tr.type ?? '',
-        date: tr.date ?? '',
-      };
-    }
-
-    function cleanTransfers(rows) {
-      const all = rows
-        .flatMap(r => r.response || [])
-        .flatMap(entry =>
-          (entry.transfers || []).map(tr => normalizeTransfer(entry, tr))
-        )
-        .filter(t => t.player && validTransferDate(t.date))
-        .sort((a, b) => new Date(b.date) - new Date(a.date));
-
-      const seen = new Set();
-      return all.filter(t => {
-        const k = `${t.playerId}-${t.fromId}-${t.toId}-${t.date}`;
-        if (seen.has(k)) return false;
-        seen.add(k);
-        return true;
-      });
-    }
+    const all = teamResponses
+      .flatMap(r => r.response || [])
+      .flatMap(entry =>
+        (entry.transfers || []).map(tr => ({
+          player: entry.player?.name ?? '',
+          playerId: entry.player?.id ?? 0,
+          photo: entry.player?.photo ?? '',
+          from: tr.teams?.out?.name ?? '',
+          fromId: tr.teams?.out?.id ?? 0,
+          fromLogo: tr.teams?.out?.logo ?? '',
+          to: tr.teams?.in?.name ?? '',
+          toId: tr.teams?.in?.id ?? 0,
+          toLogo: tr.teams?.in?.logo ?? '',
+          type: tr.type ?? 'Transfer',
+          date: tr.date ?? '',
+        }))
+      )
+      .filter(t => t.player && validDate(t.date))
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
 
     // =========================
-    // 1) Försök liga-baserat först
+    // 4. dedupe
     // =========================
-    const batchSize = 15;
-    let leagueResponses = [];
-
-    for (let i = 0; i < allLeagues.length; i += batchSize) {
-      const batch = allLeagues.slice(i, i + batchSize);
-
-      const results = await Promise.all(
-        batch.map(lid =>
-          fetchJSON(`https://v3.football.api-sports.io/transfers?league=${lid}`, key)
-            .catch(() => ({ response: [] }))
-        )
-      );
-
-      leagueResponses = leagueResponses.concat(results);
-    }
-
-    let unique = cleanTransfers(leagueResponses);
-    let source = 'league';
-    let fallbackUsed = false;
-
-    // =========================
-    // 2) Om för tunt/tomt -> fallback till team-baserat
-    // =========================
-    if (unique.length < 20) {
-      const teamResponses = await Promise.all(
-        TOP5_TEAMS.map(id =>
-          fetchJSON(`https://v3.football.api-sports.io/transfers?team=${id}`, key)
-            .catch(() => ({ response: [] }))
-        )
-      );
-
-      const teamUnique = cleanTransfers(teamResponses);
-
-      const merged = [...unique, ...teamUnique]
-        .sort((a, b) => new Date(b.date) - new Date(a.date));
-
-      const seenMerged = new Set();
-      unique = merged.filter(t => {
-        const k = `${t.playerId}-${t.fromId}-${t.toId}-${t.date}`;
-        if (seenMerged.has(k)) return false;
-        seenMerged.add(k);
-        return true;
-      });
-
-      source = unique.length ? 'hybrid' : 'team';
-      fallbackUsed = true;
-    }
-
-    unique = unique.slice(0, limit);
+    const seen = new Set();
+    const unique = all.filter(t => {
+      const k = `${t.playerId}-${t.fromId}-${t.toId}-${t.date}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    }).slice(0, limit);
 
     return new Response(JSON.stringify({
       response: unique,
       results: unique.length,
       meta: {
-        source,
-        fallbackUsed,
-        region: rotatingRegion,
-        leagues: allLeagues.length,
-        teams: TOP5_TEAMS.length,
-        yearsBack: 2
+        source: "teams-from-leagues",
+        teamsUsed: teams.length,
+        leagues: TOP_LEAGUES.length
       }
     }), {
       status: 200,
       headers: {
-        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+        'Cache-Control': 'public, s-maxage=3600'
       }
     });
+
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
