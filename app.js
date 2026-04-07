@@ -1,33 +1,12 @@
-const API = '/api/football';
+const app = document.getElementById('app');
 
-const state = {
-  searchOpen: false,
-  searchResults: [],
-};
+function render() {
+  app.innerHTML = `
+    <div style="min-height:100vh;color:white;padding:40px;font-family:Arial,sans-serif;">
+      <h1 style="font-size:48px;margin:0 0 16px;">TransferZoneAI</h1>
+      <p style="font-size:20px;margin:0;">Vanilla rebuild is alive.</p>
+    </div>
+  `;
+}
 
-const routes = {
-  '/': renderHome,
-  '/transfers': renderTransfers,
-  '/live': renderLive,
-};
-
-function appShell(content, active = '/') {
-  return `
-    <div class="shell">
-      <header class="topbar">
-        <div class="container topbar-inner">
-          <a class="brand" href="/" data-link>
-            <div class="brand-logo">
-              <img src="/transferzoneai-logo.png" alt="TransferZoneAI logo" />
-            </div>
-            <div class="brand-name">TransferZone<span>AI</span></div>
-          </a>
-
-          <nav class="nav">
-            <a href="/" data-link class="${active === '/' ? 'active' : ''}">Home</a>
-            <a href="/transfers" data-link class="${active === '/transfers' ? 'active' : ''}">Transfers</a>
-            <a href="/live" data-link class="${active === '/live' ? 'active' : ''}">Live</a>
-          </nav>
-
-          <div class="searchbox">
-router();
+render();
