@@ -285,11 +285,16 @@ async function renderHome() {
             const toName = move.teams?.in?.name || 'Unknown club';
             const type = move.type || 'Transfer';
 
-            const playerName =
-              player.name ||
-              t.player_name ||
-              move.player_name ||
-              'Unknown player';
+            let playerName =
+  player.name ||
+  t.player_name ||
+  move.player_name;
+
+if (!playerName || playerName === 'undefined') {
+  playerName = move?.player?.name || 'Unnamed player';
+}
+
+const safeName = playerName || 'Transfer';
 
             const playerPhoto =
               player.photo ||
@@ -309,8 +314,12 @@ async function renderHome() {
               <a class="transfer-item" data-link href="${playerHref}">
                 ${avatar(playerPhoto, playerName)}
                 <div class="transfer-copy">
-                  <div><strong>${escapeHtml(playerName)}</strong></div>
-                  <div class="transfer-route">${escapeHtml(fromName)} → ${escapeHtml(toName)}</div>
+                  <div><strong>${escapeHtml(safeName)}</strong></div>
+                  <div class="transfer-route">
+  ${escapeHtml(fromName)} 
+  <span style="color:var(--gold);font-weight:900;">→</span> 
+  ${escapeHtml(toName)}
+</div>
                 </div>
                 <div class="transfer-type">${escapeHtml(type)}</div>
               </a>
